@@ -1,4 +1,4 @@
-
+import type { ChatImage } from "../types/chat.js";
 import {
   GoogleGenAI,
   type Content,
@@ -25,6 +25,7 @@ interface GenerateWithToolsInput {
   userMessage: string;
   conversationHistory: LLMMessage[];
   patientId: string;
+  image?: ChatImage;
 }
 
 interface GenerateWithToolsResult {
@@ -103,11 +104,29 @@ export class LLMService {
         parts: [{ text: message.content }],
       });
     }
+const userParts: Part[] = [
+  { text: input.userMessage },
+];
 
-    contents.push({
-      role: "user",
-      parts: [{ text: input.userMessage }],
-    });
+if (input.image) {
+  const base64Data = input.image.dataUrl.split(",")[1];
+
+  if (!base64Data) {
+    throw new Error("Invalid image data.");
+  }
+
+  userParts.push({
+    inlineData: {
+      mimeType: input.image.mimeType,
+      data: base64Data,
+    },
+  });
+}
+
+contents.push({
+  role: "user",
+  parts: userParts,
+});
 
     const toolsUsed: string[] = [];
     const toolsUsedSet = new Set<string>();

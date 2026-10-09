@@ -1,14 +1,22 @@
+
 export type Language = "en" | "am";
 
 export type SummaryDetail = "short" | "normal" | "detailed";
 
 export type MessageRole = "user" | "assistant";
 
+export interface ChatImage {
+  fileName: string;
+  mimeType: string;
+  dataUrl: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
   timestamp: string;
+  attachment?: ChatImage;
   safety?: {
     requiresAttention: boolean;
   };
@@ -19,6 +27,7 @@ export interface ChatRequest {
   conversationId: string;
   language: Language;
   detail: SummaryDetail;
+  image?: ChatImage;
 }
 
 export interface ChatAction {

@@ -1,3 +1,4 @@
+
 import type {
   ChatRequest,
   ChatResponse,
@@ -11,23 +12,20 @@ export async function sendChatMessage(
   request: ChatRequest
 ): Promise<ChatResponse> {
   try {
-    const response = await fetch(
-      `${API_URL}/chat`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request),
-      }
-    );
+    const response = await fetch(`${API_URL}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
 
     let data: unknown = null;
 
     try {
       data = await response.json();
     } catch {
-      // Response was not valid JSON.
+      // The response was not valid JSON.
     }
 
     if (!response.ok) {
@@ -38,6 +36,12 @@ export async function sendChatMessage(
         typeof data.error === "string"
       ) {
         throw new Error(data.error);
+      }
+
+      if (response.status === 413) {
+        throw new Error(
+          "The image is too large for the server to accept. Please use a smaller image."
+        );
       }
 
       if (response.status === 503) {

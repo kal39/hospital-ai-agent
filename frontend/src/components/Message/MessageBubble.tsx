@@ -1,3 +1,6 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 import type { ChatMessage } from "../../types/chat";
 
 interface MessageBubbleProps {
@@ -8,6 +11,8 @@ export default function MessageBubble({
   message,
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const content =
+    typeof message.content === "string" ? message.content : "";
 
   return (
     <div
@@ -24,8 +29,23 @@ export default function MessageBubble({
           {isUser ? "You" : "Hospital AI Assistant"}
         </div>
 
-        <div className="message-content">
-          {message.content}
+        <div
+          className={`message-content ${
+            isUser
+              ? "message-content-user"
+              : "message-content-assistant"
+          }`}
+        >
+          {isUser ? (
+            content
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeSanitize]}
+            >
+              {content}
+            </ReactMarkdown>
+          )}
         </div>
 
         <div className="message-time">

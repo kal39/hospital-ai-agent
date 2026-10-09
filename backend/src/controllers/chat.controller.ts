@@ -28,14 +28,15 @@ export async function chatController(
     console.log("[CHAT DEBUG] Request validation passed.");
     console.log("[CHAT DEBUG] Calling agentService.run...");
 
-    const result = await agentService.run(
-      body.message,
-      {
-        patientId: req.patient.patientId,
-        conversationId,
-      },
-      language
-    );
+const result = await agentService.run(
+  body.message,
+  {
+    patientId: req.patient.patientId,
+    conversationId,
+  },
+  language,
+  body.image
+);
 
     console.log("[CHAT DEBUG] Agent service completed successfully.");
 
