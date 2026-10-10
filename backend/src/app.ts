@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -19,6 +20,8 @@ app.use(
   })
 );
 
+// A 5 MB binary file expands to about 6.67 MB in Base64.
+// Leave room for JSON fields while keeping an explicit request limit.
 app.use(express.json({ limit: "8mb" }));
 
 app.get("/health", (_req, res) => {
@@ -31,14 +34,33 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/chat", chatRoutes);
 
+app.use((_req, res) => {
+  res.status(404).json({
+    error: "Route not found.",
+  });
+});
+
+// Convert oversized JSON requests into a clear client error.
 app.use(
   (
-    _req,
-    res
+    error: unknown,
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
   ) => {
-    res.status(404).json({
-      error: "Route not found.",
-    });
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
+      res.status(413).json({
+        error: "The request is too large. Upload a file no larger than 5 MB.",
+      });
+      return;
+    }
+
+    next(error);
   }
 );
 

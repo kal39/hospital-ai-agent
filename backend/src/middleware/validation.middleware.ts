@@ -1,16 +1,22 @@
+
 import { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { env } from "../config/env.js";
 
 const imageSchema = z.object({
-  fileName: z.string().min(1).max(255),
-  mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+  ]),
   dataUrl: z
     .string()
-    .max(7_100_000, "Image is too large.")
+    .max(7_100_000, "File is too large.")
     .regex(
-      /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/,
-      "Invalid image data URL."
+      /^data:(image\/(jpeg|png|webp)|application\/pdf);base64,[A-Za-z0-9+/]+={0,2}$/,
+      "Invalid file data URL."
     ),
 });
 
@@ -25,7 +31,7 @@ const chatSchema = z
       )
       .default(""),
 
-    conversationId: z.string().optional(),
+    conversationId: z.string().max(128).optional(),
 
     language: z.enum(["en", "am"]).optional(),
 
@@ -33,7 +39,7 @@ const chatSchema = z
   })
   .refine(
     (data) => data.message.length > 0 || Boolean(data.image),
-    { message: "Enter a message or attach an image." }
+    { message: "Enter a message or attach a file." }
   )
   .refine(
     (data) =>
@@ -42,7 +48,7 @@ const chatSchema = z
         `data:${data.image.mimeType};base64,`
       ),
     {
-      message: "Image MIME type does not match its data.",
+      message: "File MIME type does not match its data.",
       path: ["image", "dataUrl"],
     }
   );
@@ -51,7 +57,7 @@ export function validateChatRequest(
   req: Request,
   res: Response,
   next: NextFunction
-) {
+): void {
   const result = chatSchema.safeParse(req.body);
 
   if (!result.success) {

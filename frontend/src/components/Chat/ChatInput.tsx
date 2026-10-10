@@ -49,29 +49,32 @@ type SpeechWindow = Window & {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = [
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+
+const ALLOWED_ATTACHMENT_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  "application/pdf",
 ];
 
 const translations = {
   en: {
     placeholder: "Ask about your hospital information...",
     messageLabel: "Message",
-    attachImage: "Attach image",
+    attachImage: "Attach file",
     remove: "Remove",
-    removeImage: "Remove selected image",
+    removeImage: "Remove selected file",
     selectedImagePreview: "Selected image preview",
     voice: "Voice",
     stopVoice: "Stop voice",
     send: "Send",
     sending: "Sending...",
     imageOnlyPrompt:
-      "Please help me understand the information in this image.",
-    imageTypeError: "Choose a JPG, PNG, or WebP image.",
-    imageSizeError: "The image must be 5 MB or smaller.",
+      "Please help me understand the information in this attached file.",
+    imageTypeError:
+      "Choose a JPG, PNG, WebP image, or PDF document.",
+    imageSizeError: "The file must be 5 MB or smaller.",
     enterToSend: "Press Enter to send. Use Shift + Enter for a new line.",
     recognizing: "Recognizing",
     listening: "Listening...",
@@ -100,41 +103,46 @@ const translations = {
   am: {
     placeholder: "ስለ ሆስፒታል መረጃዎ ይጠይቁ...",
     messageLabel: "መልዕክት",
-    attachImage: "ምስል ያያይዙ",
+    attachImage: "ፋይል ያያይዙ",
     remove: "አስወግድ",
-    removeImage: "የተመረጠውን ምስል አስወግድ",
+    removeImage: "የተመረጠውን ፋይል አስወግድ",
     selectedImagePreview: "የተመረጠው ምስል ቅድመ እይታ",
-    voice: "በድምፅ",
-    stopVoice: "ድምፅ አቁም",
+    voice: "በድምፅ ይናገሩ",
+    stopVoice: "ድምፅ ማዳመጥ አቁም",
     send: "ላክ",
     sending: "በመላክ ላይ...",
     imageOnlyPrompt:
-      "እባክዎ በዚህ ምስል ውስጥ ያለውን መረጃ እንድረዳ ያግዙኝ።",
-    imageTypeError: "እባክዎ JPG፣ PNG ወይም WebP ምስል ይምረጡ።",
-    imageSizeError: "የምስሉ መጠን ከ5 MB መብለጥ የለበትም።",
-    enterToSend: "ለመላክ Enter ይጫኑ። አዲስ መስመር ለመጀመር Shift + Enter ይጠቀሙ።",
-    recognizing: "ድምፅዎ እየተለየ ነው",
-    listening: "እያዳመጠ ነው...",
-    finished: "የድምፅ ግቤት ተጠናቋል። ከመላክዎ በፊት ጽሑፉን ይመልከቱ።",
-    finishing: "የድምፅ ግቤት እየተጠናቀቀ ነው...",
+      "በተያያዘው ፋይል ውስጥ ያለውን መረጃ እንድረዳ እርዳኝ።",
+    imageTypeError:
+      "JPG፣ PNG፣ WebP ምስል ወይም PDF ሰነድ ይምረጡ።",
+    imageSizeError:
+      "የፋይሉ መጠን 5 MB ወይም ከዚያ በታች መሆን አለበት።",
+    enterToSend:
+      "ለመላክ Enter ይጫኑ። አዲስ መስመር ለመጀመር Shift + Enter ይጠቀሙ።",
+    recognizing: "ድምፅን በመለየት ላይ",
+    listening: "በማዳመጥ ላይ...",
+    finished:
+      "የድምፅ ግቤት ተጠናቋል። ከመላክዎ በፊት ጽሑፉን ይመልከቱ።",
+    finishing: "የድምፅ ግቤትን በማጠናቀቅ ላይ...",
     unsupported:
       "ይህ አሳሽ የድምፅ ግቤትን አይደግፍም። እባክዎ መልዕክትዎን በጽሑፍ ያስገቡ።",
     microphoneDenied:
-      "የማይክሮፎን ፈቃድ አልተሰጠም። በአሳሽዎ ቅንብሮች ውስጥ የማይክሮፎን ፈቃድ ይስጡ።",
+      "የማይክሮፎን ፈቃድ አልተሰጠም። በአሳሹ ቅንብሮች ውስጥ ፈቃዱን ይፍቀዱ።",
     serviceUnavailable:
       "የአሳሹ የድምፅ መለያ አገልግሎት አይገኝም ወይም ታግዷል።",
-    noSpeech: "ድምፅ አልተለየም። እባክዎ እንደገና ይናገሩ።",
+    noSpeech:
+      "ድምፅ አልተለየም። እባክዎ እንደገና ይናገሩ።",
     noMicrophone:
-      "ማይክሮፎን አልተገኘም። የማይክሮፎኑን ግንኙነት ይፈትሹ።",
+      "ማይክሮፎን አልተገኘም። ግንኙነቱን ያረጋግጡ።",
     networkError:
-      "የኔትወርክ ችግር የድምፅ መለየቱን አቋርጧል። ግንኙነትዎን ይፈትሹ።",
+      "የኔትወርክ ችግር የድምፅ መለያውን አቋረጠ። ግንኙነትዎን ያረጋግጡ።",
     stopped: "የድምፅ ግቤት ቆሟል።",
     languageUnsupported:
-      "የአሁኑ የአሳሽ የድምፅ አገልግሎት የአማርኛ ድምፅ መለየትን ላይደግፍ ይችላል። እባክዎ የአማርኛ መልዕክትዎን በጽሑፍ ያስገቡ ወይም አማርኛን የሚደግፍ ሌላ አሳሽ ይሞክሩ።",
+      "የአሁኑ የአሳሽ የድምፅ አገልግሎት አማርኛን ላይደግፍ ይችላል። እባክዎ በአማርኛ ይጻፉ ወይም ሌላ ተስማሚ አሳሽ ይሞክሩ።",
     voiceFailed:
-      "የድምፅ ግቤት አልተሳካም። እባክዎ እንደገና ይሞክሩ ወይም መልዕክትዎን በጽሑፍ ያስገቡ።",
+      "የድምፅ ግቤት አልተሳካም። እንደገና ይሞክሩ ወይም በጽሑፍ ያስገቡ።",
     startFailed:
-      "የድምፅ ግቤትን መጀመር አልተቻለም። የማይክሮፎን ፈቃዶችን ይፈትሹና እንደገና ይሞክሩ።",
+      "የድምፅ ግቤትን መጀመር አልተቻለም። የማይክሮፎን ፈቃድዎን ያረጋግጡ።",
   },
 } satisfies Record<Language, Record<string, string>>;
 
@@ -171,12 +179,12 @@ export default function ChatInput({
 
     setImageError("");
 
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
       setImageError(t.imageTypeError);
       return;
     }
 
-    if (file.size > MAX_IMAGE_SIZE) {
+    if (file.size > MAX_ATTACHMENT_SIZE) {
       setImageError(t.imageSizeError);
       return;
     }
@@ -314,6 +322,9 @@ export default function ChatInput({
     }
   };
 
+  const isSelectedPdf =
+    selectedImage?.type === "application/pdf";
+
   return (
     <div className="chat-input-area">
       <div className="input-wrapper">
@@ -329,16 +340,35 @@ export default function ChatInput({
               borderRadius: "10px",
             }}
           >
-            <img
-              src={URL.createObjectURL(selectedImage)}
-              alt={t.selectedImagePreview}
-              style={{
-                width: "76px",
-                height: "76px",
-                objectFit: "cover",
-                borderRadius: "8px",
-              }}
-            />
+            {isSelectedPdf ? (
+              <div
+                aria-label="PDF document"
+                style={{
+                  width: "76px",
+                  height: "76px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "8px",
+                  background: "#f1f5f9",
+                  color: "#334155",
+                  fontWeight: 700,
+                }}
+              >
+                PDF
+              </div>
+            ) : (
+              <img
+                src={URL.createObjectURL(selectedImage)}
+                alt={t.selectedImagePreview}
+                style={{
+                  width: "76px",
+                  height: "76px",
+                  objectFit: "cover",
+                  borderRadius: "8px",
+                }}
+              />
+            )}
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
@@ -374,7 +404,7 @@ export default function ChatInput({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
           onChange={handleImageSelection}
           hidden
           disabled={disabled}

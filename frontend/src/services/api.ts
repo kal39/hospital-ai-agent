@@ -1,4 +1,3 @@
-
 import type {
   ChatRequest,
   ChatResponse,
@@ -8,6 +7,8 @@ const API_URL =
   import.meta.env.VITE_API_URL ||
   "http://localhost:5000/api";
 
+const DEMO_PATIENT_ID = import.meta.env.VITE_DEMO_PATIENT_ID;
+
 export async function sendChatMessage(
   request: ChatRequest
 ): Promise<ChatResponse> {
@@ -16,6 +17,11 @@ export async function sendChatMessage(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(import.meta.env.DEV && DEMO_PATIENT_ID
+          ? {
+              "x-demo-patient-id": DEMO_PATIENT_ID,
+            }
+          : {}),
       },
       body: JSON.stringify(request),
     });

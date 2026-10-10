@@ -1,11 +1,11 @@
 
-import type { ChatImage } from "../types/chat.js";
 import {
   GoogleGenAI,
   type Content,
   type Part,
 } from "@google/genai";
 
+import type { ChatImage } from "../types/chat.js";
 import { env } from "../config/env.js";
 import { hospitalToolDefinitions } from "../tools/toolDefinitions.js";
 import { executeHospitalTool } from "./toolExecutor.js";
@@ -35,6 +35,10 @@ interface GeminiRequestInput {
 
 const MAX_TOOL_ROUNDS = 5;
 const MAX_ATTEMPTS = 2;
+
+const ALLOWED_TOOL_NAMES = new Set(
+  hospitalToolDefinitions.map((tool) => tool.name)
+);
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -70,6 +74,36 @@ function toResponseObject(value: unknown): Record<string, unknown> {
   return { data: value };
 }
 
+/**
+ * The current hospital tools require no model-supplied arguments.
+ * Reject unexpected arguments instead of silently accepting them.
+ */
+function validateToolCall(
+  toolName: string,
+  args: unknown
+): void {
+  if (!ALLOWED_TOOL_NAMES.has(toolName)) {
+    throw new Error("Gemini requested an unsupported hospital tool.");
+  }
+
+  if (args === undefined || args === null) {
+    return;
+  }
+
+  if (
+    typeof args !== "object" ||
+    Array.isArray(args)
+  ) {
+    throw new Error("Gemini returned invalid hospital tool arguments.");
+  }
+
+  if (Object.keys(args).length !== 0) {
+    throw new Error(
+      "The requested hospital tool does not accept arguments."
+    );
+  }
+}
+
 export class LLMService {
   private client: GoogleGenAI | null = null;
 
@@ -90,9 +124,16 @@ export class LLMService {
       );
     }
 
+    if (!input.patientId || !input.patientId.trim()) {
+      throw new Error(
+        "Authenticated patient identity is required."
+      );
+    }
+
     const contents: Content[] = [];
 
-    // Restore prior conversation messages.
+    // Restore prior conversation messages as context, not as
+    // instructions that can override the system prompt.
     for (const message of input.conversationHistory) {
       contents.push({
         role: message.role === "assistant" ? "model" : "user",
@@ -108,7 +149,7 @@ export class LLMService {
       const base64Data = input.image.dataUrl.split(",")[1];
 
       if (!base64Data) {
-        throw new Error("Invalid image data.");
+        throw new Error("Invalid attachment data.");
       }
 
       userParts.push({
@@ -135,7 +176,6 @@ export class LLMService {
 
       const functionCalls = response.functionCalls ?? [];
 
-      // Return the model response when no additional tool is requested.
       if (functionCalls.length === 0) {
         const message = response.text;
 
@@ -149,8 +189,8 @@ export class LLMService {
         };
       }
 
-      // Preserve the original model content, including any
-      // Gemini thought_signature required for tool-call continuation.
+      // Preserve Gemini's original model content and any required
+      // metadata used to continue the function-calling exchange.
       const modelContent = response.candidates?.[0]?.content;
 
       if (!modelContent) {
@@ -172,9 +212,11 @@ export class LLMService {
           );
         }
 
-        // IMPORTANT:
-        // Patient identity comes from trusted backend context.
-        // Gemini's arguments are never used to select a patient.
+        // Validate the name and arguments before execution.
+        validateToolCall(toolName, functionCall.args);
+
+        // The authenticated patient ID comes only from trusted
+        // backend context. It is never taken from Gemini arguments.
         const toolResult = executeHospitalTool(
           toolName,
           input.patientId
@@ -250,14 +292,10 @@ export class LLMService {
         } catch (error: unknown) {
           lastError = error;
 
-          // Avoid logging complete provider errors, which may contain
-          // implementation details. Add sanitized structured logging
-          // before production deployment.
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-
+          // Do not log provider error details that might disclose
+          // sensitive implementation or request information.
           console.error(
-            `Gemini request failed: model=${model}, attempt=${attempt}/${MAX_ATTEMPTS}, error=${errorMessage}`
+            `Gemini request failed: model=${model}, attempt=${attempt}/${MAX_ATTEMPTS}`
           );
 
           if (
@@ -279,9 +317,7 @@ export class LLMService {
       );
     }
 
-    throw lastError instanceof Error
-      ? lastError
-      : new Error("Gemini request failed.");
+    throw new Error("Gemini request failed.");
   }
 
   async generate(messages: LLMMessage[]): Promise<string> {

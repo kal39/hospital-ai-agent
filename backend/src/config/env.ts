@@ -5,13 +5,19 @@ function getNumber(
   fallback: number
 ): number {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : fallback;
 }
 
 export const env = {
   port: getNumber(process.env.PORT, 5000),
 
-  nodeEnv: process.env.NODE_ENV ?? "development",
+  nodeEnv: process.env.NODE_ENV ?? "production",
+
+  // Demo authentication must be explicitly enabled in .env.
+  demoAuthEnabled:
+    process.env.DEMO_AUTH_ENABLED === "true",
 
   llmApiKey: process.env.LLM_API_KEY ?? "",
 

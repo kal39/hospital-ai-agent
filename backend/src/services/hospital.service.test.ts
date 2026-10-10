@@ -16,36 +16,21 @@ describe("HospitalService", () => {
     ).toBeNull();
   });
 
-  it("returns no lab results for an unknown patient", () => {
+  it("returns no records for an unknown patient", () => {
     expect(
       hospitalService.getAllLabResults("patient-999")
     ).toEqual([]);
-  });
 
-  it("returns no medications for an unknown patient", () => {
     expect(
       hospitalService.getMedications("patient-999")
     ).toEqual([]);
-  });
 
-  it("returns no medical history for an unknown patient", () => {
     expect(
       hospitalService.getMedicalHistory("patient-999")
     ).toEqual([]);
   });
 
-  it("returns lab results only for the requested patient key", () => {
-    const results =
-      hospitalService.getAllLabResults("patient-001");
-
-    const unknownPatientResults =
-      hospitalService.getAllLabResults("patient-999");
-
-    expect(results.length).toBeGreaterThan(0);
-    expect(unknownPatientResults).toEqual([]);
-  });
-
-  it("returns different profiles for different patient IDs", () => {
+  it("returns distinct profiles for different patients", () => {
     const patientOne =
       hospitalService.getPatientProfile("patient-001");
 
@@ -54,10 +39,10 @@ describe("HospitalService", () => {
 
     expect(patientOne?.id).toBe("patient-001");
     expect(patientTwo?.id).toBe("patient-002");
-    expect(patientOne?.id).not.toBe(patientTwo?.id);
+    expect(patientOne).not.toEqual(patientTwo);
   });
 
-  it("keeps lab results separated by patient ID", () => {
+  it("keeps lab results separated between patients", () => {
     const patientOneLabs =
       hospitalService.getAllLabResults("patient-001");
 
@@ -72,9 +57,12 @@ describe("HospitalService", () => {
 
     expect(patientTwoLabs.map((lab) => lab.id))
       .not.toContain("lab-001");
+
+    expect(patientOneLabs.map((lab) => lab.id))
+      .not.toEqual(patientTwoLabs.map((lab) => lab.id));
   });
 
-  it("keeps medications separated by patient ID", () => {
+  it("keeps medications separated between patients", () => {
     const patientOneMeds =
       hospitalService.getMedications("patient-001");
 
@@ -86,9 +74,11 @@ describe("HospitalService", () => {
 
     expect(patientTwoMeds.map((med) => med.id))
       .toEqual(["med-002"]);
+
+    expect(patientOneMeds).not.toEqual(patientTwoMeds);
   });
 
-  it("keeps medical history separated by patient ID", () => {
+  it("keeps medical history separated between patients", () => {
     const patientOneHistory =
       hospitalService.getMedicalHistory("patient-001");
 
@@ -100,5 +90,8 @@ describe("HospitalService", () => {
 
     expect(patientTwoHistory.map((item) => item.id))
       .not.toContain("history-001");
+
+    expect(patientOneHistory.map((item) => item.id))
+      .not.toEqual(patientTwoHistory.map((item) => item.id));
   });
 });

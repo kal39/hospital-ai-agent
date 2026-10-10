@@ -25,27 +25,35 @@ const translations = {
     assistantName: "Hospital AI Assistant",
     requestError:
       "I’m unable to process your request right now. Please try again in a moment.",
-    imageReadError: "Could not read the selected image.",
-    imageReadFailure: "Failed to read the selected image.",
+    fileReadError: "Could not read the selected file.",
+    fileReadFailure: "Failed to read the selected file.",
     attachedImage: "Attached image",
+    attachedDocument: "Attached PDF document",
+    unsupportedFileError:
+      "Please select a JPG, PNG, WebP image, or PDF document.",
   },
+
   am: {
     greeting:
-      "ሰላም። እኔ የሆስፒታልዎ የAI ረዳት ነኝ። በሆስፒታልዎ መዝገብ ውስጥ ያሉ የላብራቶሪ ውጤቶችን፣ መድኃኒቶችን፣ የሕክምና ታሪክን እና የሕክምና መረጃዎችን እንዲረዱ ልረዳዎ እችላለሁ።\n\nየሕክምና መረጃን በቀላል ቋንቋ ማብራራት እችላለሁ፤ ሆኖም በሽታን መመርመር ወይም የመድኃኒት አጠቃቀምዎን መቀየር አልችልም።",
-    suggestionsTitle: "ከእነዚህ ጥያቄዎች አንዱን ይሞክሩ",
+      "ሰላም! እኔ የሆስፒታል AI ረዳትዎ ነኝ። ከሆስፒታል መዝገብዎ የላቦራቶሪ ውጤቶችን፣ መድኃኒቶችን፣ የሕክምና ታሪክን እና የሕክምና መረጃዎችን እንዲረዱ እረዳዎታለሁ።\n\nመረጃውን በቀላል ቋንቋ ማብራራት እችላለሁ፣ ነገር ግን በሽታ መመርመር ወይም የመድኃኒት ሕክምናዎን መቀየር አልችልም።",
+    suggestionsTitle: "እነዚህን መጠየቅ ይችላሉ",
     suggestions: [
-      "የቅርብ ጊዜ የላብራቶሪ ውጤቶቼን ያብራሩልኝ",
-      "የሕክምና ታሪኬን ያጠቃልሉልኝ",
-      "መድኃኒቶቼን ያብራሩልኝ",
+      "የቅርብ ጊዜ የላቦራቶሪ ውጤቶቼን አብራራልኝ",
+      "የሕክምና ታሪኬን አጠቃልልልኝ",
+      "መድኃኒቶቼን አብራራልኝ",
       "ለሚቀጥለው ቀጠሮዬ ምን ማዘጋጀት አለብኝ?",
     ],
     assistantName: "የሆስፒታል AI ረዳት",
     requestError:
-      "ጥያቄዎን አሁን ማስኬድ አልቻልኩም። እባክዎ ከጥቂት ጊዜ በኋላ እንደገና ይሞክሩ።",
-    imageReadError: "የመረጡትን ምስል ማንበብ አልተቻለም።",
-    imageReadFailure: "ምስሉን ለማንበብ ስህተት ተፈጥሯል።",
+      "ጥያቄዎን በአሁኑ ጊዜ ማስኬድ አልተቻለም። እባክዎ ቆይተው እንደገና ይሞክሩ።",
+    fileReadError: "የተመረጠውን ፋይል ማንበብ አልተቻለም።",
+    fileReadFailure: "ፋይሉን በማንበብ ላይ ስህተት ተፈጥሯል።",
     attachedImage: "የተያያዘ ምስል",
+    attachedDocument: "የተያያዘ PDF ሰነድ",
+    unsupportedFileError:
+      "እባክዎ JPG፣ PNG፣ WebP ምስል ወይም PDF ሰነድ ይምረጡ።",
   },
+
 } satisfies Record<
   Language,
   {
@@ -54,9 +62,11 @@ const translations = {
     suggestions: string[];
     assistantName: string;
     requestError: string;
-    imageReadError: string;
-    imageReadFailure: string;
+    fileReadError: string;
+    fileReadFailure: string;
     attachedImage: string;
+    attachedDocument: string;
+    unsupportedFileError: string;
   }
 >;
 
@@ -80,6 +90,30 @@ const createMessage = (
   attachment,
 });
 
+const getSupportedMimeType = (
+  file: File
+): ChatImage["mimeType"] | undefined => {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  if (file.type === "image/jpeg" || extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+
+  if (file.type === "image/png" || extension === "png") {
+    return "image/png";
+  }
+
+  if (file.type === "image/webp" || extension === "webp") {
+    return "image/webp";
+  }
+
+  if (file.type === "application/pdf" || extension === "pdf") {
+    return "application/pdf";
+  }
+
+  return undefined;
+};
+
 const fileToDataUrl = (
   file: File,
   language: Language
@@ -91,16 +125,12 @@ const fileToDataUrl = (
       if (typeof reader.result === "string") {
         resolve(reader.result);
       } else {
-        reject(
-          new Error(translations[language].imageReadError)
-        );
+        reject(new Error(translations[language].fileReadError));
       }
     };
 
     reader.onerror = () =>
-      reject(
-        new Error(translations[language].imageReadFailure)
-      );
+      reject(new Error(translations[language].fileReadFailure));
 
     reader.readAsDataURL(file);
   });
@@ -119,8 +149,6 @@ export default function ChatWindow() {
 
   const t = translations[language];
 
-  // Update the welcome message if the user switches languages
-  // before starting a conversation.
   useEffect(() => {
     setMessages((currentMessages) =>
       currentMessages.length === 1 &&
@@ -134,19 +162,38 @@ export default function ChatWindow() {
     if (loading) return;
 
     setError("");
-    setLoading(true);
 
-    // Capture the selected language for this request.
     const requestLanguage = language;
     const requestTranslations = translations[requestLanguage];
 
-    try {
-      let attachment: ChatImage | undefined;
+    let attachment: ChatImage | undefined;
 
+    if (file) {
+      const mimeType = getSupportedMimeType(file);
+
+      if (!mimeType) {
+        setError(requestTranslations.unsupportedFileError);
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        setError(
+          requestLanguage === "en"
+            ? "The file must be 5 MB or smaller."
+            : 
+            "የፋይሉ መጠን 5 MB ወይም ከዚያ በታች መሆን አለበት።"
+        );
+        return;
+      }
+    }
+
+    setLoading(true);
+
+    try {
       if (file) {
         attachment = {
           fileName: file.name,
-          mimeType: file.type,
+          mimeType: getSupportedMimeType(file)!,
           dataUrl: await fileToDataUrl(file, requestLanguage),
         };
       }
@@ -223,23 +270,75 @@ export default function ChatWindow() {
                     <div
                       style={{
                         margin: "8px 0 16px 44px",
+                        maxWidth: "min(360px, calc(100% - 44px))",
                       }}
                     >
-                      <img
-                        src={message.attachment.dataUrl}
-                        alt={`${t.attachedImage}: ${message.attachment.fileName}`}
-                        style={{
-                          display: "block",
-                          maxWidth: "min(280px, 100%)",
-                          maxHeight: "260px",
-                          objectFit: "contain",
-                          borderRadius: "10px",
-                          border: "1px solid #d8dee8",
-                        }}
-                      />
-                      <p className="input-hint">
-                        {message.attachment.fileName}
-                      </p>
+                      {message.attachment.mimeType ===
+                      "application/pdf" ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            padding: "12px 14px",
+                            border: "1px solid #d8dee8",
+                            borderRadius: "10px",
+                            background: "#f8fafc",
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              fontSize: "28px",
+                              lineHeight: 1,
+                            }}
+                          >
+                            📄
+                          </span>
+
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: "14px",
+                              }}
+                            >
+                              {t.attachedDocument}
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#475569",
+                                overflowWrap: "anywhere",
+                              }}
+                            >
+                              {message.attachment.fileName}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={message.attachment.dataUrl}
+                          alt={`${t.attachedImage}: ${message.attachment.fileName}`}
+                          style={{
+                            display: "block",
+                            maxWidth: "min(280px, 100%)",
+                            maxHeight: "260px",
+                            objectFit: "contain",
+                            borderRadius: "10px",
+                            border: "1px solid #d8dee8",
+                          }}
+                        />
+                      )}
+
+                      {message.attachment.mimeType !==
+                        "application/pdf" && (
+                        <p className="input-hint">
+                          {message.attachment.fileName}
+                        </p>
+                      )}
                     </div>
                   )}
               </div>
@@ -255,9 +354,7 @@ export default function ChatWindow() {
                   <div
                     className="typing-indicator"
                     aria-label={
-                      language === "am"
-                        ? "በማስኬድ ላይ"
-                        : "Processing"
+                      language === "am" ? "Processing" : "Processing"
                     }
                   >
                     <span />
