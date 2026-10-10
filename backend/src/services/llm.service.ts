@@ -1,3 +1,4 @@
+
 import type { ChatImage } from "../types/chat.js";
 import {
   GoogleGenAI,
@@ -6,14 +7,8 @@ import {
 } from "@google/genai";
 
 import { env } from "../config/env.js";
-
-import { getPatientProfile } from "../tools/getPatientProfile.js";
-import { getLatestLabResults } from "../tools/getLatestLabResults.js";
-import { getMedications } from "../tools/getMedications.js";
-import { getMedicalHistory } from "../tools/getMedicalHistory.js";
-import { compareLabResults } from "../tools/compareLabResults.js";
-
 import { hospitalToolDefinitions } from "../tools/toolDefinitions.js";
+import { executeHospitalTool } from "./toolExecutor.js";
 
 interface LLMMessage {
   role: "system" | "user" | "assistant";
@@ -104,29 +99,30 @@ export class LLMService {
         parts: [{ text: message.content }],
       });
     }
-const userParts: Part[] = [
-  { text: input.userMessage },
-];
 
-if (input.image) {
-  const base64Data = input.image.dataUrl.split(",")[1];
+    const userParts: Part[] = [
+      { text: input.userMessage },
+    ];
 
-  if (!base64Data) {
-    throw new Error("Invalid image data.");
-  }
+    if (input.image) {
+      const base64Data = input.image.dataUrl.split(",")[1];
 
-  userParts.push({
-    inlineData: {
-      mimeType: input.image.mimeType,
-      data: base64Data,
-    },
-  });
-}
+      if (!base64Data) {
+        throw new Error("Invalid image data.");
+      }
 
-contents.push({
-  role: "user",
-  parts: userParts,
-});
+      userParts.push({
+        inlineData: {
+          mimeType: input.image.mimeType,
+          data: base64Data,
+        },
+      });
+    }
+
+    contents.push({
+      role: "user",
+      parts: userParts,
+    });
 
     const toolsUsed: string[] = [];
     const toolsUsedSet = new Set<string>();
@@ -139,8 +135,7 @@ contents.push({
 
       const functionCalls = response.functionCalls ?? [];
 
-      // If Gemini has finished without requesting another tool,
-      // return its response.
+      // Return the model response when no additional tool is requested.
       if (functionCalls.length === 0) {
         const message = response.text;
 
@@ -154,9 +149,8 @@ contents.push({
         };
       }
 
-      // CRITICAL: Preserve the original model content exactly.
-      // Reconstructing functionCall parts can discard Gemini's
-      // thought_signature and cause an INVALID_ARGUMENT error.
+      // Preserve the original model content, including any
+      // Gemini thought_signature required for tool-call continuation.
       const modelContent = response.candidates?.[0]?.content;
 
       if (!modelContent) {
@@ -173,12 +167,15 @@ contents.push({
         const toolName = functionCall.name;
 
         if (!toolName) {
-          throw new Error("Gemini returned a function call without a name.");
+          throw new Error(
+            "Gemini returned a function call without a name."
+          );
         }
 
-        // The patient identity always comes from the authenticated
-        // backend context, never from Gemini's function arguments.
-        const toolResult = this.executeTool(
+        // IMPORTANT:
+        // Patient identity comes from trusted backend context.
+        // Gemini's arguments are never used to select a patient.
+        const toolResult = executeHospitalTool(
           toolName,
           input.patientId
         );
@@ -196,7 +193,6 @@ contents.push({
         });
       }
 
-      // Return tool results as the next user turn.
       contents.push({
         role: "user",
         parts: functionResponses,
@@ -206,33 +202,6 @@ contents.push({
     throw new Error(
       `Gemini exceeded the maximum of ${MAX_TOOL_ROUNDS} tool-calling rounds.`
     );
-  }
-
-  private executeTool(
-    toolName: string,
-    patientId: string
-  ): unknown {
-    switch (toolName) {
-      case "getLatestLabResults":
-        return getLatestLabResults(patientId);
-
-      case "compareLabResults":
-        return compareLabResults(patientId);
-
-      case "getMedications":
-        return getMedications(patientId);
-
-      case "getMedicalHistory":
-        return getMedicalHistory(patientId);
-
-      case "getPatientProfile":
-        return getPatientProfile(patientId);
-
-      default:
-        throw new Error(
-          `Unauthorized or unknown hospital tool: ${toolName}`
-        );
-    }
   }
 
   private async generateContentWithRetry({
@@ -281,9 +250,14 @@ contents.push({
         } catch (error: unknown) {
           lastError = error;
 
+          // Avoid logging complete provider errors, which may contain
+          // implementation details. Add sanitized structured logging
+          // before production deployment.
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+
           console.error(
-            `Gemini error: model=${model}, attempt=${attempt}`,
-            error
+            `Gemini request failed: model=${model}, attempt=${attempt}/${MAX_ATTEMPTS}, error=${errorMessage}`
           );
 
           if (

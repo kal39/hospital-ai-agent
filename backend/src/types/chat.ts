@@ -1,10 +1,10 @@
 import { Language } from "./patient.js";
-
 export interface ChatImage {
   fileName: string;
-  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  mimeType: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
   dataUrl: string;
 }
+
 
 export interface ChatRequest {
   message: string;

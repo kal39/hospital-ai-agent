@@ -5,9 +5,10 @@ export type SummaryDetail = "short" | "normal" | "detailed";
 
 export type MessageRole = "user" | "assistant";
 
+
 export interface ChatImage {
   fileName: string;
-  mimeType: string;
+  mimeType: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
   dataUrl: string;
 }
 
