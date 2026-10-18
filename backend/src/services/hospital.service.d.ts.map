@@ -1,1 +1,0 @@
-{"version":3,"file":"hospital.service.d.ts","sourceRoot":"","sources":["hospital.service.ts"],"names":[],"mappings":"AAOA,qBAAa,eAAe;IAC1B,iBAAiB,CAAC,SAAS,EAAE,MAAM,OAElC;IAED,mBAAmB,CAAC,SAAS,EAAE,MAAM,OAYpC;IAED,gBAAgB,CAAC,SAAS,EAAE,MAAM,OAEjC;IAED,cAAc,CAAC,SAAS,EAAE,MAAM,OAE/B;IAED,iBAAiB,CAAC,SAAS,EAAE,MAAM,OAElC;CACF;AAED,eAAO,MAAM,eAAe,iBAAwB,CAAC"}

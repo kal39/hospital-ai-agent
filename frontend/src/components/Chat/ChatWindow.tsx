@@ -150,13 +150,15 @@ export default function ChatWindow() {
   const t = translations[language];
 
   useEffect(() => {
+    // The initial greeting is intentionally synchronized when the language changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessages((currentMessages) =>
       currentMessages.length === 1 &&
       currentMessages[0].role === "assistant"
         ? [createMessage("assistant", t.greeting)]
         : currentMessages
     );
-  }, [language]);
+  }, [language, t.greeting]);
 
   const handleSend = async (content: string, file?: File) => {
     if (loading) return;
@@ -234,8 +236,12 @@ export default function ChatWindow() {
         ...currentMessages,
         assistantMessage,
       ]);
-    } catch {
-      setError(requestTranslations.requestError);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : requestTranslations.requestError
+      );
 
       setMessages((currentMessages) => [
         ...currentMessages,
@@ -263,7 +269,7 @@ export default function ChatWindow() {
           <div className="conversation">
             {messages.map((message) => (
               <div key={message.id}>
-                <MessageBubble message={message} />
+               <MessageBubble message={message} language={language} />
 
                 {message.role === "user" &&
                   message.attachment && (

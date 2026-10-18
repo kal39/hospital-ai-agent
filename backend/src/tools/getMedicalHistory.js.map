@@ -1,1 +1,0 @@
-{"version":3,"file":"getMedicalHistory.js","sourceRoot":"","sources":["getMedicalHistory.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,eAAe,EAAE,MAAM,8BAA8B,CAAC;AAE/D,MAAM,UAAU,iBAAiB,CAAC,SAAiB;IACjD,OAAO,eAAe,CAAC,iBAAiB,CAAC,SAAS,CAAC,CAAC;AACtD,CAAC"}

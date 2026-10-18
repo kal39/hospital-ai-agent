@@ -186,4 +186,35 @@ button:disabled { cursor: not-allowed; }
 
 .input-wrapper { align-items: stretch; flex-direction: column; }
 
-.input-actions { justify-content: flex-end; } } 
+.input-actions { justify-content: flex-end; } }
+
+.message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+}
+
+.message-footer .message-time {
+  margin-top: 0;
+}
+
+.message-speech-button {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.message-speech-button:hover {
+  background: rgba(100, 116, 139, 0.12);
+}
+
+.message-speech-button:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 2px;
+}

@@ -5,7 +5,6 @@ export type SummaryDetail = "short" | "normal" | "detailed";
 
 export type MessageRole = "user" | "assistant";
 
-
 export interface ChatImage {
   fileName: string;
   mimeType: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
@@ -31,20 +30,14 @@ export interface ChatRequest {
   image?: ChatImage;
 }
 
-export interface ChatAction {
-  label: string;
-  type: "navigate" | "care_team_message";
-  target?: string;
-}
-
 export interface ChatResponse {
   message: string;
   conversationId: string;
   language: Language;
-  safety?: {
+  detail: SummaryDetail;
+  toolsUsed: string[];
+  safetyFlag: boolean;
+  safety: {
     requiresAttention: boolean;
-    message?: string;
-    offerCareTeamMessage?: boolean;
   };
-  actions?: ChatAction[];
 }
