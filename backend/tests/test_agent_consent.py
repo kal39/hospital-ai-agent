@@ -656,3 +656,30 @@ def test_completed_demo_booking_is_isolated_between_patients(monkeypatch):
     assert patient_one_key in agent_module._completed_demo_bookings
     assert patient_two_key not in agent_module._completed_demo_bookings
     assert len(booked) == 1
+def test_medical_history_response_includes_synthetic_disclosure(monkeypatch):
+    service = HospitalAgentService()
+    mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Your medical history includes a routine hypertension "
+                "follow-up and a medication review."
+            ),
+            "toolsUsed": ["getMedicalHistory"],
+        },
+    )
+
+    result = run_agent(
+        service,
+        "Please summarize my medical history.",
+    )
+
+    message = result["message"]
+
+    assert message.startswith("Synthetic-data notice:")
+    assert "fictional demonstration records" in message
+    assert "live hospital system" in message
+    assert "routine hypertension follow-up" in message
+    assert "medication review" in message
+    assert message.count("Synthetic-data notice:") == 1
+    assert result["toolsUsed"] == ["getMedicalHistory"]

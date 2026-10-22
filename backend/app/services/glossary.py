@@ -65,4 +65,4 @@ def get_glossary_context() -> str:
         "Amharic medical translations are unavailable until reviewed "
         "and approved by the hospital. Do not invent medical translations."
     )
-    return "\\n".join(entries)
+    return "\n".join(entries)

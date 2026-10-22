@@ -29,7 +29,7 @@ HOSPITAL_TOOL_DEFINITIONS = [
     },
     {
         "name": "getPatientProfile",
-        "description": "Get the authenticated patient's profile.",
+        "description": "Get the authenticated patient's profile, including available demographic details, blood type, allergies, and other recorded profile fields. Use this tool to answer profile questions; report only fields returned and say when a field is missing.",
         "parameters": EMPTY_PARAMETERS,
     },
     {

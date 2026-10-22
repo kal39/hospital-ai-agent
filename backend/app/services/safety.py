@@ -106,6 +106,40 @@ URGENT_MESSAGE_AM = (
     "የአስቸኳይ አገልግሎት ያነጋግሩ።"
 )
 
+DIZZINESS_PATTERNS = _compile_patterns(
+    [
+        r"\b(?:dizz(?:y|iness)|lightheaded|light-headed|feeling faint)\b",
+        r"ማዞር",
+        r"ዞረኝ",
+        r"ይዞረኛል",
+        r"ራሴ\s*ዞረ",
+        r"ራስ\s*ማዞር",
+    ]
+)
+
+DIZZINESS_MESSAGE_EN = (
+    "I'm sorry you're feeling dizzy. Dizziness after taking medication "
+    "can have several causes and should be assessed by a healthcare "
+    "professional. Please contact your care team promptly for advice, "
+    "especially if this is new or recurring. Do not drive while dizzy; "
+    "sit or lie down to reduce the risk of falling. Do not independently "
+    "change your medication based on this chat. If you faint, have chest "
+    "pain, difficulty breathing, new weakness, trouble speaking, or severe "
+    "or rapidly worsening symptoms, seek emergency medical care now."
+)
+
+DIZZINESS_MESSAGE_AM = (
+    "ማዞር እያጋጠመዎት ከሆነ እናዝናለን። መድኃኒት ከወሰዱ በኋላ "
+    "የሚከሰት ማዞር የተለያዩ ምክንያቶች ሊኖሩት ይችላሉ። "
+    "በተለይ አዲስ ከሆነ ወይም በተደጋጋሚ ከተከሰተ፣ በቅርቡ "
+    "ከጤና ቡድንዎ ጋር ይገናኙ። ማዞር እያለብዎት መኪና "
+    "አይንዱ፤ ከመውደቅ ለመከላከል ይቀመጡ ወይም ይተኙ። "
+    "በዚህ ውይይት ተመስርተው መድኃኒትዎን በራስዎ አይቀይሩ። "
+    "ከሳቱ፣ የደረት ህመም፣ የመተንፈስ ችግር፣ አዲስ የአካል "
+    "ድክመት፣ የመናገር ችግር ወይም ከባድና በፍጥነት እየባሰ "
+    "የሚሄድ ምልክት ካለ ወዲያውኑ አስቸኳይ የሕክምና "
+    "እርዳታ ያግኙ።"
+)
 UNSAFE_MESSAGE_EN = (
     "I can explain information already present in your hospital records, "
     "but I cannot recommend independently starting, stopping, or changing "
@@ -152,6 +186,16 @@ def evaluate_safety(message: str, language: str = "en") -> SafetyResult:
             ),
         }
 
+    if _matches(DIZZINESS_PATTERNS, message):
+        return {
+            "blocked": True,
+            "urgent": False,
+            "message": (
+                DIZZINESS_MESSAGE_AM
+                if selected_language == "am"
+                else DIZZINESS_MESSAGE_EN
+            ),
+        }
     kidney_or_back_pain = (
         _matches(KIDNEY_OR_BACK_PATTERNS, message)
         and _matches(PAIN_PATTERNS, message)

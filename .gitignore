@@ -14,3 +14,16 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+
+# Local backup snapshots - retain on disk, exclude from Git
+*.bak
+*.backup
+*.backup-*
+*.bak-*
+/backup-appointment-system-*/
+/backup-booking-system-*/
+/frontend-backup-appointment-requests-*/
+
+# Local demo databases - keep runtime data out of Git
+/backend/data/*.sqlite3
+/backend/data/*.sqlite3-*

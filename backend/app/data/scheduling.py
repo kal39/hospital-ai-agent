@@ -5,7 +5,7 @@ These fictional doctors, slots, and queue estimates are not live hospital data.
 Replace this module with authorized hospital API calls before production use.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 DATA_SOURCE = "synthetic_demo"
@@ -58,10 +58,12 @@ def generate_synthetic_slots(
     doctor_id: str,
     start_date: date,
     days: int = 14,
+    now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Generate weekday demo slots; these are not actual appointments."""
     slots: list[dict[str, Any]] = []
     times = ("09:00", "10:30", "13:00", "14:30")
+    now = now if now is not None else datetime.now().astimezone()
 
     for offset in range(days):
         slot_date = start_date + timedelta(days=offset)
@@ -69,12 +71,18 @@ def generate_synthetic_slots(
         if slot_date.weekday() >= 5:
             continue
 
-        for time in times:
+        for slot_time in times:
+            if slot_date == now.date():
+                current_time = now.time().replace(
+                    tzinfo=None, second=0, microsecond=0
+                )
+                if datetime.strptime(slot_time, "%H:%M").time() <= current_time:
+                    continue
             slots.append(
                 {
                     "doctorId": doctor_id,
                     "date": slot_date.isoformat(),
-                    "time": time,
+                    "time": slot_time,
                     "department": next(
                         (
                             doctor["department"]
