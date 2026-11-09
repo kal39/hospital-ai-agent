@@ -1,0 +1,3429 @@
+﻿
+========== frontend\src\App.tsx ==========
+import { useEffect, useState } from "react";
+
+import AppointmentBooking from "./components/AppointmentBooking/AppointmentBooking";
+import StaffReview from "./components/StaffReview/StaffReview";
+import ChatWindow from "./components/Chat/ChatWindow";
+import type { Language, SummaryDetail } from "./types/chat";
+
+type ActivePage = "assistant" | "booking" | "staff";
+
+function getPageFromPath(pathname: string): ActivePage {
+  switch (pathname.replace(/\/+$/, "") || "/") {
+    case "/staff/appointments":
+      return "staff";
+
+    case "/patient/appointments":
+      return "booking";
+
+    case "/":
+      return "assistant";
+
+    default:
+      return "assistant";
+  }
+}
+
+function getPathForPage(page: ActivePage): string {
+  switch (page) {
+    case "staff":
+      return "/staff/appointments";
+
+    case "booking":
+      return "/patient/appointments";
+
+    default:
+      return "/";
+  }
+}
+
+function readPreference<T extends string>(
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  try {
+    const stored = localStorage.getItem(key);
+    return allowed.includes(stored as T) ? (stored as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function App() {
+  const [activePage, setActivePage] = useState<ActivePage>(() =>
+    getPageFromPath(window.location.pathname),
+  );
+
+  const [language, setLanguage] = useState<Language>(() =>
+    readPreference("hospital-ui-language", ["en", "am"] as const, "en"),
+  );
+
+  const [detail, setDetail] = useState<SummaryDetail>(() =>
+    readPreference(
+      "hospital-ai-response-detail",
+      ["short", "normal", "detailed"] as const,
+      "normal",
+    ),
+  );
+
+  useEffect(() => {
+    function handlePopState() {
+      setActivePage(getPageFromPath(window.location.pathname));
+    }
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  function navigateToPage(page: ActivePage) {
+    const nextPath = getPathForPage(page);
+
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, "", nextPath);
+    }
+
+    setActivePage(page);
+  }
+
+  function updateLanguage(next: Language) {
+    setLanguage(next);
+
+    try {
+      localStorage.setItem("hospital-ui-language", next);
+    } catch {
+      // The preference still works for this session if storage is unavailable.
+    }
+  }
+
+  function updateDetail(next: SummaryDetail) {
+    setDetail(next);
+
+    try {
+      localStorage.setItem("hospital-ai-response-detail", next);
+    } catch {
+      // The preference still works for this session if storage is unavailable.
+    }
+  }
+
+  const amharic = language === "am";
+
+  const pageLabels: Record<ActivePage, string> = {
+    assistant: amharic ? "AI ረዳት" : "AI Assistant",
+    booking: amharic ? "የቀጠሮ አስተዳደር" : "Appointment Management",
+    staff: amharic ? "የሰራተኞች የስራ ቦታ" : "Staff Review",
+  };
+
+  // Staff Review has its own independent workspace.
+  if (activePage === "staff") {
+    return (
+      <div className="hospital-app">
+        <div className="sage-main">
+          <header className="sage-topbar">
+            <div className="sage-breadcrumb">
+              <strong>
+                {amharic ? "የሰራተኞች የስራ ቦታ" : "Staff Workspace"}
+              </strong>
+              <span aria-hidden="true">/</span>
+              <span>{pageLabels.staff}</span>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <span>{amharic ? "ቋንቋ" : "Language"}</span>
+                <select
+                  value={language}
+                  onChange={(event) =>
+                    updateLanguage(event.target.value as Language)
+                  }
+                  aria-label={amharic ? "ቋንቋ" : "Language"}
+                >
+                  <option value="en">English</option>
+                  <option value="am">አማርኛ</option>
+                </select>
+              </label>
+
+              <span className="sage-topbar-status">
+                <span className="sage-demo-indicator" />
+                {amharic ? "የሙከራ ሁኔታ" : "Demo mode"}
+              </span>
+            </div>
+          </header>
+
+          <main className="hospital-app-content sage-main-content">
+            <StaffReview language={language} />
+          </main>
+
+          <footer className="hospital-app-footer sage-main-footer">
+            <button
+              type="button"
+              onClick={() => navigateToPage("assistant")}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                font: "inherit",
+              }}
+            >
+              {amharic
+                ? "← ወደ ታካሚ አገልግሎቶች ተመለስ"
+                : "← Back to Patient Services"}
+            </button>
+
+            <span>
+              {amharic
+                ? "የሙከራ አካባቢ · ከቀጥታ የሆስፒታል ስርዓቶች ጋር አልተገናኘም"
+                : "Demonstration environment · Not connected to live hospital systems"}
+            </span>
+          </footer>
+        </div>
+      </div>
+    );
+  }
+
+  // Patient Services workspace.
+  return (
+    <div className="hospital-app sage-sidebar-layout">
+      <aside className="sage-sidebar">
+        <button
+          type="button"
+          className="sage-sidebar-brand"
+          onClick={() => navigateToPage("assistant")}
+          aria-label={amharic ? "ወደ AI ረዳት ይመለሱ" : "Go to AI Assistant"}
+        >
+          <span className="sage-sidebar-logo" aria-hidden="true">+</span>
+          <span className="sage-sidebar-brand-copy">
+            <strong>Hospital</strong>
+            <span>
+              {amharic ? "የታካሚ አገልግሎቶች" : "Patient Services"}
+            </span>
+          </span>
+        </button>
+
+        <div className="sage-sidebar-section-label">
+          {amharic ? "የታካሚ አገልግሎቶች" : "PATIENT SERVICES"}
+        </div>
+
+        <nav className="sage-sidebar-nav" aria-label="Patient services">
+          <button
+            type="button"
+            className={`sage-sidebar-link ${activePage === "assistant" ? "is-active" : ""}`}
+            onClick={() => navigateToPage("assistant")}
+            aria-current={activePage === "assistant" ? "page" : undefined}
+          >
+            <span className="sage-sidebar-icon" aria-hidden="true">✧</span>
+            <span>{pageLabels.assistant}</span>
+            <span className="sage-sidebar-link-arrow" aria-hidden="true">›</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sage-sidebar-link ${activePage === "booking" ? "is-active" : ""}`}
+            onClick={() => navigateToPage("booking")}
+            aria-current={activePage === "booking" ? "page" : undefined}
+          >
+            <span className="sage-sidebar-icon" aria-hidden="true">▦</span>
+            <span>{pageLabels.booking}</span>
+            <span className="sage-sidebar-link-arrow" aria-hidden="true">›</span>
+          </button>
+        </nav>
+
+        <div className="sage-sidebar-preferences">
+          <div className="sage-sidebar-section-label">
+            {amharic ? "ቅንብሮች" : "PREFERENCES"}
+          </div>
+
+          <label className="sage-preference-field">
+            <span className="sage-preference-label">
+              <span aria-hidden="true">文</span>
+              {amharic ? "ቋንቋ / Language" : "Language"}
+            </span>
+            <select
+              value={language}
+              onChange={(event) =>
+                updateLanguage(event.target.value as Language)
+              }
+              aria-label={amharic ? "ቋንቋ" : "Language"}
+            >
+              <option value="en">English</option>
+              <option value="am">አማርኛ (Amharic)</option>
+            </select>
+          </label>
+
+          <label className="sage-preference-field">
+            <span className="sage-preference-label">
+              <span aria-hidden="true">☷</span>
+              {amharic ? "የመልስ ዝርዝር ደረጃ" : "Response detail"}
+            </span>
+            <select
+              value={detail}
+              onChange={(event) =>
+                updateDetail(event.target.value as SummaryDetail)
+              }
+              aria-label={amharic ? "የመልስ ዝርዝር ደረጃ" : "Response detail"}
+            >
+              <option value="short">{amharic ? "አጭር" : "Short"}</option>
+              <option value="normal">{amharic ? "መደበኛ" : "Normal"}</option>
+              <option value="detailed">{amharic ? "ዝርዝር" : "Detailed"}</option>
+            </select>
+          </label>
+
+          <p className="sage-preference-note">
+            {amharic
+              ? "የመረጡት ቅንብሮች በሁለቱም ክፍሎች ላይ ይሠራሉ።"
+              : "Your preferences are shared across both sections."}
+          </p>
+        </div>
+
+        <div className="sage-sidebar-spacer" />
+
+        <section className="sage-sidebar-help">
+          <span className="sage-help-icon" aria-hidden="true">+</span>
+          <strong>
+            {amharic ? "ለጤናዎ እዚህ ነን" : "Here for your health"}
+          </strong>
+          <p>
+            {amharic
+              ? "የጤና መረጃዎን ለመረዳት እና ቀጠሮ ለማግኘት እንረዳዎታለን።"
+              : "Get help understanding your information and finding an appointment."}
+          </p>
+        </section>
+
+        <div className="sage-sidebar-demo">
+          <span className="sage-demo-indicator" />
+          <span>
+            <strong>
+              {amharic ? "የሙከራ አካባቢ" : "Demo environment"}
+            </strong>
+            <small>
+              {amharic
+                ? "ከቀጥታ የሆስፒታል ስርዓቶች ጋር አልተገናኘም"
+                : "Not connected to live systems"}
+            </small>
+          </span>
+        </div>
+      </aside>
+
+      <div className="sage-main">
+        <header className="sage-topbar">
+          <div className="sage-breadcrumb">
+            <span>
+              {amharic ? "የታካሚ አገልግሎቶች" : "Patient Services"}
+            </span>
+            <span aria-hidden="true">/</span>
+            <strong>{pageLabels[activePage]}</strong>
+          </div>
+
+          <span className="sage-topbar-status">
+            <span className="sage-demo-indicator" />
+            {amharic ? "የሙከራ ሁኔታ" : "Demo mode"}
+          </span>
+        </header>
+
+        <main className="hospital-app-content sage-main-content">
+          {activePage === "assistant" ? (
+            <ChatWindow language={language} detail={detail} />
+          ) : (
+            <AppointmentBooking language={language} />
+          )}
+        </main>
+
+        <footer className="hospital-app-footer sage-main-footer">
+          <span>
+            {amharic ? "የታካሚ አገልግሎቶች" : "Patient Services"}
+          </span>
+          <span>
+            {amharic
+              ? "የሙከራ አካባቢ · ከቀጥታ የሆስፒታል ስርዓቶች ጋር አልተገናኘም"
+              : "Demonstration environment · Not connected to live hospital systems"}
+          </span>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+
+========== frontend\src\components\AppointmentBooking\AppointmentBooking.tsx ==========
+import type { Language } from "../../types/chat";
+import EthiopianDatePicker from "./EthiopianDatePicker";
+import { formatEthiopianDate } from "../../utils/ethiopianCalendar";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  bookAppointment,
+  cancelAppointment,
+  getAvailability,
+  getDepartments,
+  getDoctors,
+  getLocalDateString,
+  getMyAppointments,
+  rescheduleAppointment,
+  type Appointment,
+  type AppointmentSlot,
+  type Doctor,
+} from "../../services/appointments";
+
+type Notice = { type: "success" | "error"; message: string };
+
+function displayDepartment(value: string, am: boolean): string {
+  if (!am) return value;
+
+  const labels: Record<string, string> = {
+    Cardiology: "á‹¨áˆá‰¥ áˆ•áŠ­áˆáŠ“",
+    Dental: "á‹¨áŒ¥áˆ­áˆµ áˆ•áŠ­áˆáŠ“",
+    Dermatology: "á‹¨á‰†á‹³ áˆ•áŠ­áˆáŠ“",
+    ENT: "á‹¨áŒ†áˆ®á£ á‹¨áŠ ááŠ•áŒ«áŠ“ á‹¨áŒ‰áˆ®áˆ® áˆ•áŠ­áˆáŠ“",
+    Endocrinology: "á‹¨áˆ†áˆ­áˆžáŠ• áˆ•áŠ­áˆáŠ“",
+    Gastroenterology: "á‹¨áˆáŒá‰¥ áˆ˜ááŒ« áˆ¥áˆ­á‹“á‰µ áˆ•áŠ­áˆáŠ“",
+    "General Medicine": "áŠ áŒ á‰ƒáˆ‹á‹­ áˆ•áŠ­áˆáŠ“",
+    Gynecology: "á‹¨áˆ›áˆ…á€áŠ• áˆ•áŠ­áˆáŠ“",
+    Nephrology: "á‹¨áŠ©áˆ‹áˆŠá‰µ áˆ•áŠ­áˆáŠ“",
+    Neurology: "á‹¨áŠáˆ­á‰­ áˆ•áŠ­áˆáŠ“",
+    Ophthalmology: "á‹¨á‹“á‹­áŠ• áˆ•áŠ­áˆáŠ“",
+    Orthopedics: "á‹¨áŠ áŒ¥áŠ•á‰µáŠ“ áˆ˜áŒˆáŒ£áŒ áˆšá‹« áˆ•áŠ­áˆáŠ“",
+    Pediatrics: "á‹¨áˆ•áƒáŠ“á‰µ áˆ•áŠ­áˆáŠ“",
+    Psychiatry: "á‹¨áŠ áŠ¥áˆáˆ® áŒ¤áŠ“ áˆ•áŠ­áˆáŠ“",
+    "Respiratory Clinic": "á‹¨áˆ˜á‰°áŠ•áˆáˆ» áŠ áŠ«áˆ‹á‰µ áˆ•áŠ­áˆáŠ“",
+    Urology: "á‹¨áˆ½áŠ•á‰µ áˆ¥áˆ­á‹“á‰µ áˆ•áŠ­áˆáŠ“",
+  };
+
+  return labels[value] ?? value;
+}
+
+function displayLocation(value: string, am: boolean): string {
+  if (!am) return value;
+
+  const labels: Record<string, string> = {
+    "Synthetic Demo Clinic A": "á‹¨áˆ™áŠ¨áˆ« áŠ­áˆŠáŠ’áŠ­ A",
+    "Synthetic Demo Clinic B": "á‹¨áˆ™áŠ¨áˆ« áŠ­áˆŠáŠ’áŠ­ B",
+  };
+
+  return labels[value] ?? value;
+}
+
+function displaySpecialty(value: string, am: boolean): string {
+  if (!am) return value;
+
+  const labels: Record<string, string> = {
+    "Hypertension follow-up": "á‹¨á‹°áˆ áŒáŠá‰µ áŠ­á‰µá‰µáˆ",
+  };
+
+  return labels[value] ?? value;
+}
+function formatDate(value: string, language: Language = "en"): string {
+  if (!value) return "";
+
+  if (language === "am") {
+    return formatEthiopianDate(value, "am");
+  }
+
+  return new Date(`${value}T12:00:00`).toLocaleDateString("en", {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatTime(value: string): string {
+  const [hours, minutes] = value.split(":").map(Number);
+  const parsed = new Date();
+  parsed.setHours(hours, minutes, 0, 0);
+  return parsed.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function isAppointmentPast(
+  appointment: Pick<Appointment, "date" | "time">,
+): boolean {
+  const scheduledAt = new Date(`${appointment.date}T${appointment.time}:00`);
+  return !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() < Date.now();
+}
+
+function statusLabel(
+  status: string,
+  am: boolean,
+  isPast = false,
+): string {
+  if (status === "confirmed_demo") {
+    if (isPast) {
+      return am
+        ? "á‹«áˆˆ á‹áŒ¤á‰µ á‹¨á‰°áˆ˜á‹˜áŒˆá‰  á‹«áˆˆáˆ á‰€áŒ áˆ®"
+        : "Past â€” Outcome Not Recorded";
+    }
+    return am ? "á‰°áˆ˜á‹áŒá‰§á‹‹áˆ Â· áˆ™áŠ¨áˆ«" : "Booked Â· Demo";
+  }
+  if (status === "attended_demo") return am ? "á‰°áŒˆáŠá‰·áˆ" : "Attended";
+  if (status === "missed_demo") return am ? "áŠ áˆá‰°áŒˆáŠ˜áˆ" : "Missed";
+  if (status === "cancelled_demo") return am ? "á‰°áˆ°áˆ­á‹Ÿáˆ" : "Cancelled";
+  if (status === "rescheduled_demo") return am ? "áŒŠá‹œá‹ á‰°á‰€á‹­áˆ¯áˆ" : "Rescheduled";
+  return status.replaceAll("_", " ");
+}
+interface AppointmentBookingProps {
+  language: Language;
+}
+
+export default function AppointmentBooking({ language }: AppointmentBookingProps) {
+  const am = language === "am";
+  const today = useMemo(() => getLocalDateString(), []);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [department, setDepartment] = useState("");
+  const [doctorId, setDoctorId] = useState("");
+  const [date, setDate] = useState(today);
+  const [purpose, setPurpose] = useState("");
+  const [slots, setSlots] = useState<AppointmentSlot[]>([]);
+  const [selectedTime, setSelectedTime] = useState("");
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+
+  const selectedDoctor = doctors.find((doctor) => doctor.id === doctorId);
+  const departmentDoctors = doctors.filter(
+    (doctor) => doctor.department === department,
+  );
+
+  const refreshAppointments = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      setAppointments(await getMyAppointments());
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : am ? "á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ®á‹Žá‰½á‹ŽáŠ• áˆ˜áŒ«áŠ• áŠ áˆá‰°á‰»áˆˆáˆá¢" : "Could not load your demo appointments.",
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadInitialData() {
+      setLoadingInitial(true);
+      try {
+        const [departmentList, doctorList, appointmentList] = await Promise.all([
+          getDepartments(),
+          getDoctors(),
+          getMyAppointments(),
+        ]);
+
+        if (!active) return;
+
+        setDepartments(departmentList);
+        setDoctors(doctorList);
+        setAppointments(appointmentList);
+
+        const firstDoctor = doctorList[0];
+        const initialDepartment =
+          firstDoctor?.department ?? departmentList[0] ?? "";
+
+        setDepartment(initialDepartment);
+        setDoctorId(firstDoctor?.id ?? "");
+      } catch (error) {
+        if (active) {
+          setNotice({
+            type: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : am ? "á‹¨á‰€áŒ áˆ® áŠ áŒˆáˆáŒáˆŽá‰¶á‰½áŠ• áˆ˜áŒ«áŠ• áŠ áˆá‰°á‰»áˆˆáˆá¢" : "Could not load appointment services.",
+          });
+        }
+      } finally {
+        if (active) setLoadingInitial(false);
+      }
+    }
+
+    void loadInitialData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSlots() {
+      if (!doctorId || !date) {
+        setSlots([]);
+        return;
+      }
+
+      setLoadingSlots(true);
+      setSelectedTime("");
+
+      try {
+        const result = await getAvailability(doctorId, date, 14);
+        if (active) setSlots(result);
+      } catch (error) {
+        if (active) {
+          setSlots([]);
+          setNotice({
+            type: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : am ? "á‹«áˆ‰á‰µáŠ• á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ® áˆ°á‹“á‰¶á‰½ áˆ˜áŒ«áŠ• áŠ áˆá‰°á‰»áˆˆáˆá¢" : "Could not load demo availability.",
+          });
+        }
+      } finally {
+        if (active) setLoadingSlots(false);
+      }
+    }
+
+    void loadSlots();
+    return () => {
+      active = false;
+    };
+  }, [doctorId, date]);
+
+  const availableSlots = slots.filter(
+    (slot) =>
+      slot.date === date &&
+      slot.available &&
+      slot.slotRemainingCapacity > 0 &&
+      slot.dailyRemainingCapacity > 0,
+  );
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!doctorId || !date || !selectedTime) {
+      setNotice({
+        type: "error",
+        message: am ? "áŠ¥á‰£áŠ­á‹Ž áˆ˜áŒ€áˆ˜áˆªá‹« áˆáŠªáˆá£ á‰€áŠ• áŠ¥áŠ“ á‹¨áˆšáŒˆáŠ áˆ°á‹“á‰µ á‹­áˆáˆ¨áŒ¡á¢" : "Choose a doctor, date, and available time first.",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    setNotice(null);
+
+    try {
+      if (reschedulingId) {
+        await rescheduleAppointment(reschedulingId, {
+          doctorId,
+          date,
+          time: selectedTime,
+        });
+        setNotice({
+          type: "success",
+          message: am ? "á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ®á‹Ž áŒŠá‹œ á‰°á‰€á‹­áˆ¯áˆá¢" : "Your demo appointment was rescheduled.",
+        });
+        setReschedulingId(null);
+      } else {
+        await bookAppointment({
+          doctorId,
+          date,
+          time: selectedTime,
+          purpose: purpose.trim(),
+        });
+        setNotice({
+          type: "success",
+          message: am ? "á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ®á‹Ž á‰°áˆáŒ¥áˆ¯áˆá¢" : "Your fictional demo appointment was created.",
+        });
+        setPurpose("");
+      }
+
+      setSelectedTime("");
+      await refreshAppointments();
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : am ? "á‹¨á‰€áŒ áˆ®á‹áŠ• á‰°áŒá‰£áˆ­ áˆ›áŒ áŠ“á‰€á‰… áŠ áˆá‰°á‰»áˆˆáˆá¢" : "The appointment action could not be completed.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCancel(appointment: Appointment) {
+    const confirmed = window.confirm(
+      `Cancel this fictional demo appointment with ${appointment.doctorName} on ${formatDate(appointment.date, language)} at ${formatTime(appointment.time)}?`,
+    );
+
+    if (!confirmed) return;
+
+    setNotice(null);
+    try {
+      await cancelAppointment(appointment.bookingId);
+      setNotice({
+        type: "success",
+        message: am ? "á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ®á‹ á‰°áˆ°áˆ­á‹Ÿáˆá¢" : "The demo appointment was cancelled.",
+      });
+      await refreshAppointments();
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : am ? "á‹­áˆ…áŠ• á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ® áˆ˜áˆ°áˆ¨á‹ áŠ áˆá‰°á‰»áˆˆáˆá¢" : "Could not cancel this demo appointment.",
+      });
+    }
+  }
+
+  function startRescheduling(appointment: Appointment) {
+    setReschedulingId(appointment.bookingId);
+    setDepartment(appointment.department);
+    setDoctorId(appointment.doctorId);
+    setDate(appointment.date < today ? today : appointment.date);
+    setSelectedTime("");
+    setNotice({
+      type: "success",
+      message: am ? "áŠ á‹²áˆµ á‰€áŠ•áŠ“ áˆ°á‹“á‰µ á‹­áˆáˆ¨áŒ¡á£ áŠ¨á‹šá‹« áŠ¨á‰³á‰½ á‹«áˆ¨áŒ‹áŒáŒ¡á¢" : "Choose a new date and time, then confirm below.",
+    });
+
+    document
+      .getElementById("appointment-booking-form")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function stopRescheduling() {
+    setReschedulingId(null);
+    setSelectedTime("");
+    setNotice(null);
+  }
+
+  const activeAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "confirmed_demo" &&
+      !isAppointmentPast(appointment),
+  );
+  const previousAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status !== "confirmed_demo" ||
+      isAppointmentPast(appointment),
+  );
+
+  const sortedPreviousAppointments = [...previousAppointments].sort((a, b) => {
+    const aDate = `${a.date}T${a.time}`;
+    const bDate = `${b.date}T${b.time}`;
+    return bDate.localeCompare(aDate);
+  });
+
+  const visiblePreviousAppointments = historyExpanded
+    ? sortedPreviousAppointments
+    : sortedPreviousAppointments.slice(0, 5);
+
+  if (loadingInitial) {
+    return (
+      <main className="booking-page">
+        <div className="booking-loading" role="status">
+          Loading appointment servicesâ€¦
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="booking-page">
+      <section className="booking-hero">
+        <div>
+          <span className="booking-eyebrow">{am ? "á‹¨á‰³áŠ«áˆš áŠ áŒˆáˆáŒáˆŽá‰¶á‰½" : "PATIENT SERVICES"}</span>
+          <h1>{language === "am" ? "á‰€áŒ áˆ® á‹­á‹«á‹™" : "Book an appointment"}</h1>
+          <p>
+            {am ? "áŠ­ááˆ á‹­áˆáˆ¨áŒ¡á£ áˆáŠªáˆ á‹­áˆáˆ¨áŒ¡ áŠ¥áŠ“ á‰°áˆµáˆ›áˆš" : "Choose a department, select a doctor, and find a suitable"}
+            {am ? "á‹¨á‰€áŒ áˆ® áˆ°á‹“á‰µ á‹«áŒáŠ™á¢" : "appointment time."}
+          </p>
+        </div>
+        <div className="booking-hero-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect
+              x="7"
+              y="10"
+              width="34"
+              height="31"
+              rx="5"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            />
+            <path
+              d="M16 6v8M32 6v8M8 19h32M17 27h5m-2.5-2.5v5"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
+      </section>
+
+      <aside className="booking-demo-warning" role="note">
+        <span className="booking-warning-mark" aria-hidden="true">!</span>
+        <div>
+          <strong>Demonstration mode â€” fictional appointments</strong>
+          <p>
+            {am ? "áˆáŠªáˆžá‰½á£ á‹¨áˆšáŒˆáŠ™ áˆ°á‹“á‰¶á‰½ áŠ¥áŠ“ á‰€áŒ áˆ®á‹Žá‰½ á‰ áˆáˆ³áˆŒ á‹¨á‰°á‹˜áŒ‹áŒ€ á‹¨áŠ áŠ«á‰£á‰¢ á‹áˆ‚á‰¥ á‹­áŒ á‰€áˆ›áˆ‰á¢" : "Doctors, availability, and bookings use synthetic local prototype"}
+            {am ? "á‹­áˆ… áŠ¨áˆ†áˆµá’á‰³áˆ áˆ°áˆ«á‰°áŠžá‰½ áŒ‹áˆ­ áŠ á‹­áŒˆáŠ“áŠáˆá£ áŠ¥á‹áŠá‰°áŠ› á‹¨áˆ†áˆµá’á‰³áˆ á‰€áŒ áˆ®áˆ áŠ á‹­áˆáŒ¥áˆ­áˆá¢ áˆˆáŠ áˆµá‰¸áŠ³á‹­ áˆ•áŠ­áˆáŠ“ áŠ á‹­áŒ á‰€áˆ™á‰ á‰µá¢" : "data. This does not contact hospital staff or create a real hospital"}
+            {am ? "" : "appointment. Do not use this demo for urgent medical care."}
+          </p>
+        </div>
+      </aside>
+
+      {notice && (
+        <div
+          className={`booking-notice booking-notice-${notice.type}`}
+          role={notice.type === "error" ? "alert" : "status"}
+        >
+          <span>{notice.message}</span>
+          <button
+            type="button"
+            aria-label={am ? "áˆ˜áˆá‹•áŠ­á‰±áŠ• á‹áŒ‹" : "Dismiss message"}
+            onClick={() => setNotice(null)}
+          >
+            Ã—
+          </button>
+        </div>
+      )}
+
+      <div className="booking-layout">
+        <section className="booking-panel" id="appointment-booking-form">
+          <div className="booking-panel-heading">
+            <div className="booking-step">01</div>
+            <div>
+              <h2>{reschedulingId ? (am ? "áŠ á‹²áˆµ áˆ°á‹“á‰µ á‹­áˆáˆ¨áŒ¡" : "Choose a new time") : (am ? "á‰€áŒ áˆ® á‹­áˆáˆáŒ‰" : "Find a time")}</h2>
+              <p>
+                {reschedulingId
+                  ? am ? "áˆˆáˆ™áŠ¨áˆ« á‰€áŒ áˆ®á‹Ž áŠ á‹²áˆµ áˆ°á‹“á‰µ á‹­áˆáˆ¨áŒ¡á¢" : "Select a replacement slot for your demo appointment."
+                  : am ? "áŠ­ááˆá£ áˆáŠªáˆ áŠ¥áŠ“ á‹¨áˆšáŒˆáŠ áˆ°á‹“á‰µ á‹­áˆáˆ¨áŒ¡á¢" : "Select a department, doctor, and available slot."}
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="booking-form">
+            <label className="booking-field">
+              <span>{am ? "áŠ­ááˆ" : "Department"}</span>
+              <select
+                value={department}
+                onChange={(event) => {
+                  const nextDepartment = event.target.value;
+                  setDepartment(nextDepartment);
+                  const firstDoctor = doctors.find(
+                    (doctor) => doctor.department === nextDepartment,
+                  );
+                  setDoctorId(firstDoctor?.id ?? "");
+                  setSelectedTime("");
+                }}
+                required
+              >
+                {departments.map((item) => (
+                  <option key={item} value={item}>{displayDepartment(item, am)}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="booking-field">
+              <span>{am ? "áˆáŠªáˆ" : "Doctor"}</span>
+              <select
+                value={doctorId}
+                onChange={(event) => {
+                  setDoctorId(event.target.value);
+                  setSelectedTime("");
+                }}
+                required
+                disabled={departmentDoctors.length === 0}
+              >
+                {departmentDoctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {selectedDoctor && (
+              <div className="booking-doctor-card">
+                <div className="booking-doctor-avatar" aria-hidden="true">
+                  {selectedDoctor.name
+                    .replace(/^Dr\.\s*/i, "")
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((part) => part[0])
+                    .join("")}
+                </div>
+                <div>
+                  <strong>{selectedDoctor.name}</strong>
+                  <span>{displayDepartment(selectedDoctor.department, am)}</span>
+                  <span>{displayLocation(selectedDoctor.location, am)}</span>
+                  {selectedDoctor.specialties.length > 0 && (
+                    <small>{selectedDoctor.specialties.map((item) => displaySpecialty(item, am)).join(" Â· ")}</small>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <label className="booking-field">
+              <span>{am ? "á‰€áŠ•" : "Date"}</span>
+              <EthiopianDatePicker
+                language={language}
+                minDate={today}
+                value={date}
+                onChange={(gregorianIsoDate) => {
+                  setDate(gregorianIsoDate);
+                  setSelectedTime("");
+                }}
+              />
+              <small>{am ? "á‹¨áˆšáŒˆáŠ™ áˆ°á‹“á‰¶á‰½ áˆˆá‰°áˆ˜áˆ¨áŒ á‹ á‰€áŠ• á‹­á‰³á‹«áˆ‰á¢" : "Availability is shown for the selected date."}</small>
+            </label>
+
+            <div className="booking-field">
+              <span className="booking-field-label">{am ? "á‹¨áˆšáŒˆáŠ™ á‹¨á‰€áŒ áˆ® áˆ°á‹“á‰¶á‰½" : "Available time slots"}</span>
+              {loadingSlots ? (
+                <div className="booking-slot-message" role="status">
+                  {am ? "á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ® áˆ°á‹“á‰¶á‰½áŠ• á‰ áˆ˜áˆáˆˆáŒ áˆ‹á‹­â€¦" : "Checking demo availabilityâ€¦"}
+                </div>
+              ) : availableSlots.length > 0 ? (
+                <div className="booking-slots">
+                  {availableSlots.map((slot) => (
+                    <button
+                      className={`booking-slot ${selectedTime === slot.time ? "is-selected" : ""}`}
+                      type="button"
+                      key={`${slot.date}-${slot.time}`}
+                      aria-pressed={selectedTime === slot.time}
+                      onClick={() => setSelectedTime(slot.time)}
+                    >
+                      {formatTime(slot.time)}
+                      <small>
+                        {slot.slotRemainingCapacity} demo{" "}
+                        {slot.slotRemainingCapacity === 1 ? "place" : "places"}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="booking-slot-message">
+                  {am ? `áˆˆ${formatDate(date, language)} á‹¨áˆšáŒˆáŠ á‹¨áˆ™áŠ¨áˆ« áˆ°á‹“á‰µ áŠ áˆá‰°áŒˆáŠ˜áˆá¢` : `No available demo slots were found for ${formatDate(date, language)}.`}
+                  {am ? "áˆŒáˆ‹ á‰€áŠ• á‹­áˆáˆ¨áŒ¡á¢" : "Try another date."}
+                </div>
+              )}
+            </div>
+
+            {!reschedulingId && (
+              <label className="booking-field">
+                <span>{am ? "á‹¨áŒ‰á‰¥áŠá‰µ áˆáŠ­áŠ•á‹«á‰µ" : "Purpose of visit"} <small>({am ? "áŠ áˆ›áˆ«áŒ­" : "optional"})</small></span>
+                <textarea
+                  value={purpose}
+                  onChange={(event) => setPurpose(event.target.value)}
+                  placeholder={am ? "á‹¨á‹šáˆ…áŠ• á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ® áˆáŠ­áŠ•á‹«á‰µ á‰ áŠ áŒ­áˆ© á‹­áŒáˆˆáŒ¹" : "Briefly describe the reason for this demo appointment"}
+                  rows={3}
+                  maxLength={200}
+                />
+                <small>{purpose.length}/200 characters</small>
+              </label>
+            )}
+
+            <div className="booking-form-actions">
+              <button
+                type="submit"
+                className="booking-primary-button"
+                disabled={
+                  submitting ||
+                  loadingSlots ||
+                  !doctorId ||
+                  !selectedTime ||
+                  !availableSlots.some((slot) => slot.time === selectedTime)
+                }
+              >
+                {submitting
+                  ? "Please waitâ€¦"
+                  : reschedulingId
+                    ? am ? "á‹¨á‰€áŒ áˆ® áˆˆá‹áŒ¡áŠ• á‹«áˆ¨áŒ‹áŒáŒ¡" : "Confirm demo reschedule"
+                    : am ? "á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ® á‹­á‹«á‹™" : "Book demo appointment"}
+              </button>
+              {reschedulingId && (
+                <button
+                  type="button"
+                  className="booking-secondary-button"
+                  onClick={stopRescheduling}
+                  disabled={submitting}
+                >
+                  {am ? "á‹¨á‰€áŒ áˆ® áˆˆá‹áŒ¡áŠ• á‹­á‰°á‹‰" : "Stop rescheduling"}
+                </button>
+              )}
+            </div>
+          </form>
+        </section>
+
+        <section className="booking-panel booking-my-appointments">
+          <div className="booking-panel-heading">
+            <div className="booking-step">02</div>
+            <div>
+              <h2>{am ? "á‰€áŒ áˆ®á‹Žá‰¼" : "My appointments"}</h2>
+              <p>{am ? "áˆˆáŠ áˆáŠ‘ á‹¨áˆ™áŠ¨áˆ« á‰³áŠ«áˆš á‹¨á‰°á‹«á‹™ á‰€áŒ áˆ®á‹Žá‰½á¢" : "Your bookings for the current demo patient."}</p>
+            </div>
+            <button
+              className="booking-refresh-button"
+              type="button"
+              onClick={() => void refreshAppointments()}
+              disabled={refreshing}
+            >
+              {refreshing ? (am ? "á‰ áˆ›á‹°áˆµ áˆ‹á‹­â€¦" : "Refreshingâ€¦") : (am ? "áŠ á‹µáˆµ" : "Refresh")}
+            </button>
+          </div>
+
+          {activeAppointments.length === 0 ? (
+            <div className="booking-empty">
+              <div className="booking-empty-icon" aria-hidden="true">ï¼‹</div>
+              <strong>{am ? "áŠ•á‰ á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ®á‹Žá‰½ á‹¨áˆ‰áˆ" : "No active demo appointments"}</strong>
+              <p>{am ? "á‹¨áˆ˜áŒ€áˆ˜áˆªá‹« á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ®á‹ŽáŠ• áˆˆáˆ˜á‹«á‹ áˆ°á‹“á‰µ á‹­áˆáˆ¨áŒ¡á¢" : "Choose a slot to create your first fictional booking."}</p>
+            </div>
+          ) : (
+            <div className="booking-appointment-list">
+              {activeAppointments.map((appointment) => (
+                <article
+                  className="booking-appointment-card"
+                  key={appointment.bookingId}
+                >
+                  <div className="booking-appointment-top">
+                    <span className="booking-status booking-status-active">
+                      {statusLabel(appointment.status, am)}
+                    </span>
+                    <span className="booking-id">{appointment.bookingId}</span>
+                  </div>
+                  <h3>{appointment.doctorName}</h3>
+                  <p className="booking-appointment-department">
+                    {displayDepartment(appointment.department, am)}
+                  </p>
+                  <div className="booking-appointment-details">
+                    <span>
+                      <strong>{am ? "á‰€áŠ•" : "Date"}</strong>
+                      {formatDate(appointment.date, language)}
+                    </span>
+                    <span>
+                      <strong>{am ? "áˆ°á‹“á‰µ" : "Time"}</strong>
+                      {formatTime(appointment.time)}
+                    </span>
+                  </div>
+                  {appointment.location && (
+                    <p className="booking-location">{displayLocation(appointment.location, am)}</p>
+                  )}
+                  {appointment.purpose && (
+                    <p className="booking-purpose">
+                      <strong>{am ? "áˆáŠ­áŠ•á‹«á‰µá¦" : "Purpose:"}</strong> {appointment.purpose}
+                    </p>
+                  )}
+                  <div className="booking-card-actions">
+                    <button
+                      type="button"
+                      className="booking-secondary-button"
+                      onClick={() => startRescheduling(appointment)}
+                    >
+                      {am ? "á‰€áŒ áˆ®á‹áŠ• á‹­á‰€á‹­áˆ©" : "Reschedule"}
+                    </button>
+                    <button
+                      type="button"
+                      className="booking-cancel-button"
+                      onClick={() => void handleCancel(appointment)}
+                    >
+                      {am ? "áˆ°áˆ­á‹" : "Cancel"}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {previousAppointments.length > 0 && (
+            <details className="booking-history">
+              <summary>
+                {am ? "á‹¨á‰€áŒ áˆ® á‰³áˆªáŠ­" : "Appointment history"} ({previousAppointments.length})
+              </summary>
+              <div className="booking-appointment-list">
+                {visiblePreviousAppointments.map((appointment) => (
+                  <article
+                    className="booking-appointment-card booking-appointment-inactive"
+                    key={appointment.bookingId}
+                  >
+                    <div className="booking-appointment-top">
+                      <span className="booking-status">
+                        {statusLabel(
+                          appointment.status,
+                          am,
+                          isAppointmentPast(appointment),
+                        )}
+                      </span>
+                      <span className="booking-id">{appointment.bookingId}</span>
+                    </div>
+                    <h3>{appointment.doctorName}</h3>
+                    <p>
+                      {formatDate(appointment.date, language)} Â· {formatTime(appointment.time)}
+                    </p>
+                  </article>
+                ))}
+              </div>
+              {previousAppointments.length > 5 && (
+                <button
+                  type="button"
+                  className="booking-history-toggle"
+                  onClick={() => setHistoryExpanded((expanded) => !expanded)}
+                  aria-expanded={historyExpanded}
+                >
+                  {historyExpanded
+                    ? (am ? "á‹«áŠáˆ° áŠ áˆ³á‹­" : "Show less")
+                    : (am
+                        ? `áˆáˆ‰áŠ•áˆ á‰³áˆªáŠ­ á‹­áˆ˜áˆáŠ¨á‰± (${previousAppointments.length})`
+                        : `View all history (${previousAppointments.length})`)}
+                </button>
+              )}
+            </details>
+          )}
+        </section>
+      </div>
+
+      <p className="booking-bottom-note">
+        Demo only Â· Availability and booking status are not connected to a live
+        {am ? "" : "hospital scheduling system."}
+      </p>
+    </main>
+  );
+}
+
+
+
+
+========== frontend\src\components\StaffReview\StaffReview.tsx ==========
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  listStaffAppointments,
+  recordStaffAttendance,
+  type StaffAttendanceAppointment,
+} from "../../services/staffAppointmentRequests";
+import type { Language } from "../../types/chat";
+
+type Props = {
+  language: Language;
+};
+const copy = {
+  en: {
+    eyebrow: "STAFF WORKSPACE",
+    title: "Appointment management",
+    intro: "Review appointment requests and manage patient attendance.",
+    demo: "Demo staff workspace — synthetic data only",
+    demoText: "All requests and appointments shown here are fictional demonstration records. This workspace is not connected to a live hospital system. Do not enter real patient information.",
+    requests: "Appointment requests",
+    attendance: "Attendance",
+    openRequests: "requests awaiting a decision",
+    refresh: "Refresh",
+    refreshing: "Refreshing…",
+    open: "Open requests",
+    all: "All requests",
+    queue: "REQUEST QUEUE",
+    incoming: "Incoming requests",
+    loading: "Loading…",
+    noOpen: "No open requests",
+    noRequests: "No requests found",
+    select: "Select a request",
+    selectText: "Choose a request from the list to review its details.",
+    details: "REQUEST DETAILS",
+    patient: "Patient reference",
+    preferredDoctor: "Preferred doctor",
+    noPreference: "No preference",
+    preferredDates: "Preferred dates",
+    submitted: "Submitted",
+    reason: "Reason for visit",
+    booking: "Demo booking reference",
+    assigned: "Assigned doctor",
+    date: "Appointment date",
+    time: "Appointment time",
+    declineExplanation: "Decline explanation",
+    history: "Status history",
+    approveTitle: "Approve and assign appointment",
+    doctor: "Doctor",
+    chooseDoctor: "Select a doctor",
+    appointmentDate: "Appointment date",
+    appointmentTime: "Appointment time",
+    approve: "Approve and book demo appointment",
+    decline: "Decline request",
+    explanation: "Explanation (required)",
+    declinePlaceholder: "Explain why this request cannot be accepted.",
+    declineButton: "Decline demo request",
+    processing: "Processing…",
+    decided: "This request has already been decided and cannot be acted on again.",
+    notSpecified: "Not specified",
+    submittedStatus: "Submitted",
+    underReview: "Under review",
+    needsInfo: "Needs information",
+    offered: "Appointment offered",
+    confirmed: "Appointment confirmed",
+    declined: "Declined",
+    cancelled: "Cancelled",
+    attendanceTitle: "Appointment attendance",
+    attendanceText: "Review confirmed appointments and record whether each patient attended.",
+    total: "appointments",
+    search: "Search patient, doctor, department or booking reference",
+    filterAll: "All appointments",
+    filterPending: "Awaiting attendance",
+    filterAttended: "Attended",
+    filterMissed: "Missed",
+    patientColumn: "Patient",
+    departmentColumn: "Department",
+    doctorColumn: "Doctor",
+    schedule: "Scheduled",
+    statusColumn: "Attendance",
+    actions: "Actions",
+    upcoming: "Upcoming",
+    pending: "Pending",
+    attended: "Attended",
+    missed: "Missed",
+    markAttended: "Mark attended",
+    markMissed: "Mark missed",
+    noAppointments: "No appointments found",
+    noAppointmentsText: "Confirmed demo appointments will appear here.",
+    futureNotice: "Attendance can only be recorded after the scheduled appointment time.",
+    confirmAttended: "Confirm that this patient attended the appointment?",
+    confirmMissed: "Confirm that this patient missed the appointment?",
+    attendanceSaved: "Attendance record saved successfully.",
+    patientReference: "Patient reference",
+    bookingReference: "Booking reference",
+    error: "Something went wrong. Please try again.",
+    connection: "Could not connect to the demo backend. Check that the backend is running.",
+    auth: "Staff demo authentication failed. Check the staff token and restart the frontend.",
+    dismiss: "Dismiss message",
+    minimum: "Minimum 10 characters",
+  },
+  am: {
+    eyebrow: "የሰራተኞች የስራ ቦታ",
+    title: "የቀጠሮ አስተዳደር",
+    intro: "የቀጠሮ ጥያቄዎችን ይመልከቱ እና የታካሚዎችን መገኘት ያስተዳድሩ።",
+    demo: "የሙከራ የሰራተኞች ቦታ — ሰው ሰራሽ መረጃ ብቻ",
+    demoText: "እዚህ የሚታዩት ጥያቄዎችና ቀጠሮዎች ሁሉ ለሙከራ የተፈጠሩ ናቸው። ይህ ስርዓት ከእውነተኛ የሆስፒታል ስርዓት ጋር አልተገናኘም። እውነተኛ የታካሚ መረጃ አያስገቡ።",
+    requests: "የቀጠሮ ጥያቄዎች",
+    attendance: "የታካሚ መገኘት",
+    openRequests: "ውሳኔ የሚጠብቁ ጥያቄዎች",
+    refresh: "አድስ",
+    refreshing: "በማደስ ላይ…",
+    open: "ክፍት ጥያቄዎች",
+    all: "ሁሉም ጥያቄዎች",
+    queue: "የጥያቄ ዝርዝር",
+    incoming: "የገቡ ጥያቄዎች",
+    loading: "በመጫን ላይ…",
+    noOpen: "ክፍት ጥያቄ የለም",
+    noRequests: "ምንም ጥያቄ አልተገኘም",
+    select: "ጥያቄ ይምረጡ",
+    selectText: "ዝርዝሩን በመጠቀም የሚፈልጉትን ጥያቄ ይምረጡ።",
+    details: "የጥያቄ ዝርዝር",
+    patient: "የታካሚ መለያ",
+    preferredDoctor: "የተመረጠ ሐኪም",
+    noPreference: "ምርጫ የለም",
+    preferredDates: "የተመረጡ ቀናት",
+    submitted: "የቀረበበት ጊዜ",
+    reason: "የጉብኝት ምክንያት",
+    booking: "የሙከራ ቀጠሮ መለያ",
+    assigned: "የተመደበ ሐኪም",
+    date: "የቀጠሮ ቀን",
+    time: "የቀጠሮ ሰዓት",
+    declineExplanation: "የመከልከያ ምክንያት",
+    history: "የሁኔታ ታሪክ",
+    approveTitle: "ጥያቄውን ያጽድቁ እና ቀጠሮ ይመድቡ",
+    doctor: "ሐኪም",
+    chooseDoctor: "ሐኪም ይምረጡ",
+    appointmentDate: "የቀጠሮ ቀን",
+    appointmentTime: "የቀጠሮ ሰዓት",
+    approve: "አጽድቅ እና የሙከራ ቀጠሮ መዝግብ",
+    decline: "ጥያቄውን ከልክል",
+    explanation: "ምክንያት (አስፈላጊ)",
+    declinePlaceholder: "ጥያቄው ለምን መቀበል እንደማይቻል ያብራሩ።",
+    declineButton: "የሙከራ ጥያቄን ከልክል",
+    processing: "በሂደት ላይ…",
+    decided: "ይህ ጥያቄ አስቀድሞ ውሳኔ ተሰጥቶታል።",
+    notSpecified: "አልተገለጸም",
+    submittedStatus: "ቀርቧል",
+    underReview: "በግምገማ ላይ",
+    needsInfo: "ተጨማሪ መረጃ ያስፈልጋል",
+    offered: "ቀጠሮ ቀርቧል",
+    confirmed: "ቀጠሮ ተረጋግጧል",
+    declined: "ተከልክሏል",
+    cancelled: "ተሰርዟል",
+    attendanceTitle: "የቀጠሮ መገኘት መዝገብ",
+    attendanceText: "የተረጋገጡ ቀጠሮዎችን ይመልከቱ እና ታካሚው መጥቶ እንደነበር ይመዝግቡ።",
+    total: "ቀጠሮዎች",
+    search: "ታካሚ፣ ሐኪም፣ ክፍል ወይም የቀጠሮ መለያ ይፈልጉ",
+    filterAll: "ሁሉም ቀጠሮዎች",
+    filterPending: "መገኘት የሚጠብቁ",
+    filterAttended: "ተገኝቷል",
+    filterMissed: "አልተገኘም",
+    patientColumn: "ታካሚ",
+    departmentColumn: "ክፍል",
+    doctorColumn: "ሐኪም",
+    schedule: "የቀጠሮ ጊዜ",
+    statusColumn: "የመገኘት ሁኔታ",
+    actions: "ተግባሮች",
+    upcoming: "ወደፊት ያለ",
+    pending: "በመጠባበቅ ላይ",
+    attended: "ተገኝቷል",
+    missed: "አልተገኘም",
+    markAttended: "ተገኝቷል ብለህ መዝግብ",
+    markMissed: "አልተገኘም ብለህ መዝግብ",
+    noAppointments: "ቀጠሮ አልተገኘም",
+    noAppointmentsText: "የተረጋገጡ የሙከራ ቀጠሮዎች እዚህ ይታያሉ።",
+    futureNotice: "የመገኘት ሁኔታ መመዝገብ የሚቻለው ከቀጠሮው ጊዜ በኋላ ብቻ ነው።",
+    confirmAttended: "ይህ ታካሚ በቀጠሮው ላይ እንደተገኘ ያረጋግጡ?",
+    confirmMissed: "ይህ ታካሚ በቀጠሮው ላይ እንዳልተገኘ ያረጋግጡ?",
+    attendanceSaved: "የመገኘት መረጃው በተሳካ ሁኔታ ተመዝግቧል።",
+    patientReference: "የታካሚ መለያ",
+    bookingReference: "የቀጠሮ መለያ",
+    error: "ችግር ተፈጥሯል። እንደገና ይሞክሩ።",
+    connection: "ከሙከራ ባክኤንድ ጋር መገናኘት አልተቻለም።",
+    auth: "የሰራተኛ ሙከራ ማረጋገጫ አልተሳካም።",
+    dismiss: "መልዕክቱን ዝጋ",
+    minimum: "ቢያንስ 10 ቁምፊዎች",
+  },
+} as const;
+type StaffReviewCopy = { [Key in keyof typeof copy.en]: string };
+
+function errorMessage(error: unknown, t: StaffReviewCopy): string {
+  if (!(error instanceof Error)) return t.error;
+  if (error.message.includes("Could not connect")) return t.connection;
+  if (error.message.includes("authentication failed")) return t.auth;
+  return error.message;
+}
+
+function formatDate(value?: string | null, language: Language = "en"): string {
+  if (!value) return language === "am" ? "አልተገለጸም" : "Not specified";
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(language === "am" ? "am-ET" : "en-ET", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+}
+
+function attendanceStatus(
+  appointment: StaffAttendanceAppointment,
+  t: StaffReviewCopy,
+) {
+  if (appointment.status === "attended_demo") {
+    return { label: t.attended, kind: "attended" };
+  }
+
+  if (appointment.status === "missed_demo") {
+    return { label: t.missed, kind: "missed" };
+  }
+
+  if (appointment.status !== "confirmed_demo") {
+    return { label: t.upcoming, kind: "upcoming" };
+  }
+
+  return { label: t.pending, kind: "pending" };
+}
+
+function appointmentHasPassed(
+  appointment: StaffAttendanceAppointment,
+): boolean {
+  const scheduled = new Date(
+    `${appointment.date}T${appointment.time}:00`,
+  );
+
+  return (
+    !Number.isNaN(scheduled.getTime()) &&
+    scheduled.getTime() <= Date.now()
+  );
+}
+
+function isAttendanceEligible(
+  appointment: StaffAttendanceAppointment,
+): boolean {
+  return (
+    appointment.status === "confirmed_demo" &&
+    appointmentHasPassed(appointment)
+  );
+}
+
+export default function StaffReview({ language }: Props) {
+  const t = copy[language];
+
+  const [appointments, setAppointments] = useState<
+    StaffAttendanceAppointment[]
+  >([]);
+  const [attendanceFilter, setAttendanceFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const loadAppointments = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await listStaffAppointments();
+      setAppointments(result);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadAppointments();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadAppointments]);
+
+  const visibleAppointments = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return appointments
+      .filter((item) =>
+        ["confirmed_demo", "attended_demo", "missed_demo"].includes(
+          item.status,
+        ),
+      )
+      .filter((item) => {
+        if (attendanceFilter === "pending") {
+          return item.status === "confirmed_demo";
+        }
+
+        if (attendanceFilter === "attended") {
+          return item.status === "attended_demo";
+        }
+
+        if (attendanceFilter === "missed") {
+          return item.status === "missed_demo";
+        }
+
+        return true;
+      })
+      .filter(
+        (item) =>
+          !query ||
+          [
+            item.patientId,
+            item.doctorName,
+            item.department,
+            item.bookingId,
+          ].some((value) => value?.toLowerCase().includes(query)),
+      )
+      .sort((a, b) =>
+        `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`),
+      );
+  }, [appointments, attendanceFilter, search]);
+
+  async function handleAttendance(
+    appointment: StaffAttendanceAppointment,
+    outcome: "attended" | "missed",
+  ) {
+    if (!isAttendanceEligible(appointment)) return;
+
+    const confirmed = window.confirm(
+      outcome === "attended" ? t.confirmAttended : t.confirmMissed,
+    );
+
+    if (!confirmed) return;
+
+    setWorking(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const updated = await recordStaffAttendance(
+        appointment.bookingId,
+        outcome,
+      );
+
+      setAppointments((current) =>
+        current.map((item) =>
+          item.bookingId === updated.bookingId ? updated : item,
+        ),
+      );
+
+      setSuccess(t.attendanceSaved);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  const confirmedCount = appointments.filter(
+    (item) => item.status === "confirmed_demo",
+  ).length;
+
+  return (
+    <section className="appointment-page staff-review-page">
+      <header className="appointment-intro">
+        <div>
+          <span className="appointment-eyebrow">{t.eyebrow}</span>
+          <h1>{t.title}</h1>
+          <p>{t.attendanceText}</p>
+        </div>
+        <div className="appointment-intro-icon" aria-hidden="true">
+          ✓
+        </div>
+      </header>
+
+      <aside className="appointment-demo-notice" role="note">
+        <strong>{t.demo}</strong>
+        <p>{t.demoText}</p>
+      </aside>
+
+      {error && (
+        <div
+          className="appointment-alert appointment-alert--error"
+          role="alert"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError("")}
+            aria-label={t.dismiss}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {success && (
+        <div
+          className="appointment-alert appointment-alert--success"
+          role="status"
+        >
+          <span>{success}</span>
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            aria-label={t.dismiss}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <div className="staff-review-toolbar">
+        <div>
+          <strong>{confirmedCount}</strong>
+          <span> {t.total}</span>
+        </div>
+
+        <button
+          type="button"
+          className="appointment-refresh-button"
+          onClick={() => void loadAppointments()}
+          disabled={loading}
+        >
+          {loading ? t.refreshing : t.refresh}
+        </button>
+      </div>
+
+      <section className="appointment-panel staff-attendance-panel">
+        <div className="appointment-panel-heading">
+          <div>
+            <span className="appointment-section-label">
+              {t.attendance}
+            </span>
+            <h2>{t.attendanceTitle}</h2>
+            <p className="appointment-panel-description">
+              {t.attendanceText}
+            </p>
+          </div>
+        </div>
+
+        <div className="staff-attendance-controls">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t.search}
+            aria-label={t.search}
+          />
+
+          <select
+            value={attendanceFilter}
+            onChange={(event) => setAttendanceFilter(event.target.value)}
+            aria-label={t.statusColumn}
+          >
+            <option value="all">{t.filterAll}</option>
+            <option value="pending">{t.filterPending}</option>
+            <option value="attended">{t.filterAttended}</option>
+            <option value="missed">{t.filterMissed}</option>
+          </select>
+        </div>
+
+        {loading ? (
+          <div className="appointment-empty-state">
+            <p>{t.loading}</p>
+          </div>
+        ) : visibleAppointments.length === 0 ? (
+          <div className="appointment-empty-state">
+            <h3>{t.noAppointments}</h3>
+            <p>{t.noAppointmentsText}</p>
+          </div>
+        ) : (
+          <div className="staff-attendance-table-wrap">
+            <table className="staff-attendance-table">
+              <thead>
+                <tr>
+                  <th>{t.patientColumn}</th>
+                  <th>{t.departmentColumn}</th>
+                  <th>{t.doctorColumn}</th>
+                  <th>{t.schedule}</th>
+                  <th>{t.statusColumn}</th>
+                  <th>{t.actions}</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {visibleAppointments.map((appointment) => {
+                  const status = attendanceStatus(appointment, t);
+                  const eligible = isAttendanceEligible(appointment);
+
+                  return (
+                    <tr key={appointment.bookingId}>
+                      <td>
+                        <strong>{appointment.patientId}</strong>
+                        <small>{appointment.bookingId}</small>
+                      </td>
+
+                      <td>{appointment.department}</td>
+                      <td>{appointment.doctorName}</td>
+
+                      <td>
+                        <strong>
+                          {formatDate(appointment.date, language)}
+                        </strong>
+                        <small>{appointment.time}</small>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`staff-attendance-status staff-attendance-status--${status.kind}`}
+                        >
+                          {status.label}
+                        </span>
+                      </td>
+
+                      <td>
+                        {eligible ? (
+                          <div className="staff-attendance-actions">
+                            <button
+                              type="button"
+                              disabled={working}
+                              onClick={() =>
+                                void handleAttendance(
+                                  appointment,
+                                  "attended",
+                                )
+                              }
+                            >
+                              {t.markAttended}
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={working}
+                              onClick={() =>
+                                void handleAttendance(
+                                  appointment,
+                                  "missed",
+                                )
+                              }
+                            >
+                              {t.markMissed}
+                            </button>
+                          </div>
+                        ) : appointment.status === "confirmed_demo" ? (
+                          <span className="staff-attendance-upcoming">
+                            {t.futureNotice}
+                          </span>
+                        ) : (
+                          <span className="staff-attendance-recorded">
+                            —
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+
+========== frontend\src\services\appointments.ts ==========
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+).replace(/\/+$/, "");
+
+const DEMO_PATIENT_ID = import.meta.env.VITE_DEMO_PATIENT_ID;
+
+export type Department = string;
+
+export interface Doctor {
+  id: string;
+  name: string;
+  department: string;
+  specialties: string[];
+  location: string;
+}
+
+export interface AppointmentSlot {
+  doctorId: string;
+  doctorName: string;
+  department: string;
+  location: string;
+  date: string;
+  time: string;
+  status: string;
+  available: boolean;
+  slotRemainingCapacity: number;
+  dailyRemainingCapacity: number;
+  dataSource: string;
+  dataNotice?: string;
+}
+
+export interface Appointment {
+  bookingId: string;
+  doctorId: string;
+  doctorName: string;
+  department: string;
+  location: string;
+  date: string;
+  time: string;
+  purpose: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  dataNotice?: string;
+}
+
+interface ApiOptions {
+  method?: "GET" | "POST";
+  body?: unknown;
+}
+
+function getHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+
+  if (DEMO_PATIENT_ID && import.meta.env.DEV) {
+    headers["X-Demo-Patient-Id"] = DEMO_PATIENT_ID;
+  }
+
+  return headers;
+}
+
+async function requestJson<T>(
+  path: string,
+  options: ApiOptions = {},
+): Promise<T> {
+  const headers = getHeaders();
+
+  if (options.body !== undefined) {
+    (headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body:
+        options.body === undefined
+          ? undefined
+          : JSON.stringify(options.body),
+    });
+  } catch {
+    throw new Error(
+      "Could not connect to the appointment service. Check that the backend is running.",
+    );
+  }
+
+  const payload: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status}).`;
+
+    if (
+      payload &&
+      typeof payload === "object" &&
+      "detail" in payload
+    ) {
+      const detail = (payload as { detail?: unknown }).detail;
+
+      if (typeof detail === "string") {
+        message = detail;
+      } else if (Array.isArray(detail)) {
+        message = detail
+          .map((item) =>
+            item &&
+            typeof item === "object" &&
+            "msg" in item
+              ? String((item as { msg: unknown }).msg)
+              : String(item),
+          )
+          .join(" ");
+      }
+    }
+
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
+export async function getDepartments(): Promise<Department[]> {
+  const result = await requestJson<{ departments: Department[] }>(
+    "/appointments/departments",
+  );
+  return result.departments;
+}
+
+export async function getDoctors(
+  department?: string,
+): Promise<Doctor[]> {
+  const params = new URLSearchParams();
+
+  if (department) {
+    params.set("department", department);
+  }
+
+  const suffix = params.size ? `?${params.toString()}` : "";
+  const result = await requestJson<{ doctors: Doctor[] }>(
+    `/appointments/doctors${suffix}`,
+  );
+
+  return result.doctors;
+}
+
+export async function getAvailability(
+  doctorId: string,
+  startDate: string,
+  days = 14,
+): Promise<AppointmentSlot[]> {
+  const params = new URLSearchParams({
+    doctorId,
+    startDate,
+    days: String(days),
+  });
+
+  const result = await requestJson<{ slots: AppointmentSlot[] }>(
+    `/appointments/availability?${params.toString()}`,
+  );
+
+  return result.slots;
+}
+
+export async function getMyAppointments(): Promise<Appointment[]> {
+  const result = await requestJson<{ appointments: Appointment[] }>(
+    "/patient/appointments",
+  );
+
+  return result.appointments;
+}
+
+export async function bookAppointment(input: {
+  doctorId: string;
+  date: string;
+  time: string;
+  purpose: string;
+}): Promise<Appointment> {
+  const result = await requestJson<{ booking: Appointment }>(
+    "/appointments/book",
+    { method: "POST", body: input },
+  );
+
+  return result.booking;
+}
+
+export async function cancelAppointment(
+  bookingId: string,
+): Promise<Appointment> {
+  const result = await requestJson<{ booking: Appointment }>(
+    `/patient/appointments/${encodeURIComponent(bookingId)}/cancel`,
+    { method: "POST" },
+  );
+
+  return result.booking;
+}
+
+export async function rescheduleAppointment(
+  bookingId: string,
+  input: { doctorId: string; date: string; time: string },
+): Promise<Appointment> {
+  const result = await requestJson<{ booking: Appointment }>(
+    `/patient/appointments/${encodeURIComponent(bookingId)}/reschedule`,
+    { method: "POST", body: input },
+  );
+
+  return result.booking;
+}
+
+export function getLocalDateString(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+
+========== frontend\src\services\staffAppointmentRequests.ts ==========
+import type { AppointmentRequestStatus, AppointmentRequestHistoryItem } from "./appointmentRequests";
+import type { Doctor, Appointment } from "./appointments";
+
+export interface StaffAppointmentRequest {
+  requestId: string;
+  patientId: string;
+  department: string | null;
+  preferredDoctor: string | null;
+  preferredDateStart: string | null;
+  preferredDateEnd: string | null;
+  reason: string;
+  status: AppointmentRequestStatus;
+  submittedAt: string;
+  updatedAt: string;
+  statusHistory: AppointmentRequestHistoryItem[];
+  declineReason?: string;
+  bookingId?: string;
+  assignedDoctorName?: string;
+  appointmentDate?: string;
+  appointmentTime?: string;
+}
+
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+).replace(/\/+$/, "");
+
+const STAFF_TOKEN = import.meta.env.VITE_DEMO_STAFF_TOKEN;
+
+function staffHeaders(): HeadersInit {
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(import.meta.env.DEV && STAFF_TOKEN
+      ? { "X-Demo-Staff-Token": STAFF_TOKEN }
+      : {}),
+  };
+}
+
+async function requestJson<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: { ...staffHeaders(), ...options.headers },
+    });
+  } catch {
+    throw new Error("Could not connect to the demo backend. Check that the backend is running.");
+  }
+
+  const payload: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status}).`;
+
+    if (payload && typeof payload === "object" && "detail" in payload) {
+      const detail = (payload as { detail: unknown }).detail;
+      if (typeof detail === "string") message = detail;
+      else if (Array.isArray(detail)) {
+        message = detail.map((item) =>
+          item && typeof item === "object" && "msg" in item
+            ? String(item.msg)
+            : String(item),
+        ).join(" ");
+      }
+    }
+
+    if (response.status === 401) {
+      message = "Staff demo authentication failed. Check VITE_DEMO_STAFF_TOKEN and restart the frontend.";
+    }
+
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
+export async function listStaffAppointmentRequests(): Promise<StaffAppointmentRequest[]> {
+  const result = await requestJson<{ requests: StaffAppointmentRequest[] }>(
+    "/staff/appointment-requests",
+  );
+  return result.requests;
+}
+
+export async function approveStaffAppointmentRequest(
+  requestId: string,
+  input: { doctorId: string; date: string; time: string },
+): Promise<{ request: StaffAppointmentRequest; booking: Appointment }> {
+  return requestJson(
+    `/staff/appointment-requests/${encodeURIComponent(requestId)}/approve`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export async function declineStaffAppointmentRequest(
+  requestId: string,
+  reason: string,
+): Promise<StaffAppointmentRequest> {
+  const result = await requestJson<{ request: StaffAppointmentRequest }>(
+    `/staff/appointment-requests/${encodeURIComponent(requestId)}/decline`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+  return result.request;
+}
+
+export type { Doctor };
+
+export interface StaffAttendanceAppointment {
+  bookingId: string;
+  patientId: string;
+  doctorId: string;
+  doctorName: string;
+  department: string;
+  location: string;
+  date: string;
+  time: string;
+  purpose: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export async function listStaffAppointments(): Promise<StaffAttendanceAppointment[]> {
+  const result = await requestJson<{
+    appointments: StaffAttendanceAppointment[];
+  }>("/staff/appointments");
+
+  return result.appointments;
+}
+
+export async function recordStaffAttendance(
+  bookingId: string,
+  outcome: "attended" | "missed",
+): Promise<StaffAttendanceAppointment> {
+  const result = await requestJson<{
+    booking: StaffAttendanceAppointment;
+  }>(
+    `/staff/appointments/${encodeURIComponent(bookingId)}/attendance`,
+    {
+      method: "POST",
+      body: JSON.stringify({ outcome }),
+    },
+  );
+
+  return result.booking;
+}
+
+
+========== backend\app\api\appointments.py ==========
+"""Patient appointment booking API for the synthetic local demo."""
+
+from datetime import date
+from typing import Any, Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.core.auth import get_current_demo_staff, get_current_patient_id
+from app.data.scheduling import DATA_SOURCE, DOCTORS, generate_synthetic_slots
+from app.services.audit import record_audit_event
+from app.services.demo_scheduler import (
+    DEMO_NOTICE,
+    BookingConflictError,
+    BookingNotFoundError,
+    demo_scheduler,
+)
+
+router = APIRouter(tags=["Appointments"])
+
+
+class BookingInput(BaseModel):
+    """A patient-selected demo appointment slot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    doctorId: str = Field(min_length=1, max_length=64)
+    date: date
+    time: str = Field(min_length=5, max_length=5)
+    purpose: str = Field(default="", max_length=200)
+
+
+class RescheduleInput(BaseModel):
+    """The replacement slot selected by the authenticated patient."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    doctorId: str = Field(min_length=1, max_length=64)
+    date: date
+    time: str = Field(min_length=5, max_length=5)
+
+
+def _require_future_date(value: date) -> str:
+    if value < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Appointment date cannot be in the past.",
+        )
+    return value.isoformat()
+
+
+def _handle_booking_value_error(exc: ValueError) -> None:
+    """Translate known capacity conflicts into HTTP 409 responses."""
+    message = str(exc)
+    normalized = message.casefold()
+
+    if any(word in normalized for word in ("full", "already have")):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=message,
+        ) from exc
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=message,
+    ) from exc
+
+
+def _doctor_or_404(doctor_id: str) -> dict[str, Any]:
+    doctor = next(
+        (item for item in DOCTORS if item["id"] == doctor_id),
+        None,
+    )
+    if doctor is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Doctor not found.",
+        )
+    return doctor
+
+
+def _audit(
+    patient_id: str,
+    event: str,
+    booking: dict[str, Any],
+) -> None:
+    """Record minimal booking metadata; do not log the appointment purpose."""
+    record_audit_event(
+        {
+            "patientId": patient_id,
+            "event": event,
+            "details": {
+                "bookingId": booking.get("bookingId"),
+                "doctorId": booking.get("doctorId"),
+                "date": booking.get("date"),
+                "time": booking.get("time"),
+                "dataSource": DATA_SOURCE,
+            },
+        }
+    )
+
+
+@router.get("/api/appointments/departments")
+async def list_departments(
+    _patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    departments = sorted({doctor["department"] for doctor in DOCTORS})
+    return {
+        "departments": departments,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.get("/api/appointments/doctors")
+async def list_doctors(
+    department: str | None = Query(default=None, max_length=100),
+    _patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    doctors = [
+        {
+            "id": doctor["id"],
+            "name": doctor["name"],
+            "department": doctor["department"],
+            "specialties": doctor["specialties"],
+            "location": doctor["location"],
+        }
+        for doctor in DOCTORS
+        if (
+            not department
+            or doctor["department"].casefold() == department.strip().casefold()
+        )
+    ]
+
+    return {
+        "doctors": doctors,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.get("/api/appointments/availability")
+async def list_availability(
+    doctorId: str = Query(min_length=1, max_length=64),
+    startDate: date = Query(),
+    days: int = Query(default=14, ge=1, le=30),
+    _patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    doctor = _doctor_or_404(doctorId)
+    start = _require_future_date(startDate)
+
+    slots = generate_synthetic_slots(
+        doctor_id=doctorId,
+        start_date=date.fromisoformat(start),
+        days=days,
+    )
+
+    for slot in slots:
+        capacity = demo_scheduler.get_slot_status(
+            doctorId,
+            slot["date"],
+            slot["time"],
+        )
+        slot.update(
+            {
+                "doctorName": doctor["name"],
+                "location": doctor["location"],
+                "slotCapacity": capacity["slotCapacity"],
+                "slotBookedCount": capacity["slotBookedCount"],
+                "slotRemainingCapacity": capacity["slotRemainingCapacity"],
+                "dailyCapacity": capacity["dailyCapacity"],
+                "dailyBookedCount": capacity["dailyBookedCount"],
+                "dailyRemainingCapacity": capacity["dailyRemainingCapacity"],
+                "available": capacity["available"],
+                "dataNotice": DEMO_NOTICE,
+            }
+        )
+
+    return {
+        "slots": slots,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+        "notice": "These are fictional demo slots, not live hospital availability.",
+    }
+
+
+@router.post("/api/appointments/book", status_code=status.HTTP_201_CREATED)
+async def book_appointment(
+    payload: BookingInput,
+    patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    _doctor_or_404(payload.doctorId)
+    appointment_date = _require_future_date(payload.date)
+
+    try:
+        booking = demo_scheduler.book_appointment(
+            patient_id=patient_id,
+            doctor_id=payload.doctorId,
+            appointment_date=appointment_date,
+            appointment_time=payload.time,
+            purpose=payload.purpose,
+        )
+    except BookingConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        _handle_booking_value_error(exc)
+
+    _audit(patient_id, "demo_appointment_booked", booking)
+
+    return {
+        "booking": booking,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.get("/api/patient/appointments")
+async def list_patient_appointments(
+    patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    appointments = demo_scheduler.get_patient_bookings(
+        patient_id,
+        include_inactive=True,
+    )
+    return {
+        "appointments": appointments,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.get("/api/patient/appointments/{booking_id}")
+async def get_patient_appointment(
+    booking_id: str,
+    patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    try:
+        booking = demo_scheduler.get_patient_booking(patient_id, booking_id)
+    except BookingNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Appointment not found.") from exc
+
+    return {
+        "booking": booking,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.post("/api/patient/appointments/{booking_id}/cancel")
+async def cancel_patient_appointment(
+    booking_id: str,
+    patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    try:
+        booking = demo_scheduler.cancel_appointment(patient_id, booking_id)
+    except BookingNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Appointment not found.") from exc
+    except BookingConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    _audit(patient_id, "demo_appointment_cancelled", booking)
+
+    return {
+        "booking": booking,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.post("/api/patient/appointments/{booking_id}/reschedule")
+async def reschedule_patient_appointment(
+    booking_id: str,
+    payload: RescheduleInput,
+    patient_id: str = Depends(get_current_patient_id),
+) -> dict[str, Any]:
+    _doctor_or_404(payload.doctorId)
+    appointment_date = _require_future_date(payload.date)
+
+    try:
+        result = demo_scheduler.reschedule_appointment(
+            patient_id=patient_id,
+            booking_id=booking_id,
+            doctor_id=payload.doctorId,
+            appointment_date=appointment_date,
+            appointment_time=payload.time,
+        )
+    except BookingNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Appointment not found.") from exc
+    except BookingConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        _handle_booking_value_error(exc)
+
+    _audit(patient_id, "demo_appointment_rescheduled", result["booking"])
+
+    return {
+        **result,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+class AttendanceInput(BaseModel):
+    """Attendance outcome submitted by authorized demo staff."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["attended", "missed"]
+
+
+@router.get("/api/staff/appointments")
+async def list_staff_appointments(
+    _staff_id: str = Depends(get_current_demo_staff),
+) -> dict[str, Any]:
+    """List synthetic bookings for authenticated demo staff."""
+    return {
+        "appointments": demo_scheduler.get_all_bookings(),
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.post("/api/staff/appointments/{booking_id}/attendance")
+async def record_staff_attendance(
+    booking_id: str,
+    payload: AttendanceInput,
+    staff_id: str = Depends(get_current_demo_staff),
+) -> dict[str, Any]:
+    """Record an attendance outcome using staff-only authentication."""
+    try:
+        booking = demo_scheduler.record_attendance(
+            booking_id=booking_id,
+            outcome=payload.outcome,
+            recorded_by=staff_id,
+        )
+    except BookingNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Appointment not found.") from exc
+    except BookingConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    record_audit_event(
+        {
+            "patientId": booking.get("patientId"),
+            "event": "demo_appointment_attendance_recorded",
+            "details": {
+                "bookingId": booking.get("bookingId"),
+                "outcome": payload.outcome,
+                "recordedBy": staff_id,
+                "dataSource": DATA_SOURCE,
+            },
+        }
+    )
+
+    return {
+        "booking": booking,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+
+
+========== backend\app\services\demo_scheduler.py ==========
+
+"""SQLite-backed scheduler for fictional local demonstration appointments.
+
+All records are synthetic. This is not a production hospital scheduling system.
+Use an authorized hospital scheduling API for production.
+"""
+
+import json
+import os
+import sqlite3
+from datetime import date, datetime, timezone
+from pathlib import Path
+from threading import RLock
+from typing import Any
+from uuid import uuid4
+
+from app.data.patients import PATIENTS
+from app.data.scheduling import DATA_SOURCE, DOCTORS
+
+
+DEMO_SLOT_TIMES = ("09:00", "10:30", "13:00", "14:30")
+SLOT_CAPACITY = 2
+DAILY_CAPACITY_PER_DOCTOR = len(DEMO_SLOT_TIMES) * SLOT_CAPACITY
+DEMO_QUEUE_PEOPLE_AHEAD = 3
+DEMO_MINUTES_PER_PATIENT = 15
+
+DEMO_NOTICE = (
+    "SYNTHETIC DEMONSTRATION DATA: This booking and availability "
+    "information is fictional local prototype data, not a live hospital "
+    "schedule. No real hospital appointment has been created."
+)
+
+
+class BookingNotFoundError(Exception):
+    """The booking does not exist or does not belong to the patient."""
+
+
+class BookingConflictError(Exception):
+    """The requested booking operation conflicts with its current state."""
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _validate_not_in_past(
+    selected_date: date,
+    appointment_time: str,
+    now: datetime | None = None,
+) -> None:
+    """Reject demo appointment slots whose local time has passed."""
+    current = now if now is not None else datetime.now().astimezone()
+    selected_time = datetime.strptime(appointment_time, "%H:%M").time()
+    current_time = current.time().replace(
+        tzinfo=None,
+        second=0,
+        microsecond=0,
+    )
+
+    if selected_date < current.date():
+        raise ValueError("Appointments cannot be booked in the past.")
+
+    if selected_date == current.date() and selected_time <= current_time:
+        raise ValueError("This demo appointment time has already passed.")
+
+
+class DemoScheduler:
+    """Thread-safe SQLite scheduler for the local prototype.
+
+    Instantiate with no argument for an isolated in-memory database.
+    The shared application instance uses HOSPITAL_DEMO_DATABASE_PATH.
+    """
+
+    def __init__(self, db_path: str = ":memory:") -> None:
+        self._lock = RLock()
+        self._db_path = db_path
+
+        if db_path != ":memory:":
+            Path(db_path).expanduser().resolve().parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+        self._connection = sqlite3.connect(
+            db_path,
+            check_same_thread=False,
+            timeout=10,
+        )
+        self._connection.row_factory = sqlite3.Row
+
+        with self._lock:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS demo_bookings (
+                    booking_id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    doctor_id TEXT NOT NULL,
+                    appointment_date TEXT NOT NULL,
+                    appointment_time TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_demo_bookings_patient
+                ON demo_bookings(patient_id, appointment_date, appointment_time)
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_demo_bookings_slot
+                ON demo_bookings(doctor_id, appointment_date, appointment_time, status)
+                """
+            )
+            self._connection.commit()
+
+    @staticmethod
+    def _doctor(doctor_id: str) -> dict[str, Any]:
+        doctor = next(
+            (item for item in DOCTORS if item["id"] == doctor_id),
+            None,
+        )
+        if doctor is None:
+            raise ValueError("Doctor not found.")
+        return doctor
+
+    @staticmethod
+    def _validate_patient(patient_id: str) -> None:
+        if not patient_id or not patient_id.strip():
+            raise ValueError("Authenticated patient identity is required.")
+        if patient_id not in PATIENTS:
+            raise ValueError("Patient record not found.")
+
+    @staticmethod
+    def _validate_date(appointment_date: str) -> date:
+        try:
+            selected_date = date.fromisoformat(appointment_date)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "appointmentDate must use YYYY-MM-DD format."
+            ) from error
+
+        if selected_date < date.today():
+            raise ValueError("Appointments cannot be booked in the past.")
+        if selected_date.weekday() >= 5:
+            raise ValueError("Demo appointments are available on weekdays only.")
+
+        return selected_date
+
+    @staticmethod
+    def _validate_time(appointment_time: str) -> None:
+        if appointment_time not in DEMO_SLOT_TIMES:
+            raise ValueError("This is not a valid demo appointment time.")
+
+    @staticmethod
+    def _public_booking(booking: dict[str, Any]) -> dict[str, Any]:
+        """Never expose internal patient identity in a booking response."""
+        return {
+            key: value
+            for key, value in booking.items()
+            if key != "patientId"
+        }
+
+    def _rows_for_day(
+        self,
+        doctor_id: str,
+        appointment_date: str,
+    ) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT payload_json FROM demo_bookings
+            WHERE doctor_id = ?
+              AND appointment_date = ?
+              AND status = 'confirmed_demo'
+            """,
+            (doctor_id, appointment_date),
+        ).fetchall()
+        return [json.loads(row["payload_json"]) for row in rows]
+
+    def _rows_for_slot(
+        self,
+        doctor_id: str,
+        appointment_date: str,
+        appointment_time: str,
+    ) -> list[dict[str, Any]]:
+        return [
+            booking
+            for booking in self._rows_for_day(doctor_id, appointment_date)
+            if booking["time"] == appointment_time
+        ]
+
+    def _insert_booking(
+        self,
+        patient_id: str,
+        doctor: dict[str, Any],
+        selected_date: str,
+        appointment_time: str,
+        purpose: str,
+        history: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        timestamp = _now()
+        booking = {
+            "bookingId": f"demo-{uuid4().hex[:12]}",
+            "patientId": patient_id,
+            "doctorId": doctor["id"],
+            "doctorName": doctor["name"],
+            "department": doctor["department"],
+            "location": doctor["location"],
+            "date": selected_date,
+            "time": appointment_time,
+            "purpose": purpose,
+            "status": "confirmed_demo",
+            "history": history or [
+                {
+                    "event": "booked",
+                    "at": timestamp,
+                    "note": "Synthetic demo booking created.",
+                }
+            ],
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
+            "dataSource": DATA_SOURCE,
+            "dataNotice": DEMO_NOTICE,
+        }
+
+        self._connection.execute(
+            """
+            INSERT INTO demo_bookings (
+                booking_id, patient_id, doctor_id,
+                appointment_date, appointment_time, status,
+                payload_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                booking["bookingId"],
+                patient_id,
+                doctor["id"],
+                selected_date,
+                appointment_time,
+                booking["status"],
+                json.dumps(booking),
+                timestamp,
+                timestamp,
+            ),
+        )
+        return booking
+
+    def _update_booking(self, booking: dict[str, Any]) -> None:
+        booking["updatedAt"] = _now()
+        self._connection.execute(
+            """
+            UPDATE demo_bookings
+            SET status = ?, payload_json = ?, updated_at = ?
+            WHERE booking_id = ?
+            """,
+            (
+                booking["status"],
+                json.dumps(booking),
+                booking["updatedAt"],
+                booking["bookingId"],
+            ),
+        )
+
+    def get_slot_status(
+        self,
+        doctor_id: str,
+        appointment_date: str,
+        appointment_time: str,
+    ) -> dict[str, Any]:
+        """Return slot capacity without disclosing other patients."""
+        self._doctor(doctor_id)
+        self._validate_date(appointment_date)
+        self._validate_time(appointment_time)
+
+        with self._lock:
+            day_bookings = self._rows_for_day(doctor_id, appointment_date)
+            slot_bookings = self._rows_for_slot(
+                doctor_id,
+                appointment_date,
+                appointment_time,
+            )
+
+        return {
+            "doctorId": doctor_id,
+            "date": appointment_date,
+            "time": appointment_time,
+            "slotCapacity": SLOT_CAPACITY,
+            "slotBookedCount": len(slot_bookings),
+            "slotRemainingCapacity": SLOT_CAPACITY - len(slot_bookings),
+            "dailyCapacity": DAILY_CAPACITY_PER_DOCTOR,
+            "dailyBookedCount": len(day_bookings),
+            "dailyRemainingCapacity": DAILY_CAPACITY_PER_DOCTOR - len(day_bookings),
+            "available": len(slot_bookings) < SLOT_CAPACITY,
+            "dataSource": DATA_SOURCE,
+            "dataNotice": DEMO_NOTICE,
+        }
+
+    def get_day_summary(
+        self,
+        doctor_id: str,
+        appointment_date: str,
+    ) -> dict[str, Any]:
+        """Return aggregate synthetic bookings and an illustrative queue estimate."""
+        doctor = self._doctor(doctor_id)
+        selected_date = self._validate_date(appointment_date)
+
+        with self._lock:
+            booked_count = len(
+                self._rows_for_day(doctor_id, selected_date.isoformat())
+            )
+
+        people_ahead = (
+            DEMO_QUEUE_PEOPLE_AHEAD if selected_date.weekday() < 5 else 0
+        )
+
+        return {
+            "doctorId": doctor_id,
+            "doctorName": doctor["name"],
+            "date": selected_date.isoformat(),
+            "bookedCount": booked_count,
+            "dailyCapacity": DAILY_CAPACITY_PER_DOCTOR,
+            "remainingCapacity": DAILY_CAPACITY_PER_DOCTOR - booked_count,
+            "illustrativeQueueCount": people_ahead,
+            "illustrativeWaitMinutes": people_ahead * DEMO_MINUTES_PER_PATIENT,
+            "queueNotice": (
+                "The queue count and wait estimate are fictional examples. "
+                "They are not the current hospital waiting queue."
+            ),
+            "dataSource": DATA_SOURCE,
+            "dataNotice": DEMO_NOTICE,
+        }
+
+    def book_appointment(
+        self,
+        patient_id: str,
+        doctor_id: str,
+        appointment_date: str,
+        appointment_time: str,
+        purpose: str = "",
+    ) -> dict[str, Any]:
+        """Create a demo booking after the caller confirms the specific slot."""
+        self._validate_patient(patient_id)
+        doctor = self._doctor(doctor_id)
+        selected_date = self._validate_date(appointment_date).isoformat()
+        self._validate_time(appointment_time)
+        _validate_not_in_past(
+            date.fromisoformat(selected_date),
+            appointment_time,
+        )
+
+        normalized_purpose = purpose.strip()
+        if len(normalized_purpose) > 200:
+            raise ValueError("Appointment purpose must be 200 characters or fewer.")
+
+        with self._lock:
+            owns_transaction = not self._connection.in_transaction
+
+            if owns_transaction:
+                self._connection.execute("BEGIN IMMEDIATE")
+
+            try:
+                day_bookings = self._rows_for_day(doctor_id, selected_date)
+
+                if len(day_bookings) >= DAILY_CAPACITY_PER_DOCTOR:
+                    raise ValueError("This doctor's demo daily capacity is full.")
+
+                duplicate = self._connection.execute(
+                    """
+                    SELECT 1 FROM demo_bookings
+                    WHERE patient_id = ?
+                      AND appointment_date = ? AND appointment_time = ?
+                      AND status = 'confirmed_demo'
+                    LIMIT 1
+                    """,
+                    (patient_id, selected_date, appointment_time),
+                ).fetchone()
+                if duplicate:
+                    raise ValueError(
+                        "You already have a demo booking for this doctor, "
+                        "date, and time."
+                    )
+
+                slot_bookings = self._rows_for_slot(
+                    doctor_id,
+                    selected_date,
+                    appointment_time,
+                )
+                if len(slot_bookings) >= SLOT_CAPACITY:
+                    raise ValueError("This demo time slot is full.")
+
+                booking = self._insert_booking(
+                    patient_id,
+                    doctor,
+                    selected_date,
+                    appointment_time,
+                    normalized_purpose,
+                )
+                if owns_transaction:
+                    self._connection.commit()
+            except Exception:
+                if owns_transaction:
+                    self._connection.rollback()
+                raise
+
+        return self._public_booking(booking)
+
+    def get_patient_bookings(
+        self,
+        patient_id: str,
+        include_inactive: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Return only this patient's bookings."""
+        self._validate_patient(patient_id)
+
+        query = """
+            SELECT payload_json FROM demo_bookings
+            WHERE patient_id = ?
+        """
+        if not include_inactive:
+            query += " AND status = 'confirmed_demo'"
+        query += " ORDER BY appointment_date, appointment_time"
+
+        with self._lock:
+            rows = self._connection.execute(query, (patient_id,)).fetchall()
+
+        bookings = [json.loads(row["payload_json"]) for row in rows]
+        return [self._public_booking(item) for item in bookings]
+
+    def get_patient_booking(
+        self,
+        patient_id: str,
+        booking_id: str,
+    ) -> dict[str, Any]:
+        """Get one booking only when it belongs to the patient."""
+        self._validate_patient(patient_id)
+
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT payload_json FROM demo_bookings
+                WHERE booking_id = ? AND patient_id = ?
+                """,
+                (booking_id, patient_id),
+            ).fetchone()
+
+        if row is None:
+            raise BookingNotFoundError("Appointment not found.")
+        return self._public_booking(json.loads(row["payload_json"]))
+
+    def cancel_appointment(
+        self,
+        patient_id: str,
+        booking_id: str,
+    ) -> dict[str, Any]:
+        """Cancel an active booking owned by the patient."""
+        self._validate_patient(patient_id)
+
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._connection.execute(
+                    """
+                    SELECT payload_json FROM demo_bookings
+                    WHERE booking_id = ? AND patient_id = ?
+                    """,
+                    (booking_id, patient_id),
+                ).fetchone()
+
+                if row is None:
+                    raise BookingNotFoundError("Appointment not found.")
+
+                booking = json.loads(row["payload_json"])
+                if booking["status"] != "confirmed_demo":
+                    raise BookingConflictError(
+                        "Only an active demo appointment can be cancelled."
+                    )
+
+                booking["status"] = "cancelled_demo"
+                booking.setdefault("history", []).append(
+                    {
+                        "event": "cancelled",
+                        "at": _now(),
+                        "note": "Cancelled by patient in the demo portal.",
+                    }
+                )
+                self._update_booking(booking)
+                self._connection.commit()
+            except Exception:
+                self._connection.rollback()
+                raise
+
+        return self._public_booking(booking)
+
+    def reschedule_appointment(
+        self,
+        patient_id: str,
+        booking_id: str,
+        doctor_id: str,
+        appointment_date: str,
+        appointment_time: str,
+    ) -> dict[str, Any]:
+        """Atomically replace a patient's active demo booking with a new slot."""
+        self._validate_patient(patient_id)
+        doctor = self._doctor(doctor_id)
+        selected_date = self._validate_date(appointment_date).isoformat()
+        self._validate_time(appointment_time)
+        _validate_not_in_past(
+            date.fromisoformat(selected_date),
+            appointment_time,
+        )
+
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._connection.execute(
+                    """
+                    SELECT payload_json FROM demo_bookings
+                    WHERE booking_id = ? AND patient_id = ?
+                    """,
+                    (booking_id, patient_id),
+                ).fetchone()
+
+                if row is None:
+                    raise BookingNotFoundError("Appointment not found.")
+
+                old_booking = json.loads(row["payload_json"])
+                if old_booking["status"] != "confirmed_demo":
+                    raise BookingConflictError(
+                        "Only an active demo appointment can be rescheduled."
+                    )
+
+                if (
+                    old_booking["doctorId"] == doctor_id
+                    and old_booking["date"] == selected_date
+                    and old_booking["time"] == appointment_time
+                ):
+                    raise BookingConflictError(
+                        "Choose a different doctor, date, or time."
+                    )
+
+                old_booking["status"] = "rescheduled_demo"
+                old_booking.setdefault("history", []).append(
+                    {
+                        "event": "rescheduled",
+                        "at": _now(),
+                        "note": "Replaced by a new demo appointment.",
+                    }
+                )
+                self._update_booking(old_booking)
+
+                day_bookings = self._rows_for_day(doctor_id, selected_date)
+                if len(day_bookings) >= DAILY_CAPACITY_PER_DOCTOR:
+                    raise BookingConflictError(
+                        "This doctor's demo daily capacity is full."
+                    )
+
+                duplicate = self._connection.execute(
+                    """
+                    SELECT 1 FROM demo_bookings
+                    WHERE patient_id = ?
+                      AND appointment_date = ? AND appointment_time = ?
+                      AND status = 'confirmed_demo'
+                    LIMIT 1
+                    """,
+                    (patient_id, selected_date, appointment_time),
+                ).fetchone()
+                if duplicate:
+                    raise BookingConflictError(
+                        "You already have a demo booking for this doctor, "
+                        "date, and time."
+                    )
+
+                slot_bookings = self._rows_for_slot(
+                    doctor_id,
+                    selected_date,
+                    appointment_time,
+                )
+                if len(slot_bookings) >= SLOT_CAPACITY:
+                    raise BookingConflictError("This demo time slot is full.")
+
+                new_booking = self._insert_booking(
+                    patient_id=patient_id,
+                    doctor=doctor,
+                    selected_date=selected_date,
+                    appointment_time=appointment_time,
+                    purpose=old_booking.get("purpose", ""),
+                    history=[
+                        {
+                            "event": "rescheduled_from",
+                            "at": _now(),
+                            "previousBookingId": booking_id,
+                            "note": "New fictional demo appointment.",
+                        }
+                    ],
+                )
+                self._connection.commit()
+            except Exception:
+                self._connection.rollback()
+                raise
+
+        return {
+            "previousBooking": self._public_booking(old_booking),
+            "booking": self._public_booking(new_booking),
+            "dataSource": DATA_SOURCE,
+            "dataNotice": DEMO_NOTICE,
+        }
+
+
+    def get_all_bookings(self) -> list[dict[str, Any]]:
+        """Return all synthetic bookings for authorized demo staff only."""
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT payload_json FROM demo_bookings
+                ORDER BY appointment_date, appointment_time, booking_id
+                """
+            ).fetchall()
+
+        # This staff-only view intentionally retains patientId.
+        return [json.loads(row["payload_json"]) for row in rows]
+
+    def record_attendance(
+        self,
+        booking_id: str,
+        outcome: str,
+        recorded_by: str = "demo_staff",
+    ) -> dict[str, Any]:
+        """Record one staff-confirmed attendance outcome for a past booking."""
+        if outcome not in {"attended", "missed"}:
+            raise ValueError("Outcome must be attended or missed.")
+
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._connection.execute(
+                    """
+                    SELECT payload_json FROM demo_bookings
+                    WHERE booking_id = ?
+                    """,
+                    (booking_id,),
+                ).fetchone()
+
+                if row is None:
+                    raise BookingNotFoundError("Appointment not found.")
+
+                booking = json.loads(row["payload_json"])
+
+                if booking.get("status") != "confirmed_demo":
+                    raise BookingConflictError(
+                        "Attendance can only be recorded once for an active booking."
+                    )
+
+                try:
+                    scheduled_date = date.fromisoformat(booking["date"])
+                    scheduled_time = datetime.strptime(
+                        booking["time"], "%H:%M"
+                    ).time()
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise BookingConflictError(
+                        "The appointment has an invalid scheduled date or time."
+                    ) from exc
+
+                local_now = datetime.now().astimezone()
+                scheduled_at = datetime.combine(
+                    scheduled_date,
+                    scheduled_time,
+                ).replace(tzinfo=local_now.tzinfo)
+
+                if scheduled_at > local_now:
+                    raise BookingConflictError(
+                        "Attendance cannot be recorded before the appointment time."
+                    )
+
+                booking["status"] = (
+                    "attended_demo" if outcome == "attended" else "missed_demo"
+                )
+                booking.setdefault("history", []).append(
+                    {
+                        "event": "attendance_recorded",
+                        "outcome": outcome,
+                        "at": _now(),
+                        "recordedBy": recorded_by,
+                        "note": "Outcome recorded by authorized demo staff.",
+                    }
+                )
+                self._update_booking(booking)
+                self._connection.commit()
+            except Exception:
+                self._connection.rollback()
+                raise
+
+        return booking
+
+# The shared application instance uses a persistent local SQLite file.
+# Set HOSPITAL_DEMO_DATABASE_PATH=:memory: to disable disk persistence.
+_database_path = os.getenv(
+    "HOSPITAL_DEMO_DATABASE_PATH",
+    "data/appointments.sqlite3",
+)
+demo_scheduler = DemoScheduler(db_path=_database_path)
+
+
+
+========== backend\app\data\scheduling.py ==========
+"""Synthetic scheduling data for local development only.
+
+All doctors, specialties, clinic locations, slots, and queue estimates
+in this module are fictional. They are not live hospital data.
+Replace this module with authorized hospital API calls before production.
+"""
+
+from datetime import date, datetime, timedelta
+from typing import Any
+
+DATA_SOURCE = "synthetic_demo"
+
+DOCTORS: list[dict[str, Any]] = [
+    {
+        "id": "doctor-001",
+        "name": "Dr. Hana Tesfaye",
+        "department": "General Medicine",
+        "specialties": ["General Medicine", "Hypertension follow-up"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-002",
+        "name": "Dr. Samuel Bekele",
+        "department": "General Medicine",
+        "specialties": ["General Medicine", "Chronic disease follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-003",
+        "name": "Dr. Dawit Bekele",
+        "department": "Respiratory Clinic",
+        "specialties": ["Respiratory Medicine", "Asthma follow-up"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-004",
+        "name": "Dr. Meron Alemu",
+        "department": "Respiratory Clinic",
+        "specialties": ["Respiratory Medicine"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-005",
+        "name": "Dr. Abel Girma",
+        "department": "Cardiology",
+        "specialties": ["Cardiology", "Blood pressure assessment"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-006",
+        "name": "Dr. Selamawit Desta",
+        "department": "Cardiology",
+        "specialties": ["Cardiology", "Heart health follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-007",
+        "name": "Dr. Bethlehem Worku",
+        "department": "Dermatology",
+        "specialties": ["Dermatology", "Skin conditions"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-008",
+        "name": "Dr. Natnael Kebede",
+        "department": "Dermatology",
+        "specialties": ["Dermatology", "Hair and nail conditions"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-009",
+        "name": "Dr. Yared Solomon",
+        "department": "Neurology",
+        "specialties": ["Neurology", "Headache assessment"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-010",
+        "name": "Dr. Rahel Tadesse",
+        "department": "Neurology",
+        "specialties": ["Neurology", "Neurological follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-011",
+        "name": "Dr. Henok Assefa",
+        "department": "Orthopedics",
+        "specialties": ["Orthopedics", "Joint and bone conditions"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-012",
+        "name": "Dr. Mihret Abebe",
+        "department": "Orthopedics",
+        "specialties": ["Orthopedics", "Musculoskeletal follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-013",
+        "name": "Dr. Tigist Alemayehu",
+        "department": "Pediatrics",
+        "specialties": ["Pediatrics", "Child health"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-014",
+        "name": "Dr. Yonatan Fikru",
+        "department": "Pediatrics",
+        "specialties": ["Pediatrics", "Child wellness follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-015",
+        "name": "Dr. Meseret Kebede",
+        "department": "Gynecology",
+        "specialties": ["Gynecology", "Women's health"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-016",
+        "name": "Dr. Eden Berhanu",
+        "department": "Gynecology",
+        "specialties": ["Gynecology", "Routine women's health visits"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-017",
+        "name": "Dr. Fitsum Getachew",
+        "department": "Ophthalmology",
+        "specialties": ["Ophthalmology", "Eye examinations"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-018",
+        "name": "Dr. Kalkidan Mulu",
+        "department": "Ophthalmology",
+        "specialties": ["Ophthalmology", "Vision follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-019",
+        "name": "Dr. Bereket Alemu",
+        "department": "Dental",
+        "specialties": ["Dentistry", "Oral health"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-020",
+        "name": "Dr. Liya Mekonnen",
+        "department": "Dental",
+        "specialties": ["Dentistry", "Dental check-ups"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-021",
+        "name": "Dr. Ermias Tola",
+        "department": "ENT",
+        "specialties": ["Ear, Nose and Throat", "ENT assessment"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-022",
+        "name": "Dr. Hiwot Demissie",
+        "department": "ENT",
+        "specialties": ["Ear, Nose and Throat", "Hearing and sinus concerns"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-023",
+        "name": "Dr. Mulugeta Girma",
+        "department": "Gastroenterology",
+        "specialties": ["Gastroenterology", "Digestive health"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-024",
+        "name": "Dr. Saba Asrat",
+        "department": "Gastroenterology",
+        "specialties": ["Gastroenterology", "Digestive health follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-025",
+        "name": "Dr. Biniam Wolde",
+        "department": "Urology",
+        "specialties": ["Urology", "Urinary health"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-026",
+        "name": "Dr. Tsion Abate",
+        "department": "Urology",
+        "specialties": ["Urology", "Urological follow-up"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-027",
+        "name": "Dr. Nahom Girma",
+        "department": "Psychiatry",
+        "specialties": ["Psychiatry", "Mental wellness consultations"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-028",
+        "name": "Dr. Selam Getu",
+        "department": "Psychiatry",
+        "specialties": ["Psychiatry", "Follow-up consultations"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-029",
+        "name": "Dr. Dawit Hailu",
+        "department": "Endocrinology",
+        "specialties": ["Endocrinology", "Diabetes follow-up"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-030",
+        "name": "Dr. Almaz Tesfaye",
+        "department": "Endocrinology",
+        "specialties": ["Endocrinology", "Hormonal health"],
+        "location": "Synthetic Demo Clinic B",
+    },
+    {
+        "id": "doctor-031",
+        "name": "Dr. Henok Alemu",
+        "department": "Nephrology",
+        "specialties": ["Nephrology", "Kidney health follow-up"],
+        "location": "Synthetic Demo Clinic A",
+    },
+    {
+        "id": "doctor-032",
+        "name": "Dr. Mahlet Bekele",
+        "department": "Nephrology",
+        "specialties": ["Nephrology", "Kidney health"],
+        "location": "Synthetic Demo Clinic B",
+    },
+]
+
+# Existing fictional assignments are intentionally preserved.
+PATIENT_CARE_TEAMS: dict[str, dict[str, str]] = {
+    "patient-001": {
+        "doctorId": "doctor-001",
+        "department": "General Medicine",
+    },
+    "patient-002": {
+        "doctorId": "doctor-003",
+        "department": "Respiratory Clinic",
+    },
+}
+
+
+def generate_synthetic_slots(
+    doctor_id: str,
+    start_date: date,
+    days: int = 14,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Generate weekday demo slots; these are not actual appointments."""
+    doctor = next(
+        (item for item in DOCTORS if item["id"] == doctor_id),
+        None,
+    )
+    if doctor is None:
+        return []
+
+    slots: list[dict[str, Any]] = []
+    times = ("09:00", "10:30", "13:00", "14:30")
+    now = now if now is not None else datetime.now().astimezone()
+
+    for offset in range(days):
+        slot_date = start_date + timedelta(days=offset)
+
+        if slot_date.weekday() >= 5:
+            continue
+
+        for slot_time in times:
+            if slot_date == now.date():
+                current_time = now.time().replace(
+                    tzinfo=None, second=0, microsecond=0
+                )
+                if datetime.strptime(slot_time, "%H:%M").time() <= current_time:
+                    continue
+
+            slots.append(
+                {
+                    "doctorId": doctor_id,
+                    "date": slot_date.isoformat(),
+                    "time": slot_time,
+                    "department": doctor["department"],
+                    "status": "demo_available",
+                    "dataSource": DATA_SOURCE,
+                }
+            )
+
+    return slots

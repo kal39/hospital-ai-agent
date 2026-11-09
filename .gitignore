@@ -27,3 +27,4 @@ __pycache__/
 # Local demo databases - keep runtime data out of Git
 /backend/data/*.sqlite3
 /backend/data/*.sqlite3-*
+/frontend-ui-backup-*/

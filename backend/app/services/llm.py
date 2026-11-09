@@ -2,7 +2,6 @@
 """Gemini LLM integration with approved hospital tool calling."""
 
 import asyncio
-import re
 from typing import Any, Literal
 
 from google import genai
@@ -52,25 +51,6 @@ def _is_retryable_error(error: Exception) -> bool:
             "resource_exhausted",
         )
     )
-
-
-def _safe_error_summary(error: Exception) -> str:
-    """Return a short diagnostic summary without obvious secret values."""
-    message = str(error)
-
-    message = re.sub(
-        r"AIza[0-9A-Za-z_-]{20,}",
-        "[REDACTED_API_KEY]",
-        message,
-    )
-    message = re.sub(
-        r"(?i)(api[_ -]?key|authorization|bearer)\s*[:=]\s*\S+",
-        r"\1=[REDACTED]",
-        message,
-    )
-
-    message = " ".join(message.split())
-    return message[:300] if message else "(no error message)"
 
 
 def _response_object(value: Any) -> dict[str, Any]:
@@ -186,16 +166,23 @@ class GeminiLLMService:
                     last_error = error
                     status = getattr(error, "code", None)
                     status_text = (
-                        f", status={status}" if status is not None else ""
+                        f", status={status}"
+                        if isinstance(status, int) and not isinstance(status, bool)
+                        else ""
+                    )
+                    error_category = (
+                        "retryable"
+                        if _is_retryable_error(error)
+                        else "non_retryable"
                     )
 
                     print(
                         "[LLM] Gemini request failed: "
                         f"model={model!r}, "
-                        f"error_type={type(error).__name__}"
+                        f"error_type={type(error).__name__}, "
+                        f"category={error_category}"
                         f"{status_text}, "
-                        f"attempt={attempt + 1}/{MAX_ATTEMPTS}, "
-                        f"detail={_safe_error_summary(error)}"
+                        f"attempt={attempt + 1}/{MAX_ATTEMPTS}"
                     )
 
                     if not _is_retryable_error(error):

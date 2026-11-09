@@ -1,4 +1,4 @@
-﻿from datetime import date, timedelta
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -148,11 +148,24 @@ def test_booking_and_listing_are_patient_scoped(client, headers):
     assert own_detail.status_code == 200
 
     other_headers = {"X-Demo-Patient-Id": "patient-002"}
+
+    # Another patient cannot retrieve this booking directly.
     other_detail = client.get(
         f"/api/patient/appointments/{booking_id}",
         headers=other_headers,
     )
     assert other_detail.status_code == 404
+
+    # Another patient's appointment list must not expose this booking.
+    other_listing = client.get(
+        "/api/patient/appointments",
+        headers=other_headers,
+    )
+    assert other_listing.status_code == 200
+    assert all(
+        item["bookingId"] != booking_id
+        for item in other_listing.json()["appointments"]
+    )
 
 
 def test_client_cannot_inject_patient_identity(client, headers):
@@ -354,3 +367,261 @@ def test_failed_reschedule_with_malformed_time_preserves_booking(
     assert booking["status"] == "confirmed_demo"
     assert booking["date"] == original_booking["date"]
     assert booking["time"] == original_booking["time"]
+
+
+def _staff_test_headers(monkeypatch):
+    """Configure a test-only staff secret without reading the real .env token."""
+    from types import SimpleNamespace
+    import app.core.auth as auth
+
+    monkeypatch.setattr(
+        auth,
+        "get_settings",
+        lambda: SimpleNamespace(
+            environment="development",
+            demo_auth_enabled=True,
+            demo_staff_token="test-only-staff-secret",
+        ),
+    )
+    return {"X-Demo-Staff-Token": "test-only-staff-secret"}
+
+
+def _make_booking_past(scheduler, booking):
+    """Move a test booking into the past in the isolated test database."""
+    import json
+    from datetime import date, timedelta
+
+    past_date = date.today() - timedelta(days=1)
+    payload = dict(booking)
+    payload["date"] = past_date.isoformat()
+    payload["time"] = "09:00"
+
+    scheduler._connection.execute(
+        """
+        UPDATE demo_bookings
+        SET appointment_date = ?, appointment_time = ?, payload_json = ?
+        WHERE booking_id = ?
+        """,
+        (
+            past_date.isoformat(),
+            "09:00",
+            json.dumps(payload),
+            booking["bookingId"],
+        ),
+    )
+    scheduler._connection.commit()
+    return payload
+
+
+def test_staff_attendance_requires_staff_authentication(client, headers):
+    # Patient authentication alone must not authorize staff access.
+    response = client.get(
+        "/api/staff/appointments",
+        headers=headers,
+    )
+    assert response.status_code == 401
+
+    # A missing staff token must not authorize staff access.
+    response = client.get("/api/staff/appointments")
+    assert response.status_code == 401
+
+    # A wrong token must also be rejected.
+    response = client.get(
+        "/api/staff/appointments",
+        headers={"X-Demo-Staff-Token": "wrong-test-token"},
+    )
+    assert response.status_code == 401
+
+
+def test_staff_can_list_demo_appointments(client, headers, monkeypatch):
+    staff_headers = _staff_test_headers(monkeypatch)
+
+    response = client.get(
+        "/api/staff/appointments",
+        headers=staff_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert isinstance(body["appointments"], list)
+    assert body["dataSource"] == "synthetic_demo"
+    assert body["dataNotice"]
+
+
+def test_staff_can_record_attendance_for_past_booking(
+    client, headers, scheduler, monkeypatch
+):
+    staff_headers = _staff_test_headers(monkeypatch)
+
+    doctors = client.get(
+        "/api/appointments/doctors",
+        headers=headers,
+    ).json()["doctors"]
+    slot = available_slot(client, headers, doctors[0]["id"])
+    booking = create_booking(client, headers, doctors[0]["id"], slot)
+    _make_booking_past(scheduler, booking)
+
+    response = client.post(
+        f"/api/staff/appointments/{booking['bookingId']}/attendance",
+        headers=staff_headers,
+        json={"outcome": "attended"},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["booking"]["status"] == "attended_demo"
+    assert body["dataSource"] == "synthetic_demo"
+    assert any(
+        event.get("event") == "attendance_recorded"
+        and event.get("outcome") == "attended"
+        for event in body["booking"]["history"]
+    )
+
+
+def test_attendance_cannot_be_recorded_twice(
+    client, headers, scheduler, monkeypatch
+):
+    staff_headers = _staff_test_headers(monkeypatch)
+
+    doctors = client.get(
+        "/api/appointments/doctors",
+        headers=headers,
+    ).json()["doctors"]
+    slot = available_slot(client, headers, doctors[0]["id"])
+    booking = create_booking(client, headers, doctors[0]["id"], slot)
+    _make_booking_past(scheduler, booking)
+
+    first = client.post(
+        f"/api/staff/appointments/{booking['bookingId']}/attendance",
+        headers=staff_headers,
+        json={"outcome": "missed"},
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["booking"]["status"] == "missed_demo"
+
+    second = client.post(
+        f"/api/staff/appointments/{booking['bookingId']}/attendance",
+        headers=staff_headers,
+        json={"outcome": "attended"},
+    )
+    assert second.status_code == 409, second.text
+
+
+def test_attendance_rejects_future_booking(
+    client, headers, monkeypatch
+):
+    staff_headers = _staff_test_headers(monkeypatch)
+
+    doctors = client.get(
+        "/api/appointments/doctors",
+        headers=headers,
+    ).json()["doctors"]
+    slot = available_slot(client, headers, doctors[0]["id"])
+    booking = create_booking(client, headers, doctors[0]["id"], slot)
+
+    response = client.post(
+        f"/api/staff/appointments/{booking['bookingId']}/attendance",
+        headers=staff_headers,
+        json={"outcome": "attended"},
+    )
+
+    assert response.status_code == 409, response.text
+
+
+def test_attendance_rejects_invalid_outcome(
+    client, headers, monkeypatch
+):
+    staff_headers = _staff_test_headers(monkeypatch)
+
+    response = client.post(
+        "/api/staff/appointments/nonexistent-booking/attendance",
+        headers=staff_headers,
+        json={"outcome": "maybe"},
+    )
+    assert response.status_code == 422
+
+
+def test_attendance_rejects_unknown_booking(client, monkeypatch):
+    staff_headers = _staff_test_headers(monkeypatch)
+
+    response = client.post(
+        "/api/staff/appointments/nonexistent-booking/attendance",
+        headers=staff_headers,
+        json={"outcome": "attended"},
+    )
+    assert response.status_code == 404
+
+
+
+def test_patient_cannot_reschedule_another_patients_booking(
+    client, headers
+):
+    doctors = client.get(
+        "/api/appointments/doctors",
+        headers=headers,
+    ).json()["doctors"]
+    doctor_id = doctors[0]["id"]
+
+    original_slot = available_slot(client, headers, doctor_id)
+    booking = create_booking(
+        client, headers, doctor_id, original_slot
+    )
+
+    other_headers = {"X-Demo-Patient-Id": "patient-002"}
+
+    response = client.post(
+        f"/api/patient/appointments/{booking['bookingId']}/reschedule",
+        headers=other_headers,
+        json={
+            "doctorId": doctor_id,
+            "date": next_weekday(8).isoformat(),
+            "time": "10:30",
+        },
+    )
+
+    assert response.status_code == 404, response.text
+
+    # The original patient must still own the unchanged booking.
+    own_detail = client.get(
+        f"/api/patient/appointments/{booking['bookingId']}",
+        headers=headers,
+    )
+
+    assert own_detail.status_code == 200, own_detail.text
+    unchanged = own_detail.json()["booking"]
+    assert unchanged["status"] == "confirmed_demo"
+    assert unchanged["date"] == original_slot["date"]
+    assert unchanged["time"] == original_slot["time"]
+
+
+def test_staff_attendance_rejects_unauthorized_credentials(
+    client, headers
+):
+    path = (
+        "/api/staff/appointments/"
+        "nonexistent-booking/attendance"
+    )
+    payload = {"outcome": "attended"}
+
+    # A patient identity alone must not authorize staff actions.
+    patient_response = client.post(
+        path,
+        headers=headers,
+        json=payload,
+    )
+    assert patient_response.status_code == 401
+
+    # Missing staff credentials must be rejected.
+    missing_response = client.post(
+        path,
+        json=payload,
+    )
+    assert missing_response.status_code == 401
+
+    # Incorrect staff credentials must be rejected.
+    wrong_response = client.post(
+        path,
+        headers={"X-Demo-Staff-Token": "wrong-test-token"},
+        json=payload,
+    )
+    assert wrong_response.status_code == 401

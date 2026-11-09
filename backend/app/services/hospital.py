@@ -97,18 +97,20 @@ class HospitalService:
     def get_upcoming_appointments(
         self, patient_id: str
     ) -> list[dict[str, Any]]:
-        """Return this demo patient's future scheduled/confirmed visits."""
+        """Return this patient's active future bookings from the shared demo scheduler."""
         self._require_patient(patient_id)
-        today = date.today().isoformat()
-        allowed_statuses = {"scheduled", "confirmed"}
 
-        appointments = [
-            appointment
-            for appointment in APPOINTMENTS.get(patient_id, [])
-            if appointment.get("date", "") >= today
-            and appointment.get("status", "").lower()
-            in allowed_statuses
-        ]
+        today = date.today().isoformat()
+        bookings = demo_scheduler.get_patient_bookings(patient_id)
+
+        appointments = []
+        for booking in bookings:
+            if booking.get("date", "") < today:
+                continue
+
+            appointment = dict(booking)
+            appointment["id"] = appointment.get("bookingId")
+            appointments.append(appointment)
 
         appointments.sort(
             key=lambda appointment: (
@@ -116,6 +118,7 @@ class HospitalService:
                 appointment.get("time", ""),
             )
         )
+
         return self._tag_records(appointments)
 
     def get_appointment_preparation_context(

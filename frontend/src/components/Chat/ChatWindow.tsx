@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
 import MessageBubble from "../Message/MessageBubble";
@@ -14,7 +14,7 @@ import type {
 const translations = {
   en: {
     greeting:
-      "Hello. I’m your hospital AI assistant. I can help explain information from your hospital record, such as laboratory results, medications, medical history, and treatment information.\n\nI can explain medical information in simpler language, but I cannot diagnose conditions or change your medications.",
+      "Hello. I'm your hospital AI assistant. I can help explain information from your hospital record, such as laboratory results, medications, medical history, and treatment information.\n\nI can explain medical information in simpler language, but I cannot diagnose conditions or change your medications.",
     suggestionsTitle: "Try asking",
     suggestions: [
       "Explain my latest lab results",
@@ -24,7 +24,7 @@ const translations = {
     ],
     assistantName: "Hospital AI Assistant",
     requestError:
-      "I’m unable to process your request right now. Please try again in a moment.",
+      "I'm unable to process your request right now. Please try again in a moment.",
     fileReadError: "Could not read the selected file.",
     fileReadFailure: "Failed to read the selected file.",
     attachedImage: "Attached image",
@@ -35,25 +35,24 @@ const translations = {
 
   am: {
     greeting:
-      "ሰላም! እኔ የሆስፒታል AI ረዳትዎ ነኝ። ከሆስፒታል መዝገብዎ የላቦራቶሪ ውጤቶችን፣ መድኃኒቶችን፣ የሕክምና ታሪክን እና የሕክምና መረጃዎችን እንዲረዱ እረዳዎታለሁ።\n\nመረጃውን በቀላል ቋንቋ ማብራራት እችላለሁ፣ ነገር ግን በሽታ መመርመር ወይም የመድኃኒት ሕክምናዎን መቀየር አልችልም።",
-    suggestionsTitle: "እነዚህን መጠየቅ ይችላሉ",
+      "ሰላም! እኔ የሆስፒታል AI ረዳትዎ ነኝ። የላቦራቶሪ ውጤቶችን፣ መድኃኒቶችን፣ የሕክምና ታሪክን እና የሕክምና መረጃዎችን ለመረዳት ልረዳዎ እችላለሁ።\n\nየሕክምና መረጃን በቀላል ቋንቋ ልገልጽልዎ እችላለሁ፤ ሆኖም በሽታ መመርመር ወይም የመድኃኒት አጠቃቀምዎን መቀየር አልችልም።",
+    suggestionsTitle: "ከዚህ ውስጥ ይምረጡ ወይም ይጠይቁ",
     suggestions: [
       "የቅርብ ጊዜ የላቦራቶሪ ውጤቶቼን አብራራልኝ",
       "የሕክምና ታሪኬን አጠቃልልልኝ",
-      "መድኃኒቶቼን አብራራልኝ",
-      "ለሚቀጥለው ቀጠሮዬ ምን ማዘጋጀት አለብኝ?",
+      "ስለ መድኃኒቶቼ አብራራልኝ",
+      "ለቀጣዩ ቀጠሮዬ ምን ማዘጋጀት አለብኝ?",
     ],
     assistantName: "የሆስፒታል AI ረዳት",
     requestError:
-      "ጥያቄዎን በአሁኑ ጊዜ ማስኬድ አልተቻለም። እባክዎ ቆይተው እንደገና ይሞክሩ።",
+      "ጥያቄዎን አሁን ማስኬድ አልቻልኩም። እባክዎ ከጥቂት ጊዜ በኋላ እንደገና ይሞክሩ።",
     fileReadError: "የተመረጠውን ፋይል ማንበብ አልተቻለም።",
-    fileReadFailure: "ፋይሉን በማንበብ ላይ ስህተት ተፈጥሯል።",
+    fileReadFailure: "ፋይሉን ማንበብ አልተሳካም።",
     attachedImage: "የተያያዘ ምስል",
     attachedDocument: "የተያያዘ PDF ሰነድ",
     unsupportedFileError:
       "እባክዎ JPG፣ PNG፣ WebP ምስል ወይም PDF ሰነድ ይምረጡ።",
   },
-
 } satisfies Record<
   Language,
   {
@@ -135,9 +134,12 @@ const fileToDataUrl = (
     reader.readAsDataURL(file);
   });
 
-export default function ChatWindow() {
-  const [language, setLanguage] = useState<Language>("en");
-  const [detail, setDetail] = useState<SummaryDetail>("normal");
+interface ChatWindowProps {
+  language: Language;
+  detail: SummaryDetail;
+}
+
+export default function ChatWindow({ language, detail }: ChatWindowProps) {
   const [conversationId] = useState(createConversationId);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -148,6 +150,47 @@ export default function ChatWindow() {
   const [error, setError] = useState("");
 
   const t = translations[language];
+
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false);
+
+  const scrollToLatest = (behavior: ScrollBehavior = "smooth") => {
+    shouldAutoScrollRef.current = true;
+    setShowScrollToLatest(false);
+    bottomRef.current?.scrollIntoView({
+      behavior,
+      block: "end",
+    });
+  };
+
+  const handleConversationScroll = () => {
+    const container = conversationRef.current;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight -
+      container.scrollTop -
+      container.clientHeight;
+
+    const isNearBottom = distanceFromBottom < 100;
+
+    shouldAutoScrollRef.current = isNearBottom;
+    setShowScrollToLatest(!isNearBottom);
+  };
+
+  useEffect(() => {
+    if (shouldAutoScrollRef.current) {
+      bottomRef.current?.scrollIntoView({
+        behavior: "auto",
+        block: "end",
+      });
+      setShowScrollToLatest(false);
+    } else {
+      setShowScrollToLatest(true);
+    }
+  }, [messages, loading]);
 
   useEffect(() => {
     // The initial greeting is intentionally synchronized when the language changes.
@@ -182,13 +225,14 @@ export default function ChatWindow() {
         setError(
           requestLanguage === "en"
             ? "The file must be 5 MB or smaller."
-            : 
-            "የፋይሉ መጠን 5 MB ወይም ከዚያ በታች መሆን አለበት።"
+            : "ፋይሉ ከ5 MB መብለጥ የለበትም።"
         );
         return;
       }
     }
 
+    shouldAutoScrollRef.current = true;
+    setShowScrollToLatest(false);
     setLoading(true);
 
     try {
@@ -258,15 +302,14 @@ export default function ChatWindow() {
   return (
     <main className="chat-page">
       <section className="chat-container">
-        <ChatHeader
-          language={language}
-          detail={detail}
-          onLanguageChange={setLanguage}
-          onDetailChange={setDetail}
-        />
+        <ChatHeader language={language} />
 
         <div className="chat-body">
-          <div className="conversation">
+          <div
+            className="conversation"
+            ref={conversationRef}
+            onScroll={handleConversationScroll}
+          >
             {messages.map((message) => (
               <div key={message.id}>
                <MessageBubble message={message} language={language} />
@@ -300,7 +343,7 @@ export default function ChatWindow() {
                               lineHeight: 1,
                             }}
                           >
-                            📄
+                            ðŸ“„
                           </span>
 
                           <div style={{ minWidth: 0 }}>
@@ -376,6 +419,33 @@ export default function ChatWindow() {
                 {error}
               </div>
             )}
+            <div ref={bottomRef} aria-hidden="true" />
+
+            {showScrollToLatest && (
+              <button
+                type="button"
+                className="scroll-to-latest"
+                onClick={() => scrollToLatest("smooth")}
+                aria-label="Scroll to latest message"
+                title="Scroll to latest message"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14" />
+                  <path d="m19 12-7 7-7-7" />
+                </svg>
+                <span>{language === "am" ? "ወደ መጨረሻው መልዕክት" : "Latest"}</span>
+              </button>
+            )}
           </div>
 
           <div className="suggestions">
@@ -407,3 +477,6 @@ export default function ChatWindow() {
     </main>
   );
 }
+
+
+

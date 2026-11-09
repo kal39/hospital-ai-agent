@@ -38,3 +38,43 @@ async def get_current_patient_id(
         )
 
     return demo_patient_id
+
+
+async def get_current_demo_staff(
+    demo_staff_token: Annotated[
+        str | None,
+        Header(alias="X-Demo-Staff-Token"),
+    ] = None,
+) -> str:
+    """Authorize a demo staff action using a separate local-only secret."""
+    import secrets
+
+    settings = get_settings()
+
+    if (
+        settings.environment.lower() != "development"
+        or not settings.demo_auth_enabled
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Staff authentication is not configured.",
+        )
+
+    configured_token = getattr(settings, "demo_staff_token", "").strip()
+    if not configured_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Demo staff authentication is not configured.",
+        )
+
+    if not demo_staff_token or not secrets.compare_digest(
+        demo_staff_token,
+        configured_token,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid demo staff authentication.",
+        )
+
+    # Never accept a staff identity supplied by the caller.
+    return "demo_staff"

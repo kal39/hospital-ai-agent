@@ -357,7 +357,11 @@ class DemoScheduler:
             raise ValueError("Appointment purpose must be 200 characters or fewer.")
 
         with self._lock:
-            self._connection.execute("BEGIN IMMEDIATE")
+            owns_transaction = not self._connection.in_transaction
+
+            if owns_transaction:
+                self._connection.execute("BEGIN IMMEDIATE")
+
             try:
                 day_bookings = self._rows_for_day(doctor_id, selected_date)
 
@@ -367,12 +371,12 @@ class DemoScheduler:
                 duplicate = self._connection.execute(
                     """
                     SELECT 1 FROM demo_bookings
-                    WHERE patient_id = ? AND doctor_id = ?
+                    WHERE patient_id = ?
                       AND appointment_date = ? AND appointment_time = ?
                       AND status = 'confirmed_demo'
                     LIMIT 1
                     """,
-                    (patient_id, doctor_id, selected_date, appointment_time),
+                    (patient_id, selected_date, appointment_time),
                 ).fetchone()
                 if duplicate:
                     raise ValueError(
@@ -395,9 +399,11 @@ class DemoScheduler:
                     appointment_time,
                     normalized_purpose,
                 )
-                self._connection.commit()
+                if owns_transaction:
+                    self._connection.commit()
             except Exception:
-                self._connection.rollback()
+                if owns_transaction:
+                    self._connection.rollback()
                 raise
 
         return self._public_booking(booking)
@@ -555,12 +561,12 @@ class DemoScheduler:
                 duplicate = self._connection.execute(
                     """
                     SELECT 1 FROM demo_bookings
-                    WHERE patient_id = ? AND doctor_id = ?
+                    WHERE patient_id = ?
                       AND appointment_date = ? AND appointment_time = ?
                       AND status = 'confirmed_demo'
                     LIMIT 1
                     """,
-                    (patient_id, doctor_id, selected_date, appointment_time),
+                    (patient_id, selected_date, appointment_time),
                 ).fetchone()
                 if duplicate:
                     raise BookingConflictError(
@@ -604,6 +610,91 @@ class DemoScheduler:
         }
 
 
+    def get_all_bookings(self) -> list[dict[str, Any]]:
+        """Return all synthetic bookings for authorized demo staff only."""
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT payload_json FROM demo_bookings
+                ORDER BY appointment_date, appointment_time, booking_id
+                """
+            ).fetchall()
+
+        # This staff-only view intentionally retains patientId.
+        return [json.loads(row["payload_json"]) for row in rows]
+
+    def record_attendance(
+        self,
+        booking_id: str,
+        outcome: str,
+        recorded_by: str = "demo_staff",
+    ) -> dict[str, Any]:
+        """Record one staff-confirmed attendance outcome for a past booking."""
+        if outcome not in {"attended", "missed"}:
+            raise ValueError("Outcome must be attended or missed.")
+
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._connection.execute(
+                    """
+                    SELECT payload_json FROM demo_bookings
+                    WHERE booking_id = ?
+                    """,
+                    (booking_id,),
+                ).fetchone()
+
+                if row is None:
+                    raise BookingNotFoundError("Appointment not found.")
+
+                booking = json.loads(row["payload_json"])
+
+                if booking.get("status") != "confirmed_demo":
+                    raise BookingConflictError(
+                        "Attendance can only be recorded once for an active booking."
+                    )
+
+                try:
+                    scheduled_date = date.fromisoformat(booking["date"])
+                    scheduled_time = datetime.strptime(
+                        booking["time"], "%H:%M"
+                    ).time()
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise BookingConflictError(
+                        "The appointment has an invalid scheduled date or time."
+                    ) from exc
+
+                local_now = datetime.now().astimezone()
+                scheduled_at = datetime.combine(
+                    scheduled_date,
+                    scheduled_time,
+                ).replace(tzinfo=local_now.tzinfo)
+
+                if scheduled_at > local_now:
+                    raise BookingConflictError(
+                        "Attendance cannot be recorded before the appointment time."
+                    )
+
+                booking["status"] = (
+                    "attended_demo" if outcome == "attended" else "missed_demo"
+                )
+                booking.setdefault("history", []).append(
+                    {
+                        "event": "attendance_recorded",
+                        "outcome": outcome,
+                        "at": _now(),
+                        "recordedBy": recorded_by,
+                        "note": "Outcome recorded by authorized demo staff.",
+                    }
+                )
+                self._update_booking(booking)
+                self._connection.commit()
+            except Exception:
+                self._connection.rollback()
+                raise
+
+        return booking
+
 # The shared application instance uses a persistent local SQLite file.
 # Set HOSPITAL_DEMO_DATABASE_PATH=:memory: to disable disk persistence.
 _database_path = os.getenv(
@@ -611,3 +702,4 @@ _database_path = os.getenv(
     "data/appointments.sqlite3",
 )
 demo_scheduler = DemoScheduler(db_path=_database_path)
+

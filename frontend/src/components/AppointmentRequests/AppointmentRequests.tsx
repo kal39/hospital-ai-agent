@@ -68,7 +68,13 @@ function getErrorMessage(error: unknown): string {
     : "Something went wrong. Please try again.";
 }
 
-export default function AppointmentRequests() {
+interface AppointmentRequestsProps {
+  embedded?: boolean;
+}
+
+export default function AppointmentRequests({
+  embedded = false,
+}: AppointmentRequestsProps) {
   const [requests, setRequests] = useState<AppointmentRequest[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -219,8 +225,9 @@ export default function AppointmentRequests() {
   }
 
   return (
-    <main className="appointment-page">
-      <section className="appointment-intro">
+    <div className={`appointment-page ${embedded ? "appointment-page-embedded" : ""}`}>
+      {!embedded && (
+        <section className="appointment-intro">
         <div>
           <span className="appointment-eyebrow">PATIENT SERVICES</span>
           <h1>Appointment requests</h1>
@@ -232,16 +239,17 @@ export default function AppointmentRequests() {
         <div className="appointment-intro-icon" aria-hidden="true">
           +
         </div>
-      </section>
+        </section>
+      )}
 
       <section className="appointment-demo-notice" role="note">
         <strong>Demonstration mode — please read</strong>
         <p>
-          These are synthetic demo requests stored temporarily in local
-          memory. They are not sent to hospital staff, are not reviewed by
-          a clinician, and do not create or confirm a real appointment.
-          Requests are lost when the backend restarts. Do not enter
-          sensitive personal medical information.
+          These are synthetic demonstration requests stored locally in the
+          application's SQLite database. They persist across backend
+          restarts, but are not sent to real hospital staff, are not reviewed
+          by real clinicians, and do not create or confirm a real hospital
+          appointment. Do not enter sensitive personal medical information.
         </p>
       </section>
 
@@ -511,6 +519,9 @@ export default function AppointmentRequests() {
           )}
         </section>
       </div>
-    </main>
+  </div>
   );
 }
+
+
+

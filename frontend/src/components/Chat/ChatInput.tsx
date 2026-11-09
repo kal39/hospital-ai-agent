@@ -425,25 +425,47 @@ export default function ChatInput({
           aria-label={t.messageLabel}
         />
 
-        <div className="input-actions">
+                <div className="input-actions">
           <button
             type="button"
-            className="secondary-input-button"
+            className="secondary-input-button icon-input-button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             title={t.attachImage}
+            aria-label={t.attachImage}
           >
-            {t.attachImage}
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none"
+              stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+              strokeLinejoin="round" aria-hidden="true" focusable="false">
+              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.2-9.19a4 4 0 0 1 5.65 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.83l8.49-8.48" />
+            </svg>
           </button>
 
           <button
             type="button"
-            className="secondary-input-button"
+            className={`secondary-input-button icon-input-button ${isListening ? "is-listening" : ""}`}
             onClick={handleVoiceClick}
             disabled={disabled}
             aria-pressed={isListening}
+            title={isListening ? t.stopVoice : t.voice}
+            aria-label={isListening ? t.stopVoice : t.voice}
           >
-            {isListening ? t.stopVoice : t.voice}
+            {isListening ? (
+              <svg viewBox="0 0 24 24" width="21" height="21" fill="none"
+                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+                strokeLinejoin="round" aria-hidden="true" focusable="false">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="21" height="21" fill="none"
+                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+                strokeLinejoin="round" aria-hidden="true" focusable="false">
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0" />
+                <path d="M12 17v5" />
+                <path d="M8 22h8" />
+              </svg>
+            )}
           </button>
 
           <button
@@ -452,7 +474,19 @@ export default function ChatInput({
             onClick={handleSend}
             disabled={disabled || (!message.trim() && !selectedImage)}
           >
-            {disabled ? t.sending : t.send}
+            {disabled ? (
+              t.sending
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                  strokeLinejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M22 2 11 13" />
+                  <path d="m22 2-7 20-4-9-9-4Z" />
+                </svg>
+                <span>{t.send}</span>
+              </>
+            )}
           </button>
         </div>
       </div>

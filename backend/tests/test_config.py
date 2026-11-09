@@ -9,6 +9,7 @@ def make_settings(**overrides):
         "environment": "development",
         "demo_auth_enabled": True,
         "frontend_origin": "http://localhost:5173",
+        "trusted_hosts": "portal.example.org",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
@@ -108,3 +109,106 @@ def test_environment_names_are_normalized(environment, expected):
         frontend_origin="https://portal.example.org",
     )
     assert settings.environment == expected
+
+
+
+def test_production_requires_explicit_trusted_hosts() -> None:
+    with pytest.raises(ValidationError, match="TRUSTED_HOSTS"):
+        make_settings(
+            environment="production",
+            demo_auth_enabled=False,
+            frontend_origin="https://portal.example.org",
+            trusted_hosts="",
+        )
+
+
+def test_production_rejects_wildcard_trusted_hosts() -> None:
+    with pytest.raises(ValidationError, match="wildcard"):
+        make_settings(
+            environment="production",
+            demo_auth_enabled=False,
+            frontend_origin="https://portal.example.org",
+            trusted_hosts="*",
+        )
+
+
+def test_trusted_hosts_are_normalized_and_deduplicated() -> None:
+    settings = make_settings(
+        trusted_hosts=" portal.example.org, PORTAL.example.org, api.example.org "
+    )
+    assert settings.trusted_hosts == "portal.example.org,api.example.org"
+
+
+def test_production_accepts_explicit_trusted_hosts() -> None:
+    settings = make_settings(
+        environment="production",
+        demo_auth_enabled=False,
+        frontend_origin="https://portal.example.org",
+        trusted_hosts="portal.example.org,api.example.org",
+    )
+    assert settings.trusted_hosts == "portal.example.org,api.example.org"
+
+
+
+def test_production_rejects_wildcard_subdomains() -> None:
+    with pytest.raises(ValidationError, match="wildcards"):
+        make_settings(
+            environment="production",
+            demo_auth_enabled=False,
+            frontend_origin="https://portal.example.org",
+            trusted_hosts="*.example.org",
+        )
+
+
+
+@pytest.mark.parametrize(
+    "trusted_hosts",
+    [
+        "api.example.org/path",
+        "api.example.org:5000",
+        "https://api.example.org",
+        "api..example.org",
+        "-api.example.org",
+        "api.example.org,",
+    ],
+)
+def test_production_rejects_malformed_trusted_hosts(trusted_hosts):
+    with pytest.raises(
+        ValidationError,
+        match="valid hostnames or IP addresses|empty entries",
+    ):
+        make_settings(
+            environment="production",
+            demo_auth_enabled=False,
+            frontend_origin="https://portal.example.org",
+            trusted_hosts=trusted_hosts,
+        )
+
+
+@pytest.mark.parametrize(
+    "trusted_hosts",
+    [
+        "localhost",
+        "api.localhost",
+        "127.0.0.1",
+        "::1",
+    ],
+)
+def test_production_rejects_local_trusted_hosts(trusted_hosts):
+    with pytest.raises(ValidationError):
+        make_settings(
+            environment="production",
+            demo_auth_enabled=False,
+            frontend_origin="https://portal.example.org",
+            trusted_hosts=trusted_hosts,
+        )
+
+
+def test_production_accepts_valid_hostname_and_private_ip():
+    settings = make_settings(
+        environment="production",
+        demo_auth_enabled=False,
+        frontend_origin="https://portal.example.org",
+        trusted_hosts="api.example.org,10.0.0.15",
+    )
+    assert settings.trusted_hosts == "api.example.org,10.0.0.15"

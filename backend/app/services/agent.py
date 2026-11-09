@@ -9,6 +9,7 @@ from app.services.audit import record_audit_event
 from app.services.glossary import get_glossary_context
 from app.services.llm import gemini_llm_service
 from app.services.hospital import hospital_service
+from app.services.demo_scheduler import BookingConflictError, BookingNotFoundError
 from app.services.privacy import requests_another_patient_data
 from app.services.safety import evaluate_safety
 
@@ -862,6 +863,7 @@ class HospitalAgentService:
                     }
 
                 selected_slot = pending_selection["slot"]
+                failure_category = None
                 try:
                     booking = hospital_service.book_demo_appointment(
                         patient_id=patient_id,
@@ -870,19 +872,39 @@ class HospitalAgentService:
                         appointment_time=selected_slot["time"],
                         purpose=pending_selection.get("purpose", ""),
                     )
-                except ValueError as error:
+                except BookingConflictError:
                     _pending_appointment_selections.pop(key, None)
                     response_message = (
-                        "I couldn't create the demo booking: "
-                        f"{error} No appointment was created. "
-                        "You can ask to explore available demo slots again."
+                        "That demo appointment slot is no longer available. "
+                        "No appointment was created. Please explore the "
+                        "available demo slots again."
                     )
+                    failure_category = "booking_conflict"
+                except BookingNotFoundError:
+                    _pending_appointment_selections.pop(key, None)
+                    response_message = (
+                        "The selected demo booking could not be found. "
+                        "No appointment was created. Please explore the "
+                        "available demo slots again."
+                    )
+                    failure_category = "booking_not_found"
+                except ValueError:
+                    _pending_appointment_selections.pop(key, None)
+                    response_message = (
+                        "I couldn't create the demo booking because the "
+                        "request could not be validated. No appointment "
+                        "was created. Please explore the available demo "
+                        "slots again."
+                    )
+                    failure_category = "booking_validation_failed"
+
+                if failure_category is not None:
                     _store_turn(key, message, response_message)
                     record_audit_event({
                         "patientId": patient_id,
                         "conversationId": conversation_id,
                         "event": "DEMO_APPOINTMENT_BOOKING_FAILED",
-                        "details": {"reason": str(error)},
+                        "details": {"reason": failure_category},
                     })
                     return {
                         "message": response_message,
@@ -902,8 +924,9 @@ class HospitalAgentService:
                     f"Location: {booking.get('location') or 'Not specified'}\n\n"
                     "This confirmation applies only to the local demonstration. "
                     "It is not a real hospital appointment, and it will not be "
-                    "sent to a hospital system. Demo bookings reset when the "
-                    "backend restarts."
+                    "sent to a hospital system. Demo booking data is stored "
+                    "locally in the demonstration database. It is not connected "
+                    "to the hospital's live scheduling system."
                 )
                 _store_turn(key, message, response_message)
                 record_audit_event({

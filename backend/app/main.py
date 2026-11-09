@@ -1,9 +1,12 @@
-﻿from fastapi import FastAPI
+﻿from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.appointments import router as appointments_router
 from app.api.chat import router as chat_router
 from app.api.appointment_requests import router as appointment_requests_router
+from app.api.appointment_requests import staff_router as staff_appointment_requests_router
 from app.api.patients import router as patients_router
 from app.core.config import get_settings
 from app.core.rate_limit import RateLimitMiddleware
@@ -16,6 +19,28 @@ app = FastAPI(
     description="Backend API for the hospital patient-portal AI assistant.",
     version=settings.app_version,
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add conservative security headers to backend responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(self), geolocation=()"
+        )
+
+        if settings.environment == "production":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000"
+            )
+
+        return response
+
 
 # Only permit localhost origins during development.
 # In production, configure frontend_origin to the exact deployed frontend origin.
@@ -35,6 +60,30 @@ if settings.environment.strip().lower() == "development":
 # Remove duplicate origins while preserving their order.
 allowed_origins = list(dict.fromkeys(allowed_origins))
 
+# Host validation is configurable and provider-independent.
+# Development and test environments receive safe local defaults.
+trusted_hosts = [
+    host.strip()
+    for host in settings.trusted_hosts.split(",")
+    if host.strip()
+]
+
+if not trusted_hosts and settings.environment != "production":
+    trusted_hosts = ["127.0.0.1", "localhost", "testserver"]
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=trusted_hosts,
+)
+
+# Apply rate limiting to requests handled by the application.
+# The middleware excludes /health so health checks remain available.
+app.add_middleware(RateLimitMiddleware)
+
+# Security headers wrap application responses, including errors.
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Keep CORS outermost so it also handles rate-limit and host errors.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -44,16 +93,14 @@ app.add_middleware(
         "Content-Type",
         "Authorization",
         "X-Demo-Patient-Id",
+        "X-Demo-Staff-Token",
     ],
 )
-
-# Apply rate limiting to requests handled by the application.
-# The middleware excludes /health so health checks remain available.
-app.add_middleware(RateLimitMiddleware)
 
 # Register API routes.
 app.include_router(patients_router)
 app.include_router(appointment_requests_router)
+app.include_router(staff_appointment_requests_router)
 app.include_router(appointments_router)
 app.include_router(chat_router)
 

@@ -495,6 +495,67 @@ def test_demo_booking_requires_explicit_confirmation_and_books_exact_slot(
     }
 
 
+@pytest.mark.parametrize(
+    ("exception_type", "expected_text", "expected_category"),
+    [
+        (
+            agent_module.BookingConflictError,
+            "no longer available",
+            "booking_conflict",
+        ),
+        (
+            agent_module.BookingNotFoundError,
+            "could not be found",
+            "booking_not_found",
+        ),
+    ],
+)
+def test_demo_booking_expected_failures_are_safe_and_clear_pending_state(
+    monkeypatch,
+    exception_type,
+    expected_text,
+    expected_category,
+):
+    service = HospitalAgentService()
+    internal_message = "INTERNAL-SECRET-DETAIL-DO-NOT-EXPOSE"
+    audit_events = []
+
+    def fail_booking(**kwargs):
+        raise exception_type(internal_message)
+
+    monkeypatch.setattr(
+        agent_module.hospital_service,
+        "book_demo_appointment",
+        fail_booking,
+    )
+    monkeypatch.setattr(
+        agent_module,
+        "record_audit_event",
+        lambda event: audit_events.append(event),
+    )
+
+    _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
+    run_agent(service, "2")
+
+    key = "patient-001:consent-test"
+    assert key in agent_module._pending_appointment_selections
+
+    result = run_agent(service, "YES")
+
+    assert expected_text in result["message"].lower()
+    assert "no appointment was created" in result["message"].lower()
+    assert internal_message not in result["message"]
+    assert key not in agent_module._pending_appointment_selections
+    assert key not in agent_module._completed_demo_bookings
+
+    failure_event = next(
+        event
+        for event in audit_events
+        if event.get("event") == "DEMO_APPOINTMENT_BOOKING_FAILED"
+    )
+    assert failure_event["details"]["reason"] == expected_category
+    assert internal_message not in str(failure_event)
+
 def test_declining_demo_booking_does_not_create_booking(monkeypatch):
     service = HospitalAgentService()
     booked = []

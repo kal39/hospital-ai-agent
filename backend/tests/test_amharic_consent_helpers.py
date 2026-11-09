@@ -1,5 +1,5 @@
-
-from app.services.agent import (
+﻿from app.services.agent import (
+    _assistant_asked_for_appointment_consent,
     _consent_cancelled_message,
     _consent_clarification_message,
     _consent_decision,
@@ -33,7 +33,6 @@ def test_english_consent_still_works():
 
 def test_amharic_consent_question_is_localized():
     message = _consent_question("am")
-
     assert "አዎ" in message
     assert "አይ" in message
     assert "Would you like" not in message
@@ -41,7 +40,6 @@ def test_amharic_consent_question_is_localized():
 
 def test_english_consent_question_remains_in_english():
     message = _consent_question("en")
-
     assert "Would you like" in message
     assert "አዎ" not in message
 
@@ -56,3 +54,15 @@ def test_english_follow_up_messages_remain_in_english():
     assert "Please reply yes" in _consent_clarification_message("en")
     assert "I would use information" in _consent_information_message("en")
     assert "I won't look" in _consent_cancelled_message("en")
+
+
+def test_amharic_consent_question_is_detected():
+    assert _assistant_asked_for_appointment_consent(_consent_question("am"))
+
+
+def test_english_consent_question_is_detected():
+    assert _assistant_asked_for_appointment_consent(_consent_question("en"))
+
+
+def test_unrelated_message_is_not_a_consent_question():
+    assert not _assistant_asked_for_appointment_consent("Your test result is ready.")

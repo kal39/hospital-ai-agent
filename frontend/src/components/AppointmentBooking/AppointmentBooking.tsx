@@ -1,4 +1,7 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Language } from "../../types/chat";
+import EthiopianDatePicker from "./EthiopianDatePicker";
+import { formatEthiopianDate } from "../../utils/ethiopianCalendar";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   bookAppointment,
   cancelAppointment,
@@ -15,9 +18,59 @@ import {
 
 type Notice = { type: "success" | "error"; message: string };
 
-function formatDate(value: string): string {
+function displayDepartment(value: string, am: boolean): string {
+  if (!am) return value;
+
+  const labels: Record<string, string> = {
+    Cardiology: "የልብ ሕክምና",
+    Dental: "የጥርስ ሕክምና",
+    Dermatology: "የቆዳ ሕክምና",
+    ENT: "የጆሮ፣ የአፍንጫና የጉሮሮ ሕክምና",
+    Endocrinology: "የሆርሞን ሕክምና",
+    Gastroenterology: "የምግብ መፍጫ ሥርዓት ሕክምና",
+    "General Medicine": "አጠቃላይ ሕክምና",
+    Gynecology: "የማህፀን ሕክምና",
+    Nephrology: "የኩላሊት ሕክምና",
+    Neurology: "የነርቭ ሕክምና",
+    Ophthalmology: "የዓይን ሕክምና",
+    Orthopedics: "የአጥንትና መገጣጠሚያ ሕክምና",
+    Pediatrics: "የሕፃናት ሕክምና",
+    Psychiatry: "የአእምሮ ጤና ሕክምና",
+    "Respiratory Clinic": "የመተንፈሻ አካላት ሕክምና",
+    Urology: "የሽንት ሥርዓት ሕክምና",
+  };
+
+  return labels[value] ?? value;
+}
+
+function displayLocation(value: string, am: boolean): string {
+  if (!am) return value;
+
+  const labels: Record<string, string> = {
+    "Synthetic Demo Clinic A": "የሙከራ ክሊኒክ A",
+    "Synthetic Demo Clinic B": "የሙከራ ክሊኒክ B",
+  };
+
+  return labels[value] ?? value;
+}
+
+function displaySpecialty(value: string, am: boolean): string {
+  if (!am) return value;
+
+  const labels: Record<string, string> = {
+    "Hypertension follow-up": "የደም ግፊት ክትትል",
+  };
+
+  return labels[value] ?? value;
+}
+function formatDate(value: string, language: Language = "en"): string {
   if (!value) return "";
-  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, {
+
+  if (language === "am") {
+    return formatEthiopianDate(value, "am");
+  }
+
+  return new Date(`${value}T12:00:00`).toLocaleDateString("en", {
     weekday: "short",
     year: "numeric",
     month: "short",
@@ -35,14 +88,38 @@ function formatTime(value: string): string {
   });
 }
 
-function statusLabel(status: string): string {
-  if (status === "confirmed_demo") return "Booked · Demo";
-  if (status === "cancelled_demo") return "Cancelled";
-  if (status === "rescheduled_demo") return "Rescheduled";
-  return status.replaceAll("_", " ");
+function isAppointmentPast(
+  appointment: Pick<Appointment, "date" | "time">,
+): boolean {
+  const scheduledAt = new Date(`${appointment.date}T${appointment.time}:00`);
+  return !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() < Date.now();
 }
 
-export default function AppointmentBooking() {
+function statusLabel(
+  status: string,
+  am: boolean,
+  isPast = false,
+): string {
+  if (status === "confirmed_demo") {
+    if (isPast) {
+      return am
+        ? "ያለፈ — ውጤት አልተመዘገበም"
+        : "Past — Outcome Not Recorded";
+    }
+    return am ? "ተመዝግቧል · ሙከራ" : "Booked · Demo";
+  }
+  if (status === "attended_demo") return am ? "ተገኝቷል" : "Attended";
+  if (status === "missed_demo") return am ? "ቀጠሮውን አልተገኘም" : "Missed";
+  if (status === "cancelled_demo") return am ? "ተሰርዟል" : "Cancelled";
+  if (status === "rescheduled_demo") return am ? "ጊዜው ተቀይሯል" : "Rescheduled";
+  return status.replaceAll("_", " ");
+}
+interface AppointmentBookingProps {
+  language: Language;
+}
+
+export default function AppointmentBooking({ language }: AppointmentBookingProps) {
+  const am = language === "am";
   const today = useMemo(() => getLocalDateString(), []);
   const [departments, setDepartments] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -53,6 +130,7 @@ export default function AppointmentBooking() {
   const [slots, setSlots] = useState<AppointmentSlot[]>([]);
   const [selectedTime, setSelectedTime] = useState("");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -75,7 +153,7 @@ export default function AppointmentBooking() {
         message:
           error instanceof Error
             ? error.message
-            : "Could not load your demo appointments.",
+            : am ? "የሙከራ ቀጠሮዎችዎን መጫን አልተቻለም።" : "Could not load your demo appointments.",
       });
     } finally {
       setRefreshing(false);
@@ -113,7 +191,7 @@ export default function AppointmentBooking() {
             message:
               error instanceof Error
                 ? error.message
-                : "Could not load appointment services.",
+                : am ? "የቀጠሮ አገልግሎቶችን መጫን አልተቻለም።" : "Could not load appointment services.",
           });
         }
       } finally {
@@ -150,7 +228,7 @@ export default function AppointmentBooking() {
             message:
               error instanceof Error
                 ? error.message
-                : "Could not load demo availability.",
+                : am ? "ያሉትን የሙከራ ቀጠሮ ሰዓቶች መጫን አልተቻለም።" : "Could not load demo availability.",
           });
         }
       } finally {
@@ -178,7 +256,7 @@ export default function AppointmentBooking() {
     if (!doctorId || !date || !selectedTime) {
       setNotice({
         type: "error",
-        message: "Choose a doctor, date, and available time first.",
+        message: am ? "እባክዎ መጀመሪያ ሐኪም፣ ቀን እና የሚገኝ ሰዓት ይምረጡ።" : "Choose a doctor, date, and available time first.",
       });
       return;
     }
@@ -195,7 +273,7 @@ export default function AppointmentBooking() {
         });
         setNotice({
           type: "success",
-          message: "Your demo appointment was rescheduled.",
+          message: am ? "የሙከራ ቀጠሮዎ ጊዜ ተቀይሯል።" : "Your demo appointment was rescheduled.",
         });
         setReschedulingId(null);
       } else {
@@ -207,7 +285,7 @@ export default function AppointmentBooking() {
         });
         setNotice({
           type: "success",
-          message: "Your fictional demo appointment was created.",
+          message: am ? "የሙከራ ቀጠሮዎ ተፈጥሯል።" : "Your fictional demo appointment was created.",
         });
         setPurpose("");
       }
@@ -220,7 +298,7 @@ export default function AppointmentBooking() {
         message:
           error instanceof Error
             ? error.message
-            : "The appointment action could not be completed.",
+            : am ? "የቀጠሮውን ተግባር ማጠናቀቅ አልተቻለም።" : "The appointment action could not be completed.",
       });
     } finally {
       setSubmitting(false);
@@ -229,7 +307,7 @@ export default function AppointmentBooking() {
 
   async function handleCancel(appointment: Appointment) {
     const confirmed = window.confirm(
-      `Cancel this fictional demo appointment with ${appointment.doctorName} on ${formatDate(appointment.date)} at ${formatTime(appointment.time)}?`,
+      `Cancel this fictional demo appointment with ${appointment.doctorName} on ${formatDate(appointment.date, language)} at ${formatTime(appointment.time)}?`,
     );
 
     if (!confirmed) return;
@@ -239,7 +317,7 @@ export default function AppointmentBooking() {
       await cancelAppointment(appointment.bookingId);
       setNotice({
         type: "success",
-        message: "The demo appointment was cancelled.",
+        message: am ? "የሙከራ ቀጠሮው ተሰርዟል።" : "The demo appointment was cancelled.",
       });
       await refreshAppointments();
     } catch (error) {
@@ -248,7 +326,7 @@ export default function AppointmentBooking() {
         message:
           error instanceof Error
             ? error.message
-            : "Could not cancel this demo appointment.",
+            : am ? "ይህን የሙከራ ቀጠሮ መሰረዝ አልተቻለም።" : "Could not cancel this demo appointment.",
       });
     }
   }
@@ -261,7 +339,7 @@ export default function AppointmentBooking() {
     setSelectedTime("");
     setNotice({
       type: "success",
-      message: "Choose a new date and time, then confirm below.",
+      message: am ? "አዲስ ቀንና ሰዓት ይምረጡ፣ ከዚያ ከታች ያረጋግጡ።" : "Choose a new date and time, then confirm below.",
     });
 
     document
@@ -276,17 +354,31 @@ export default function AppointmentBooking() {
   }
 
   const activeAppointments = appointments.filter(
-    (appointment) => appointment.status === "confirmed_demo",
+    (appointment) =>
+      appointment.status === "confirmed_demo" &&
+      !isAppointmentPast(appointment),
   );
   const previousAppointments = appointments.filter(
-    (appointment) => appointment.status !== "confirmed_demo",
+    (appointment) =>
+      appointment.status !== "confirmed_demo" ||
+      isAppointmentPast(appointment),
   );
+
+  const sortedPreviousAppointments = [...previousAppointments].sort((a, b) => {
+    const aDate = `${a.date}T${a.time}`;
+    const bDate = `${b.date}T${b.time}`;
+    return bDate.localeCompare(aDate);
+  });
+
+  const visiblePreviousAppointments = historyExpanded
+    ? sortedPreviousAppointments
+    : sortedPreviousAppointments.slice(0, 5);
 
   if (loadingInitial) {
     return (
       <main className="booking-page">
         <div className="booking-loading" role="status">
-          Loading appointment services…
+          Loading appointment servicesâ€¦
         </div>
       </main>
     );
@@ -296,11 +388,11 @@ export default function AppointmentBooking() {
     <main className="booking-page">
       <section className="booking-hero">
         <div>
-          <span className="booking-eyebrow">PATIENT SERVICES</span>
-          <h1>Book an appointment</h1>
+          <span className="booking-eyebrow">{am ? "የታካሚ አገልግሎቶች" : "PATIENT SERVICES"}</span>
+          <h1>{language === "am" ? "ቀጠሮ ይያዙ" : "Book an appointment"}</h1>
           <p>
-            Choose a department, select a doctor, and find a suitable
-            appointment time.
+            {am ? "ክፍል ይምረጡ፣ ሐኪም ይምረጡ እና ተስማሚ" : "Choose a department, select a doctor, and find a suitable"}
+            {am ? "የቀጠሮ ሰዓት ያግኙ።" : "appointment time."}
           </p>
         </div>
         <div className="booking-hero-icon" aria-hidden="true">
@@ -329,9 +421,9 @@ export default function AppointmentBooking() {
         <div>
           <strong>Demonstration mode — fictional appointments</strong>
           <p>
-            Doctors, availability, and bookings use synthetic local prototype
-            data. This does not contact hospital staff or create a real hospital
-            appointment. Do not use this demo for urgent medical care.
+            {am ? "ሐኪሞች፣ የሚገኙ ሰዓቶች እና ቀጠሮዎች በምሳሌ የተዘጋጀ የአካባቢ ውሂብ ይጠቀማሉ።" : "Doctors, availability, and bookings use synthetic local prototype"}
+            {am ? "ይህ ከሆስፒታል ሰራተኞች ጋር አይገናኝም፣ እውነተኛ የሆስፒታል ቀጠሮም አይፈጥርም። ለአስቸኳይ ሕክምና አይጠቀሙበት።" : "data. This does not contact hospital staff or create a real hospital"}
+            {am ? "" : "appointment. Do not use this demo for urgent medical care."}
           </p>
         </div>
       </aside>
@@ -344,7 +436,7 @@ export default function AppointmentBooking() {
           <span>{notice.message}</span>
           <button
             type="button"
-            aria-label="Dismiss message"
+            aria-label={am ? "መልዕክቱን ዝጋ" : "Dismiss message"}
             onClick={() => setNotice(null)}
           >
             ×
@@ -357,18 +449,18 @@ export default function AppointmentBooking() {
           <div className="booking-panel-heading">
             <div className="booking-step">01</div>
             <div>
-              <h2>{reschedulingId ? "Choose a new time" : "Find a time"}</h2>
+              <h2>{reschedulingId ? (am ? "አዲስ ሰዓት ይምረጡ" : "Choose a new time") : (am ? "ቀጠሮ ይፈልጉ" : "Find a time")}</h2>
               <p>
                 {reschedulingId
-                  ? "Select a replacement slot for your demo appointment."
-                  : "Select a department, doctor, and available slot."}
+                  ? am ? "ለሙከራ ቀጠሮዎ አዲስ ሰዓት ይምረጡ።" : "Select a replacement slot for your demo appointment."
+                  : am ? "ክፍል፣ ሐኪም እና የሚገኝ ሰዓት ይምረጡ።" : "Select a department, doctor, and available slot."}
               </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="booking-form">
             <label className="booking-field">
-              <span>Department</span>
+              <span>{am ? "ክፍል" : "Department"}</span>
               <select
                 value={department}
                 onChange={(event) => {
@@ -383,13 +475,13 @@ export default function AppointmentBooking() {
                 required
               >
                 {departments.map((item) => (
-                  <option key={item} value={item}>{item}</option>
+                  <option key={item} value={item}>{displayDepartment(item, am)}</option>
                 ))}
               </select>
             </label>
 
             <label className="booking-field">
-              <span>Doctor</span>
+              <span>{am ? "ሐኪም" : "Doctor"}</span>
               <select
                 value={doctorId}
                 onChange={(event) => {
@@ -419,35 +511,34 @@ export default function AppointmentBooking() {
                 </div>
                 <div>
                   <strong>{selectedDoctor.name}</strong>
-                  <span>{selectedDoctor.department}</span>
-                  <span>{selectedDoctor.location}</span>
+                  <span>{displayDepartment(selectedDoctor.department, am)}</span>
+                  <span>{displayLocation(selectedDoctor.location, am)}</span>
                   {selectedDoctor.specialties.length > 0 && (
-                    <small>{selectedDoctor.specialties.join(" · ")}</small>
+                    <small>{selectedDoctor.specialties.map((item) => displaySpecialty(item, am)).join(" · ")}</small>
                   )}
                 </div>
               </div>
             )}
 
             <label className="booking-field">
-              <span>Date</span>
-              <input
-                type="date"
-                min={today}
+              <span>{am ? "ቀን" : "Date"}</span>
+              <EthiopianDatePicker
+                language={language}
+                minDate={today}
                 value={date}
-                onChange={(event) => {
-                  setDate(event.target.value);
+                onChange={(gregorianIsoDate) => {
+                  setDate(gregorianIsoDate);
                   setSelectedTime("");
                 }}
-                required
               />
-              <small>Availability is shown for the selected date.</small>
+              <small>{am ? "የሚገኙ ሰዓቶች ለተመረጠው ቀን ይታያሉ።" : "Availability is shown for the selected date."}</small>
             </label>
 
             <div className="booking-field">
-              <span className="booking-field-label">Available time slots</span>
+              <span className="booking-field-label">{am ? "የሚገኙ የቀጠሮ ሰዓቶች" : "Available time slots"}</span>
               {loadingSlots ? (
                 <div className="booking-slot-message" role="status">
-                  Checking demo availability…
+                  {am ? "የሙከራ ቀጠሮ ሰዓቶችን በመፈለግ ላይ…" : "Checking demo availability…"}
                 </div>
               ) : availableSlots.length > 0 ? (
                 <div className="booking-slots">
@@ -469,19 +560,19 @@ export default function AppointmentBooking() {
                 </div>
               ) : (
                 <div className="booking-slot-message">
-                  No available demo slots were found for {formatDate(date)}.
-                  Try another date.
+                  {am ? `ለ ${formatDate(date, language)} የሚገኙ የሙከራ ቀጠሮ ሰዓቶች አልተገኙም።` : `No available demo slots were found for ${formatDate(date, language)}.`}
+                  {am ? "ሌላ ቀን ይምረጡ።" : "Try another date."}
                 </div>
               )}
             </div>
 
             {!reschedulingId && (
               <label className="booking-field">
-                <span>Purpose of visit <small>(optional)</small></span>
+                <span>{am ? "የጉብኝት ምክንያት" : "Purpose of visit"} <small>({am ? "አማራጭ" : "optional"})</small></span>
                 <textarea
                   value={purpose}
                   onChange={(event) => setPurpose(event.target.value)}
-                  placeholder="Briefly describe the reason for this demo appointment"
+                  placeholder={am ? "የዚህን የሙከራ ቀጠሮ ምክንያት በአጭሩ ይግለጹ" : "Briefly describe the reason for this demo appointment"}
                   rows={3}
                   maxLength={200}
                 />
@@ -502,10 +593,10 @@ export default function AppointmentBooking() {
                 }
               >
                 {submitting
-                  ? "Please wait…"
+                  ? "Please waitâ€¦"
                   : reschedulingId
-                    ? "Confirm demo reschedule"
-                    : "Book demo appointment"}
+                    ? am ? "የቀጠሮ ለውጡን ያረጋግጡ" : "Confirm demo reschedule"
+                    : am ? "የሙከራ ቀጠሮ ይያዙ" : "Book demo appointment"}
               </button>
               {reschedulingId && (
                 <button
@@ -514,7 +605,7 @@ export default function AppointmentBooking() {
                   onClick={stopRescheduling}
                   disabled={submitting}
                 >
-                  Stop rescheduling
+                  {am ? "የቀጠሮ ለውጡን ይተዉ" : "Stop rescheduling"}
                 </button>
               )}
             </div>
@@ -525,8 +616,8 @@ export default function AppointmentBooking() {
           <div className="booking-panel-heading">
             <div className="booking-step">02</div>
             <div>
-              <h2>My appointments</h2>
-              <p>Your bookings for the current demo patient.</p>
+              <h2>{am ? "ቀጠሮዎቼ" : "My appointments"}</h2>
+              <p>{am ? "ለአሁኑ የሙከራ ታካሚ የተያዙ ቀጠሮዎች።" : "Your bookings for the current demo patient."}</p>
             </div>
             <button
               className="booking-refresh-button"
@@ -534,15 +625,15 @@ export default function AppointmentBooking() {
               onClick={() => void refreshAppointments()}
               disabled={refreshing}
             >
-              {refreshing ? "Refreshing…" : "Refresh"}
+              {refreshing ? (am ? "በማደስ ላይ…" : "Refreshing…") : (am ? "አድስ" : "Refresh")}
             </button>
           </div>
 
           {activeAppointments.length === 0 ? (
             <div className="booking-empty">
-              <div className="booking-empty-icon" aria-hidden="true">＋</div>
-              <strong>No active demo appointments</strong>
-              <p>Choose a slot to create your first fictional booking.</p>
+              <div className="booking-empty-icon" aria-hidden="true">ï¼‹</div>
+              <strong>{am ? "ንቁ የሙከራ ቀጠሮዎች የሉም" : "No active demo appointments"}</strong>
+              <p>{am ? "የመጀመሪያ የሙከራ ቀጠሮዎን ለመያዝ ሰዓት ይምረጡ።" : "Choose a slot to create your first fictional booking."}</p>
             </div>
           ) : (
             <div className="booking-appointment-list">
@@ -553,30 +644,30 @@ export default function AppointmentBooking() {
                 >
                   <div className="booking-appointment-top">
                     <span className="booking-status booking-status-active">
-                      {statusLabel(appointment.status)}
+                      {statusLabel(appointment.status, am)}
                     </span>
                     <span className="booking-id">{appointment.bookingId}</span>
                   </div>
                   <h3>{appointment.doctorName}</h3>
                   <p className="booking-appointment-department">
-                    {appointment.department}
+                    {displayDepartment(appointment.department, am)}
                   </p>
                   <div className="booking-appointment-details">
                     <span>
-                      <strong>Date</strong>
-                      {formatDate(appointment.date)}
+                      <strong>{am ? "ቀን" : "Date"}</strong>
+                      {formatDate(appointment.date, language)}
                     </span>
                     <span>
-                      <strong>Time</strong>
+                      <strong>{am ? "ሰዓት" : "Time"}</strong>
                       {formatTime(appointment.time)}
                     </span>
                   </div>
                   {appointment.location && (
-                    <p className="booking-location">{appointment.location}</p>
+                    <p className="booking-location">{displayLocation(appointment.location, am)}</p>
                   )}
                   {appointment.purpose && (
                     <p className="booking-purpose">
-                      <strong>Purpose:</strong> {appointment.purpose}
+                      <strong>{am ? "ምክንያት፦" : "Purpose:"}</strong> {appointment.purpose}
                     </p>
                   )}
                   <div className="booking-card-actions">
@@ -585,14 +676,14 @@ export default function AppointmentBooking() {
                       className="booking-secondary-button"
                       onClick={() => startRescheduling(appointment)}
                     >
-                      Reschedule
+                      {am ? "ቀጠሮውን ይቀይሩ" : "Reschedule"}
                     </button>
                     <button
                       type="button"
                       className="booking-cancel-button"
                       onClick={() => void handleCancel(appointment)}
                     >
-                      Cancel
+                      {am ? "ሰርዝ" : "Cancel"}
                     </button>
                   </div>
                 </article>
@@ -603,27 +694,45 @@ export default function AppointmentBooking() {
           {previousAppointments.length > 0 && (
             <details className="booking-history">
               <summary>
-                Previous and cancelled demo appointments ({previousAppointments.length})
+                {am ? "የቀጠሮ ታሪክ" : "Appointment history"} ({previousAppointments.length})
               </summary>
               <div className="booking-appointment-list">
-                {previousAppointments.map((appointment) => (
+                {visiblePreviousAppointments.map((appointment) => (
                   <article
                     className="booking-appointment-card booking-appointment-inactive"
                     key={appointment.bookingId}
                   >
                     <div className="booking-appointment-top">
                       <span className="booking-status">
-                        {statusLabel(appointment.status)}
+                        {statusLabel(
+                          appointment.status,
+                          am,
+                          isAppointmentPast(appointment),
+                        )}
                       </span>
                       <span className="booking-id">{appointment.bookingId}</span>
                     </div>
                     <h3>{appointment.doctorName}</h3>
                     <p>
-                      {formatDate(appointment.date)} · {formatTime(appointment.time)}
+                      {formatDate(appointment.date, language)} · {formatTime(appointment.time)}
                     </p>
                   </article>
                 ))}
               </div>
+              {previousAppointments.length > 5 && (
+                <button
+                  type="button"
+                  className="booking-history-toggle"
+                  onClick={() => setHistoryExpanded((expanded) => !expanded)}
+                  aria-expanded={historyExpanded}
+                >
+                  {historyExpanded
+                    ? (am ? "ያነሰ አሳይ" : "Show less")
+                    : (am
+                        ? `ሁሉንም የቀጠሮ ታሪክ ይመልከቱ (${previousAppointments.length})`
+                        : `View all history (${previousAppointments.length})`)}
+                </button>
+              )}
             </details>
           )}
         </section>
@@ -631,8 +740,10 @@ export default function AppointmentBooking() {
 
       <p className="booking-bottom-note">
         Demo only · Availability and booking status are not connected to a live
-        hospital scheduling system.
+        {am ? "" : "hospital scheduling system."}
       </p>
     </main>
   );
 }
+
+

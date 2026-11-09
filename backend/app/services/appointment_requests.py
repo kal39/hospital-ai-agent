@@ -1,24 +1,21 @@
-﻿"""Demo-only patient appointment request management.
+﻿"""SQLite-backed appointment request management for synthetic demos."""
 
-Requests are held in memory and are lost when the process restarts.
-This module does not create or modify a confirmed hospital appointment.
-"""
-
+import copy
+import json
 from datetime import UTC, date, datetime
-from threading import RLock
 from typing import Any
 from uuid import uuid4
 
 from app.data.patients import PATIENTS
 from app.services.audit import record_audit_event
+from app.data.scheduling import DATA_SOURCE
 
 
-DATA_SOURCE = "synthetic_demo"
 DATA_NOTICE = (
-    "SYNTHETIC DEMONSTRATION DATA: This request is stored locally for "
-    "development only. It has not been sent to a real hospital, reviewed "
-    "by hospital staff, or confirmed as an appointment. Requests are lost "
-    "when the backend restarts."
+    "SYNTHETIC DEMONSTRATION DATA: This request is stored in the local demo "
+    "SQLite database and persists across backend restarts. It has not been "
+    "sent to a real hospital, reviewed by real hospital staff, or confirmed "
+    "as a real appointment."
 )
 
 REQUEST_STATUSES = {
@@ -48,25 +45,97 @@ class AppointmentRequestNotFound(AppointmentRequestError):
 
 
 class AppointmentRequestConflict(AppointmentRequestError):
-    """Raised when an operation is not valid for the request's current state."""
+    """Raised when an operation is invalid for the current request state."""
 
 
 class DemoAppointmentRequestService:
-    """Thread-safe, in-memory appointment request store for local demos."""
+    """Persistent request store sharing the scheduler's SQLite connection."""
 
-    def __init__(self) -> None:
-        self._requests: dict[str, dict[str, Any]] = {}
-        self._lock = RLock()
+    def __init__(self, scheduler: Any) -> None:
+        self._scheduler = scheduler
+        self._connection = scheduler._connection
+        self._lock = scheduler._lock
+
+        with self._lock:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS demo_appointment_requests (
+                    request_id TEXT PRIMARY KEY,
+                    patient_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    submitted_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS
+                idx_demo_appointment_requests_patient
+                ON demo_appointment_requests(patient_id, submitted_at)
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS
+                idx_demo_appointment_requests_status
+                ON demo_appointment_requests(status, submitted_at)
+                """
+            )
+            self._connection.commit()
 
     @staticmethod
     def _public_request(record: dict[str, Any]) -> dict[str, Any]:
-        """Return a copy without internal ownership fields."""
-        result = {
-            key: value
-            for key, value in record.items()
-            if key != "patientId"
-        }
+        """Return a patient-safe copy without internal ownership fields."""
+        result = copy.deepcopy(record)
+        result.pop("patientId", None)
         return result
+
+    def _load_record(self, request_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            """
+            SELECT payload_json
+            FROM demo_appointment_requests
+            WHERE request_id = ?
+            """,
+            (request_id,),
+        ).fetchone()
+
+        if row is None:
+            return None
+
+        return json.loads(row[0])
+
+    def _save_record(self, record: dict[str, Any]) -> None:
+        """Insert or update one request inside the caller's transaction."""
+        self._connection.execute(
+            """
+            INSERT INTO demo_appointment_requests (
+                request_id,
+                patient_id,
+                status,
+                submitted_at,
+                updated_at,
+                payload_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(request_id) DO UPDATE SET
+                patient_id = excluded.patient_id,
+                status = excluded.status,
+                submitted_at = excluded.submitted_at,
+                updated_at = excluded.updated_at,
+                payload_json = excluded.payload_json
+            """,
+            (
+                record["requestId"],
+                record["patientId"],
+                record["status"],
+                record["submittedAt"],
+                record["updatedAt"],
+                json.dumps(record, ensure_ascii=False),
+            ),
+        )
 
     def create_request(
         self,
@@ -108,13 +177,11 @@ class DemoAppointmentRequestService:
             "preferredDoctor": preferred_doctor,
             "preferredDateStart": (
                 preferred_date_start.isoformat()
-                if preferred_date_start
-                else None
+                if preferred_date_start else None
             ),
             "preferredDateEnd": (
                 preferred_date_end.isoformat()
-                if preferred_date_end
-                else None
+                if preferred_date_end else None
             ),
             "reason": reason,
             "status": "submitted",
@@ -132,7 +199,13 @@ class DemoAppointmentRequestService:
         }
 
         with self._lock:
-            self._requests[request_id] = record
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._save_record(record)
+                self._connection.commit()
+            except Exception:
+                self._connection.rollback()
+                raise
 
         record_audit_event(
             {
@@ -156,17 +229,20 @@ class DemoAppointmentRequestService:
             raise ValueError("Unknown synthetic patient.")
 
         with self._lock:
-            records = [
-                self._public_request(record)
-                for record in self._requests.values()
-                if record["patientId"] == patient_id
-            ]
+            rows = self._connection.execute(
+                """
+                SELECT payload_json
+                FROM demo_appointment_requests
+                WHERE patient_id = ?
+                ORDER BY submitted_at DESC
+                """,
+                (patient_id,),
+            ).fetchall()
 
-        return sorted(
-            records,
-            key=lambda record: record["submittedAt"],
-            reverse=True,
-        )
+        return [
+            self._public_request(json.loads(row[0]))
+            for row in rows
+        ]
 
     def get_patient_request(
         self,
@@ -175,9 +251,8 @@ class DemoAppointmentRequestService:
         request_id: str,
     ) -> dict[str, Any]:
         with self._lock:
-            record = self._requests.get(request_id)
+            record = self._load_record(request_id)
 
-            # Use the same error for nonexistent and other-patient requests.
             if record is None or record["patientId"] != patient_id:
                 raise AppointmentRequestNotFound
 
@@ -190,28 +265,37 @@ class DemoAppointmentRequestService:
         request_id: str,
     ) -> dict[str, Any]:
         with self._lock:
-            record = self._requests.get(request_id)
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                record = self._load_record(request_id)
 
-            if record is None or record["patientId"] != patient_id:
-                raise AppointmentRequestNotFound
+                if record is None or record["patientId"] != patient_id:
+                    raise AppointmentRequestNotFound
 
-            if record["status"] not in PATIENT_CANCELLABLE_STATUSES:
-                raise AppointmentRequestConflict(
-                    "This request can no longer be cancelled through "
-                    "the patient request workflow."
+                if record["status"] not in PATIENT_CANCELLABLE_STATUSES:
+                    raise AppointmentRequestConflict(
+                        "This request can no longer be cancelled through "
+                        "the patient request workflow."
+                    )
+
+                now = datetime.now(UTC).isoformat()
+                record["status"] = "cancelled"
+                record["updatedAt"] = now
+                record["statusHistory"].append(
+                    {
+                        "status": "cancelled",
+                        "timestamp": now,
+                        "note": "Cancelled by the patient in the synthetic demo.",
+                    }
                 )
 
-            now = datetime.now(UTC).isoformat()
-            record["status"] = "cancelled"
-            record["updatedAt"] = now
-            record["statusHistory"].append(
-                {
-                    "status": "cancelled",
-                    "timestamp": now,
-                    "note": "Cancelled by the patient in the synthetic demo.",
-                }
-            )
-            result = self._public_request(record)
+                self._save_record(record)
+                result = self._public_request(record)
+                self._connection.commit()
+
+            except Exception:
+                self._connection.rollback()
+                raise
 
         record_audit_event(
             {
@@ -227,5 +311,179 @@ class DemoAppointmentRequestService:
 
         return result
 
+    def list_staff_requests(self) -> list[dict[str, Any]]:
+        """List requests for authorized demo staff, including patient identity."""
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT payload_json
+                FROM demo_appointment_requests
+                ORDER BY submitted_at DESC
+                """
+            ).fetchall()
 
-demo_appointment_request_service = DemoAppointmentRequestService()
+        return [json.loads(row[0]) for row in rows]
+
+    def approve_request(
+        self,
+        *,
+        request_id: str,
+        doctor: dict[str, Any],
+        appointment_date: str,
+        appointment_time: str,
+        booking_factory: Any,
+        decided_by: str,
+    ) -> dict[str, Any]:
+        """Atomically create a booking and confirm its appointment request."""
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+
+            try:
+                record = self._load_record(request_id)
+
+                if record is None:
+                    raise AppointmentRequestNotFound
+
+                if record["status"] not in {
+                    "submitted",
+                    "under_review",
+                    "needs_information",
+                }:
+                    raise AppointmentRequestConflict(
+                        "This request has already been decided or is no longer eligible."
+                    )
+
+                requested_department = record.get("department")
+                if (
+                    requested_department
+                    and requested_department.casefold()
+                    != doctor["department"].casefold()
+                ):
+                    raise ValueError(
+                        "The selected doctor's department does not match the request."
+                    )
+
+                # The scheduler joins this transaction because its connection
+                # is already inside BEGIN IMMEDIATE.
+                booking = booking_factory(
+                    patient_id=record["patientId"],
+                    doctor_id=doctor["id"],
+                    appointment_date=appointment_date,
+                    appointment_time=appointment_time,
+                    purpose=record["reason"][:200],
+                )
+
+                now = datetime.now(UTC).isoformat()
+                record["status"] = "appointment_confirmed"
+                record["bookingId"] = booking["bookingId"]
+                record["assignedDoctorId"] = doctor["id"]
+                record["assignedDoctorName"] = doctor["name"]
+                record["appointmentDate"] = booking["date"]
+                record["appointmentTime"] = booking["time"]
+                record["updatedAt"] = now
+                record["statusHistory"].append(
+                    {
+                        "status": "appointment_confirmed",
+                        "timestamp": now,
+                        "note": (
+                            "A synthetic demo appointment was assigned "
+                            "by authorized demo staff."
+                        ),
+                        "decidedBy": decided_by,
+                        "bookingId": booking["bookingId"],
+                    }
+                )
+
+                self._save_record(record)
+                result = self._public_request(record)
+                result["booking"] = booking
+
+                self._connection.commit()
+
+            except Exception:
+                self._connection.rollback()
+                raise
+
+        record_audit_event(
+            {
+                "patientId": record["patientId"],
+                "event": "appointment_request_approved",
+                "details": {
+                    "status": "appointment_confirmed",
+                    "dataSource": DATA_SOURCE,
+                },
+            }
+        )
+
+        return result
+
+    def decline_request(
+        self,
+        *,
+        request_id: str,
+        reason: str,
+        decided_by: str,
+    ) -> dict[str, Any]:
+        """Decline an eligible request and retain the staff's reason."""
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+
+            try:
+                record = self._load_record(request_id)
+
+                if record is None:
+                    raise AppointmentRequestNotFound
+
+                if record["status"] not in {
+                    "submitted",
+                    "under_review",
+                    "needs_information",
+                }:
+                    raise AppointmentRequestConflict(
+                        "This request has already been decided or is no longer eligible."
+                    )
+
+                now = datetime.now(UTC).isoformat()
+                record["status"] = "declined"
+                record["declineReason"] = reason
+                record["updatedAt"] = now
+                record["statusHistory"].append(
+                    {
+                        "status": "declined",
+                        "timestamp": now,
+                        "note": reason,
+                        "decidedBy": decided_by,
+                    }
+                )
+
+                self._save_record(record)
+                result = self._public_request(record)
+                self._connection.commit()
+
+            except Exception:
+                self._connection.rollback()
+                raise
+
+        record_audit_event(
+            {
+                "patientId": record["patientId"],
+                "event": "appointment_request_declined",
+                "details": {
+                    "status": "declined",
+                    "dataSource": DATA_SOURCE,
+                },
+            }
+        )
+
+        return result
+
+
+def get_appointment_request_service(scheduler: Any) -> DemoAppointmentRequestService:
+    """Return the persistent request service associated with this scheduler."""
+    service = getattr(scheduler, "_appointment_request_service", None)
+
+    if service is None:
+        service = DemoAppointmentRequestService(scheduler)
+        scheduler._appointment_request_service = service
+
+    return service

@@ -1,12 +1,12 @@
-﻿"""Patient appointment booking API for the synthetic local demo."""
+"""Patient appointment booking API for the synthetic local demo."""
 
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.auth import get_current_patient_id
+from app.core.auth import get_current_demo_staff, get_current_patient_id
 from app.data.scheduling import DATA_SOURCE, DOCTORS, generate_synthetic_slots
 from app.services.audit import record_audit_event
 from app.services.demo_scheduler import (
@@ -43,7 +43,7 @@ class RescheduleInput(BaseModel):
 def _require_future_date(value: date) -> str:
     if value < date.today():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Appointment date cannot be in the past.",
         )
     return value.isoformat()
@@ -61,7 +61,7 @@ def _handle_booking_value_error(exc: ValueError) -> None:
         ) from exc
 
     raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail=message,
     ) from exc
 
@@ -73,7 +73,7 @@ def _doctor_or_404(doctor_id: str) -> dict[str, Any]:
     )
     if doctor is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Doctor not found.",
         )
     return doctor
@@ -298,3 +298,64 @@ async def reschedule_patient_appointment(
         "dataSource": DATA_SOURCE,
         "dataNotice": DEMO_NOTICE,
     }
+
+class AttendanceInput(BaseModel):
+    """Attendance outcome submitted by authorized demo staff."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["attended", "missed"]
+
+
+@router.get("/api/staff/appointments")
+async def list_staff_appointments(
+    _staff_id: str = Depends(get_current_demo_staff),
+) -> dict[str, Any]:
+    """List synthetic bookings for authenticated demo staff."""
+    return {
+        "appointments": demo_scheduler.get_all_bookings(),
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.post("/api/staff/appointments/{booking_id}/attendance")
+async def record_staff_attendance(
+    booking_id: str,
+    payload: AttendanceInput,
+    staff_id: str = Depends(get_current_demo_staff),
+) -> dict[str, Any]:
+    """Record an attendance outcome using staff-only authentication."""
+    try:
+        booking = demo_scheduler.record_attendance(
+            booking_id=booking_id,
+            outcome=payload.outcome,
+            recorded_by=staff_id,
+        )
+    except BookingNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Appointment not found.") from exc
+    except BookingConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    record_audit_event(
+        {
+            "patientId": booking.get("patientId"),
+            "event": "demo_appointment_attendance_recorded",
+            "details": {
+                "bookingId": booking.get("bookingId"),
+                "outcome": payload.outcome,
+                "recordedBy": staff_id,
+                "dataSource": DATA_SOURCE,
+            },
+        }
+    )
+
+    return {
+        "booking": booking,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+

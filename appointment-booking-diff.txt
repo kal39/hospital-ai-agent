@@ -1,0 +1,530 @@
+﻿diff --git "a/.\\frontend\\src\\components\\AppointmentBooking\\AppointmentBooking.tsx.backup-20261029-104309" "b/.\\frontend\\src\\components\\AppointmentBooking\\AppointmentBooking.tsx"
+index 1d75ee2..6becda8 100644
+--- "a/.\\frontend\\src\\components\\AppointmentBooking\\AppointmentBooking.tsx.backup-20261029-104309"
++++ "b/.\\frontend\\src\\components\\AppointmentBooking\\AppointmentBooking.tsx"
+@@ -1,4 +1,4 @@
+-import type { Language } from "../../types/chat";
++∩╗┐import type { Language } from "../../types/chat";
+ import EthiopianDatePicker from "./EthiopianDatePicker";
+ import { formatEthiopianDate } from "../../utils/ethiopianCalendar";
+ import { useCallback, useEffect, useMemo, useState } from "react";
+@@ -22,22 +22,22 @@ function displayDepartment(value: string, am: boolean): string {
+   if (!am) return value;
+ 
+   const labels: Record<string, string> = {
+-    Cardiology: "ßï¿ßêìßëÑ ßêòßè¡ßê¥ßèô",
+-    Dental: "ßï¿ßîÑßê¡ßê╡ ßêòßè¡ßê¥ßèô",
+-    Dermatology: "ßï¿ßëåßï│ ßêòßè¡ßê¥ßèô",
+-    ENT: "ßï¿ßîåßê«ßìú ßï¿ßèáßììßèòßî½ßèô ßï¿ßîëßê«ßê« ßêòßè¡ßê¥ßèô",
+-    Endocrinology: "ßï¿ßêåßê¡ßê₧ßèò ßêòßè¡ßê¥ßèô",
+-    Gastroenterology: "ßï¿ßê¥ßîìßëÑ ßêÿßììßî½ ßêÑßê¡ßïôßë╡ ßêòßè¡ßê¥ßèô",
+-    "General Medicine": "ßèáßîáßëâßêïßï¡ ßêòßè¡ßê¥ßèô",
+-    Gynecology: "ßï¿ßê¢ßêàßìÇßèò ßêòßè¡ßê¥ßèô",
+-    Nephrology: "ßï¿ßè⌐ßêïßêèßë╡ ßêòßè¡ßê¥ßèô",
+-    Neurology: "ßï¿ßèÉßê¡ßë¡ ßêòßè¡ßê¥ßèô",
+-    Ophthalmology: "ßï¿ßïôßï¡ßèò ßêòßè¡ßê¥ßèô",
+-    Orthopedics: "ßï¿ßèáßîÑßèòßë╡ßèô ßêÿßîêßîúßîáßêÜßï½ ßêòßè¡ßê¥ßèô",
+-    Pediatrics: "ßï¿ßêòßìâßèôßë╡ ßêòßè¡ßê¥ßèô",
+-    Psychiatry: "ßï¿ßèáßèÑßê¥ßê« ßîñßèô ßêòßè¡ßê¥ßèô",
+-    "Respiratory Clinic": "ßï¿ßêÿßë░ßèòßìêßê╗ ßèáßè½ßêïßë╡ ßêòßè¡ßê¥ßèô",
+-    Urology: "ßï¿ßê╜ßèòßë╡ ßêÑßê¡ßïôßë╡ ßêòßè¡ßê¥ßèô",
++    Cardiology: "├íΓÇ╣┬¿├í╦å┬ì├íΓÇ░┬Ñ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Dental: "├íΓÇ╣┬¿├í┼Æ┬Ñ├í╦å┬¡├í╦å┬╡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Dermatology: "├íΓÇ╣┬¿├íΓÇ░ΓÇá├íΓÇ╣┬│ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    ENT: "├íΓÇ╣┬¿├í┼ÆΓÇá├í╦å┬«├í┬ì┬ú ├íΓÇ╣┬¿├í┼á┬á├í┬ì┬ì├í┼áΓÇó├í┼Æ┬½├í┼áΓÇ£ ├íΓÇ╣┬¿├í┼ÆΓÇ░├í╦å┬«├í╦å┬« ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Endocrinology: "├íΓÇ╣┬¿├í╦åΓÇá├í╦å┬¡├í╦å┼╛├í┼áΓÇó ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Gastroenterology: "├íΓÇ╣┬¿├í╦å┬¥├í┼Æ┬ì├íΓÇ░┬Ñ ├í╦å╦£├í┬ì┬ì├í┼Æ┬½ ├í╦å┬Ñ├í╦å┬¡├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    "General Medicine": "├í┼á┬á├í┼Æ┬á├íΓÇ░╞Æ├í╦åΓÇ╣├íΓÇ╣┬¡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Gynecology: "├íΓÇ╣┬¿├í╦åΓÇ║├í╦åΓÇª├í┬ìΓé¼├í┼áΓÇó ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Nephrology: "├íΓÇ╣┬¿├í┼á┬⌐├í╦åΓÇ╣├í╦å┼á├íΓÇ░┬╡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Neurology: "├íΓÇ╣┬¿├í┼á┬É├í╦å┬¡├íΓÇ░┬¡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Ophthalmology: "├íΓÇ╣┬¿├íΓÇ╣ΓÇ£├íΓÇ╣┬¡├í┼áΓÇó ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Orthopedics: "├íΓÇ╣┬¿├í┼á┬á├í┼Æ┬Ñ├í┼áΓÇó├íΓÇ░┬╡├í┼áΓÇ£ ├í╦å╦£├í┼Æ╦å├í┼Æ┬ú├í┼Æ┬á├í╦å┼í├íΓÇ╣┬½ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Pediatrics: "├íΓÇ╣┬¿├í╦åΓÇó├í┬ì╞Æ├í┼áΓÇ£├íΓÇ░┬╡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Psychiatry: "├íΓÇ╣┬¿├í┼á┬á├í┼á┬Ñ├í╦å┬¥├í╦å┬« ├í┼Æ┬ñ├í┼áΓÇ£ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    "Respiratory Clinic": "├íΓÇ╣┬¿├í╦å╦£├íΓÇ░┬░├í┼áΓÇó├í┬ì╦å├í╦å┬╗ ├í┼á┬á├í┼á┬½├í╦åΓÇ╣├íΓÇ░┬╡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
++    Urology: "├íΓÇ╣┬¿├í╦å┬╜├í┼áΓÇó├íΓÇ░┬╡ ├í╦å┬Ñ├í╦å┬¡├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£",
+   };
+ 
+   return labels[value] ?? value;
+@@ -47,8 +47,8 @@ function displayLocation(value: string, am: boolean): string {
+   if (!am) return value;
+ 
+   const labels: Record<string, string> = {
+-    "Synthetic Demo Clinic A": "ßï¿ßêÖßè¿ßê½ ßè¡ßêèßèÆßè¡ A",
+-    "Synthetic Demo Clinic B": "ßï¿ßêÖßè¿ßê½ ßè¡ßêèßèÆßè¡ B",
++    "Synthetic Demo Clinic A": "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├í┼á┬¡├í╦å┼á├í┼áΓÇÖ├í┼á┬¡ A",
++    "Synthetic Demo Clinic B": "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├í┼á┬¡├í╦å┼á├í┼áΓÇÖ├í┼á┬¡ B",
+   };
+ 
+   return labels[value] ?? value;
+@@ -58,7 +58,7 @@ function displaySpecialty(value: string, am: boolean): string {
+   if (!am) return value;
+ 
+   const labels: Record<string, string> = {
+-    "Hypertension follow-up": "ßï¿ßï░ßê¥ ßîìßìèßë╡ ßè¡ßë╡ßë╡ßêì",
++    "Hypertension follow-up": "├íΓÇ╣┬¿├íΓÇ╣┬░├í╦å┬¥ ├í┼Æ┬ì├í┬ì┼á├íΓÇ░┬╡ ├í┼á┬¡├íΓÇ░┬╡├íΓÇ░┬╡├í╦å┬ì",
+   };
+ 
+   return labels[value] ?? value;
+@@ -88,13 +88,32 @@ function formatTime(value: string): string {
+   });
+ }
+ 
+-function statusLabel(status: string, am: boolean): string {
+-  if (status === "confirmed_demo") return am ? "ßë░ßêÿßï¥ßîìßëºßêì ┬╖ ßêÖßè¿ßê½" : "Booked ┬╖ Demo";
+-  if (status === "cancelled_demo") return am ? "ßë░ßê░ßê¡ßïƒßêì" : "Cancelled";
+-  if (status === "rescheduled_demo") return am ? "ßîèßï£ßïì ßë░ßëÇßï¡ßê»ßêì" : "Rescheduled";
+-  return status.replaceAll("_", " ");
++function isAppointmentPast(
++  appointment: Pick<Appointment, "date" | "time">,
++): boolean {
++  const scheduledAt = new Date(`${appointment.date}T${appointment.time}:00`);
++  return !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() < Date.now();
+ }
+ 
++function statusLabel(
++  status: string,
++  am: boolean,
++  isPast = false,
++): string {
++  if (status === "confirmed_demo") {
++    if (isPast) {
++      return am
++        ? "├íΓÇ╣┬½├í╦å╦å ├íΓÇ╣┬ì├í┼Æ┬ñ├íΓÇ░┬╡ ├íΓÇ╣┬¿├íΓÇ░┬░├í╦å╦£├íΓÇ╣╦£├í┼Æ╦å├íΓÇ░┬á ├íΓÇ╣┬½├í╦å╦å├í┬ì╦å ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«"
++        : "Past ├óΓé¼ΓÇ¥ Outcome Not Recorded";
++    }
++    return am ? "├íΓÇ░┬░├í╦å╦£├íΓÇ╣┬¥├í┼Æ┬ì├íΓÇ░┬º├íΓÇ╣ΓÇ╣├í╦å┬ì ├é┬╖ ├í╦åΓäó├í┼á┬¿├í╦å┬½" : "Booked ├é┬╖ Demo";
++  }
++  if (status === "attended_demo") return am ? "├íΓÇ░┬░├í┼Æ╦å├í┼á┬¥├íΓÇ░┬╖├í╦å┬ì" : "Attended";
++  if (status === "missed_demo") return am ? "├í┼á┬á├í╦å┬ì├íΓÇ░┬░├í┼Æ╦å├í┼á╦£├í╦å┬¥" : "Missed";
++  if (status === "cancelled_demo") return am ? "├íΓÇ░┬░├í╦å┬░├í╦å┬¡├íΓÇ╣┼╕├í╦å┬ì" : "Cancelled";
++  if (status === "rescheduled_demo") return am ? "├í┼Æ┼á├íΓÇ╣┼ô├íΓÇ╣┬ì ├íΓÇ░┬░├íΓÇ░Γé¼├íΓÇ╣┬¡├í╦å┬»├í╦å┬ì" : "Rescheduled";
++  return status.replaceAll("_", " ");
++}
+ interface AppointmentBookingProps {
+   language: Language;
+ }
+@@ -111,6 +130,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+   const [slots, setSlots] = useState<AppointmentSlot[]>([]);
+   const [selectedTime, setSelectedTime] = useState("");
+   const [appointments, setAppointments] = useState<Appointment[]>([]);
++  const [historyExpanded, setHistoryExpanded] = useState(false);
+   const [loadingInitial, setLoadingInitial] = useState(true);
+   const [loadingSlots, setLoadingSlots] = useState(false);
+   const [submitting, setSubmitting] = useState(false);
+@@ -133,7 +153,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+         message:
+           error instanceof Error
+             ? error.message
+-            : am ? "ßï¿ßêÖßè¿ßê½ ßëÇßîáßê«ßïÄßë╜ßïÄßèò ßêÿßî½ßèò ßèáßêìßë░ßë╗ßêêßê¥ßìó" : "Could not load your demo appointments.",
++            : am ? "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜├íΓÇ░┬╜├íΓÇ╣┼╜├í┼áΓÇó ├í╦å╦£├í┼Æ┬½├í┼áΓÇó ├í┼á┬á├í╦å┬ì├íΓÇ░┬░├íΓÇ░┬╗├í╦å╦å├í╦å┬¥├í┬ì┬ó" : "Could not load your demo appointments.",
+       });
+     } finally {
+       setRefreshing(false);
+@@ -171,7 +191,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+             message:
+               error instanceof Error
+                 ? error.message
+-                : am ? "ßï¿ßëÇßîáßê« ßèáßîêßêìßîìßêÄßë╢ßë╜ßèò ßêÿßî½ßèò ßèáßêìßë░ßë╗ßêêßê¥ßìó" : "Could not load appointment services.",
++                : am ? "├íΓÇ╣┬¿├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í┼á┬á├í┼Æ╦å├í╦å┬ì├í┼Æ┬ì├í╦å┼╜├íΓÇ░┬╢├íΓÇ░┬╜├í┼áΓÇó ├í╦å╦£├í┼Æ┬½├í┼áΓÇó ├í┼á┬á├í╦å┬ì├íΓÇ░┬░├íΓÇ░┬╗├í╦å╦å├í╦å┬¥├í┬ì┬ó" : "Could not load appointment services.",
+           });
+         }
+       } finally {
+@@ -208,7 +228,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+             message:
+               error instanceof Error
+                 ? error.message
+-                : am ? "ßï½ßêëßë╡ßèò ßï¿ßêÖßè¿ßê½ ßëÇßîáßê« ßê░ßïôßë╢ßë╜ ßêÿßî½ßèò ßèáßêìßë░ßë╗ßêêßê¥ßìó" : "Could not load demo availability.",
++                : am ? "├íΓÇ╣┬½├í╦åΓÇ░├íΓÇ░┬╡├í┼áΓÇó ├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╢├íΓÇ░┬╜ ├í╦å╦£├í┼Æ┬½├í┼áΓÇó ├í┼á┬á├í╦å┬ì├íΓÇ░┬░├íΓÇ░┬╗├í╦å╦å├í╦å┬¥├í┬ì┬ó" : "Could not load demo availability.",
+           });
+         }
+       } finally {
+@@ -236,7 +256,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+     if (!doctorId || !date || !selectedTime) {
+       setNotice({
+         type: "error",
+-        message: am ? "ßèÑßëúßè¡ßïÄ ßêÿßîÇßêÿßê¬ßï½ ßêÉßè¬ßê¥ßìú ßëÇßèò ßèÑßèô ßï¿ßêÜßîêßè¥ ßê░ßïôßë╡ ßï¡ßê¥ßê¿ßîíßìó" : "Choose a doctor, date, and available time first.",
++        message: am ? "├í┼á┬Ñ├íΓÇ░┬ú├í┼á┬¡├íΓÇ╣┼╜ ├í╦å╦£├í┼ÆΓé¼├í╦å╦£├í╦å┬¬├íΓÇ╣┬½ ├í╦å┬É├í┼á┬¬├í╦å┬¥├í┬ì┬ú ├íΓÇ░Γé¼├í┼áΓÇó ├í┼á┬Ñ├í┼áΓÇ£ ├íΓÇ╣┬¿├í╦å┼í├í┼Æ╦å├í┼á┬¥ ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í├í┬ì┬ó" : "Choose a doctor, date, and available time first.",
+       });
+       return;
+     }
+@@ -253,7 +273,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+         });
+         setNotice({
+           type: "success",
+-          message: am ? "ßï¿ßêÖßè¿ßê½ ßëÇßîáßê«ßïÄ ßîèßï£ ßë░ßëÇßï¡ßê»ßêìßìó" : "Your demo appointment was rescheduled.",
++          message: am ? "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜ ├í┼Æ┼á├íΓÇ╣┼ô ├íΓÇ░┬░├íΓÇ░Γé¼├íΓÇ╣┬¡├í╦å┬»├í╦å┬ì├í┬ì┬ó" : "Your demo appointment was rescheduled.",
+         });
+         setReschedulingId(null);
+       } else {
+@@ -265,7 +285,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+         });
+         setNotice({
+           type: "success",
+-          message: am ? "ßï¿ßêÖßè¿ßê½ ßëÇßîáßê«ßïÄ ßë░ßìêßîÑßê»ßêìßìó" : "Your fictional demo appointment was created.",
++          message: am ? "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜ ├íΓÇ░┬░├í┬ì╦å├í┼Æ┬Ñ├í╦å┬»├í╦å┬ì├í┬ì┬ó" : "Your fictional demo appointment was created.",
+         });
+         setPurpose("");
+       }
+@@ -278,7 +298,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+         message:
+           error instanceof Error
+             ? error.message
+-            : am ? "ßï¿ßëÇßîáßê«ßïìßèò ßë░ßîìßëúßê¡ ßê¢ßîáßèôßëÇßëà ßèáßêìßë░ßë╗ßêêßê¥ßìó" : "The appointment action could not be completed.",
++            : am ? "├íΓÇ╣┬¿├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┬ì├í┼áΓÇó ├íΓÇ░┬░├í┼Æ┬ì├íΓÇ░┬ú├í╦å┬¡ ├í╦åΓÇ║├í┼Æ┬á├í┼áΓÇ£├íΓÇ░Γé¼├íΓÇ░ΓÇª ├í┼á┬á├í╦å┬ì├íΓÇ░┬░├íΓÇ░┬╗├í╦å╦å├í╦å┬¥├í┬ì┬ó" : "The appointment action could not be completed.",
+       });
+     } finally {
+       setSubmitting(false);
+@@ -297,7 +317,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+       await cancelAppointment(appointment.bookingId);
+       setNotice({
+         type: "success",
+-        message: am ? "ßï¿ßêÖßè¿ßê½ ßëÇßîáßê«ßïì ßë░ßê░ßê¡ßïƒßêìßìó" : "The demo appointment was cancelled.",
++        message: am ? "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┬ì ├íΓÇ░┬░├í╦å┬░├í╦å┬¡├íΓÇ╣┼╕├í╦å┬ì├í┬ì┬ó" : "The demo appointment was cancelled.",
+       });
+       await refreshAppointments();
+     } catch (error) {
+@@ -306,7 +326,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+         message:
+           error instanceof Error
+             ? error.message
+-            : am ? "ßï¡ßêàßèò ßï¿ßêÖßè¿ßê½ ßëÇßîáßê« ßêÿßê░ßê¿ßï¥ ßèáßêìßë░ßë╗ßêêßê¥ßìó" : "Could not cancel this demo appointment.",
++            : am ? "├íΓÇ╣┬¡├í╦åΓÇª├í┼áΓÇó ├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å╦£├í╦å┬░├í╦å┬¿├íΓÇ╣┬¥ ├í┼á┬á├í╦å┬ì├íΓÇ░┬░├íΓÇ░┬╗├í╦å╦å├í╦å┬¥├í┬ì┬ó" : "Could not cancel this demo appointment.",
+       });
+     }
+   }
+@@ -319,7 +339,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+     setSelectedTime("");
+     setNotice({
+       type: "success",
+-      message: am ? "ßèáßï▓ßê╡ ßëÇßèòßèô ßê░ßïôßë╡ ßï¡ßê¥ßê¿ßîíßìú ßè¿ßïÜßï½ ßè¿ßë│ßë╜ ßï½ßê¿ßîïßîìßîíßìó" : "Choose a new date and time, then confirm below.",
++      message: am ? "├í┼á┬á├íΓÇ╣┬▓├í╦å┬╡ ├íΓÇ░Γé¼├í┼áΓÇó├í┼áΓÇ£ ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í├í┬ì┬ú ├í┼á┬¿├íΓÇ╣┼í├íΓÇ╣┬½ ├í┼á┬¿├íΓÇ░┬│├íΓÇ░┬╜ ├íΓÇ╣┬½├í╦å┬¿├í┼ÆΓÇ╣├í┼Æ┬ì├í┼Æ┬í├í┬ì┬ó" : "Choose a new date and time, then confirm below.",
+     });
+ 
+     document
+@@ -334,17 +354,31 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+   }
+ 
+   const activeAppointments = appointments.filter(
+-    (appointment) => appointment.status === "confirmed_demo",
++    (appointment) =>
++      appointment.status === "confirmed_demo" &&
++      !isAppointmentPast(appointment),
+   );
+   const previousAppointments = appointments.filter(
+-    (appointment) => appointment.status !== "confirmed_demo",
++    (appointment) =>
++      appointment.status !== "confirmed_demo" ||
++      isAppointmentPast(appointment),
+   );
+ 
++  const sortedPreviousAppointments = [...previousAppointments].sort((a, b) => {
++    const aDate = `${a.date}T${a.time}`;
++    const bDate = `${b.date}T${b.time}`;
++    return bDate.localeCompare(aDate);
++  });
++
++  const visiblePreviousAppointments = historyExpanded
++    ? sortedPreviousAppointments
++    : sortedPreviousAppointments.slice(0, 5);
++
+   if (loadingInitial) {
+     return (
+       <main className="booking-page">
+         <div className="booking-loading" role="status">
+-          Loading appointment servicesΓÇª
++          Loading appointment services├óΓé¼┬ª
+         </div>
+       </main>
+     );
+@@ -354,11 +388,11 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+     <main className="booking-page">
+       <section className="booking-hero">
+         <div>
+-          <span className="booking-eyebrow">{am ? "ßï¿ßë│ßè½ßêÜ ßèáßîêßêìßîìßêÄßë╢ßë╜" : "PATIENT SERVICES"}</span>
+-          <h1>{language === "am" ? "ßëÇßîáßê« ßï¡ßï½ßïÖ" : "Book an appointment"}</h1>
++          <span className="booking-eyebrow">{am ? "├íΓÇ╣┬¿├íΓÇ░┬│├í┼á┬½├í╦å┼í ├í┼á┬á├í┼Æ╦å├í╦å┬ì├í┼Æ┬ì├í╦å┼╜├íΓÇ░┬╢├íΓÇ░┬╜" : "PATIENT SERVICES"}</span>
++          <h1>{language === "am" ? "├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├íΓÇ╣┬¡├íΓÇ╣┬½├íΓÇ╣Γäó" : "Book an appointment"}</h1>
+           <p>
+-            {am ? "ßè¡ßììßêì ßï¡ßê¥ßê¿ßîíßìú ßêÉßè¬ßê¥ ßï¡ßê¥ßê¿ßîí ßèÑßèô ßë░ßê╡ßê¢ßêÜ" : "Choose a department, select a doctor, and find a suitable"}
+-            {am ? "ßï¿ßëÇßîáßê« ßê░ßïôßë╡ ßï½ßîìßèÖßìó" : "appointment time."}
++            {am ? "├í┼á┬¡├í┬ì┬ì├í╦å┬ì ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í├í┬ì┬ú ├í╦å┬É├í┼á┬¬├í╦å┬¥ ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í ├í┼á┬Ñ├í┼áΓÇ£ ├íΓÇ░┬░├í╦å┬╡├í╦åΓÇ║├í╦å┼í" : "Choose a department, select a doctor, and find a suitable"}
++            {am ? "├íΓÇ╣┬¿├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├íΓÇ╣┬½├í┼Æ┬ì├í┼áΓäó├í┬ì┬ó" : "appointment time."}
+           </p>
+         </div>
+         <div className="booking-hero-icon" aria-hidden="true">
+@@ -385,10 +419,10 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+       <aside className="booking-demo-warning" role="note">
+         <span className="booking-warning-mark" aria-hidden="true">!</span>
+         <div>
+-          <strong>Demonstration mode ΓÇö fictional appointments</strong>
++          <strong>Demonstration mode ├óΓé¼ΓÇ¥ fictional appointments</strong>
+           <p>
+-            {am ? "ßêÉßè¬ßê₧ßë╜ßìú ßï¿ßêÜßîêßèÖ ßê░ßïôßë╢ßë╜ ßèÑßèô ßëÇßîáßê«ßïÄßë╜ ßëáßê¥ßê│ßêî ßï¿ßë░ßïÿßîïßîÇ ßï¿ßèáßè½ßëúßëó ßïìßêéßëÑ ßï¡ßîáßëÇßê¢ßêëßìó" : "Doctors, availability, and bookings use synthetic local prototype"}
+-            {am ? "ßï¡ßêà ßè¿ßêåßê╡ßìÆßë│ßêì ßê░ßê½ßë░ßè₧ßë╜ ßîïßê¡ ßèáßï¡ßîêßèôßè¥ßê¥ßìú ßèÑßïìßèÉßë░ßè¢ ßï¿ßêåßê╡ßìÆßë│ßêì ßëÇßîáßê«ßê¥ ßèáßï¡ßìêßîÑßê¡ßê¥ßìó ßêêßèáßê╡ßë╕ßè│ßï¡ ßêòßè¡ßê¥ßèô ßèáßï¡ßîáßëÇßêÖßëáßë╡ßìó" : "data. This does not contact hospital staff or create a real hospital"}
++            {am ? "├í╦å┬É├í┼á┬¬├í╦å┼╛├íΓÇ░┬╜├í┬ì┬ú ├íΓÇ╣┬¿├í╦å┼í├í┼Æ╦å├í┼áΓäó ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╢├íΓÇ░┬╜ ├í┼á┬Ñ├í┼áΓÇ£ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜├íΓÇ░┬╜ ├íΓÇ░┬á├í╦å┬¥├í╦å┬│├í╦å┼Æ ├íΓÇ╣┬¿├íΓÇ░┬░├íΓÇ╣╦£├í┼ÆΓÇ╣├í┼ÆΓé¼ ├íΓÇ╣┬¿├í┼á┬á├í┼á┬½├íΓÇ░┬ú├íΓÇ░┬ó ├íΓÇ╣┬ì├í╦åΓÇÜ├íΓÇ░┬Ñ ├íΓÇ╣┬¡├í┼Æ┬á├íΓÇ░Γé¼├í╦åΓÇ║├í╦åΓÇ░├í┬ì┬ó" : "Doctors, availability, and bookings use synthetic local prototype"}
++            {am ? "├íΓÇ╣┬¡├í╦åΓÇª ├í┼á┬¿├í╦åΓÇá├í╦å┬╡├í┬ìΓÇÖ├íΓÇ░┬│├í╦å┬ì ├í╦å┬░├í╦å┬½├íΓÇ░┬░├í┼á┼╛├íΓÇ░┬╜ ├í┼ÆΓÇ╣├í╦å┬¡ ├í┼á┬á├íΓÇ╣┬¡├í┼Æ╦å├í┼áΓÇ£├í┼á┬¥├í╦å┬¥├í┬ì┬ú ├í┼á┬Ñ├íΓÇ╣┬ì├í┼á┬É├íΓÇ░┬░├í┼áΓÇ║ ├íΓÇ╣┬¿├í╦åΓÇá├í╦å┬╡├í┬ìΓÇÖ├íΓÇ░┬│├í╦å┬ì ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├í╦å┬¥ ├í┼á┬á├íΓÇ╣┬¡├í┬ì╦å├í┼Æ┬Ñ├í╦å┬¡├í╦å┬¥├í┬ì┬ó ├í╦å╦å├í┼á┬á├í╦å┬╡├íΓÇ░┬╕├í┼á┬│├íΓÇ╣┬¡ ├í╦åΓÇó├í┼á┬¡├í╦å┬¥├í┼áΓÇ£ ├í┼á┬á├íΓÇ╣┬¡├í┼Æ┬á├íΓÇ░Γé¼├í╦åΓäó├íΓÇ░┬á├íΓÇ░┬╡├í┬ì┬ó" : "data. This does not contact hospital staff or create a real hospital"}
+             {am ? "" : "appointment. Do not use this demo for urgent medical care."}
+           </p>
+         </div>
+@@ -402,10 +436,10 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+           <span>{notice.message}</span>
+           <button
+             type="button"
+-            aria-label={am ? "ßêÿßêìßïòßè¡ßë▒ßèò ßï¥ßîï" : "Dismiss message"}
++            aria-label={am ? "├í╦å╦£├í╦å┬ì├íΓÇ╣ΓÇó├í┼á┬¡├íΓÇ░┬▒├í┼áΓÇó ├íΓÇ╣┬¥├í┼ÆΓÇ╣" : "Dismiss message"}
+             onClick={() => setNotice(null)}
+           >
+-            ├ù
++            ├âΓÇö
+           </button>
+         </div>
+       )}
+@@ -415,18 +449,18 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+           <div className="booking-panel-heading">
+             <div className="booking-step">01</div>
+             <div>
+-              <h2>{reschedulingId ? (am ? "ßèáßï▓ßê╡ ßê░ßïôßë╡ ßï¡ßê¥ßê¿ßîí" : "Choose a new time") : (am ? "ßëÇßîáßê« ßï¡ßìêßêìßîë" : "Find a time")}</h2>
++              <h2>{reschedulingId ? (am ? "├í┼á┬á├íΓÇ╣┬▓├í╦å┬╡ ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í" : "Choose a new time") : (am ? "├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├íΓÇ╣┬¡├í┬ì╦å├í╦å┬ì├í┼ÆΓÇ░" : "Find a time")}</h2>
+               <p>
+                 {reschedulingId
+-                  ? am ? "ßêêßêÖßè¿ßê½ ßëÇßîáßê«ßïÄ ßèáßï▓ßê╡ ßê░ßïôßë╡ ßï¡ßê¥ßê¿ßîíßìó" : "Select a replacement slot for your demo appointment."
+-                  : am ? "ßè¡ßììßêìßìú ßêÉßè¬ßê¥ ßèÑßèô ßï¿ßêÜßîêßè¥ ßê░ßïôßë╡ ßï¡ßê¥ßê¿ßîíßìó" : "Select a department, doctor, and available slot."}
++                  ? am ? "├í╦å╦å├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜ ├í┼á┬á├íΓÇ╣┬▓├í╦å┬╡ ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í├í┬ì┬ó" : "Select a replacement slot for your demo appointment."
++                  : am ? "├í┼á┬¡├í┬ì┬ì├í╦å┬ì├í┬ì┬ú ├í╦å┬É├í┼á┬¬├í╦å┬¥ ├í┼á┬Ñ├í┼áΓÇ£ ├íΓÇ╣┬¿├í╦å┼í├í┼Æ╦å├í┼á┬¥ ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í├í┬ì┬ó" : "Select a department, doctor, and available slot."}
+               </p>
+             </div>
+           </div>
+ 
+           <form onSubmit={handleSubmit} className="booking-form">
+             <label className="booking-field">
+-              <span>{am ? "ßè¡ßììßêì" : "Department"}</span>
++              <span>{am ? "├í┼á┬¡├í┬ì┬ì├í╦å┬ì" : "Department"}</span>
+               <select
+                 value={department}
+                 onChange={(event) => {
+@@ -447,7 +481,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+             </label>
+ 
+             <label className="booking-field">
+-              <span>{am ? "ßêÉßè¬ßê¥" : "Doctor"}</span>
++              <span>{am ? "├í╦å┬É├í┼á┬¬├í╦å┬¥" : "Doctor"}</span>
+               <select
+                 value={doctorId}
+                 onChange={(event) => {
+@@ -480,14 +514,14 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                   <span>{displayDepartment(selectedDoctor.department, am)}</span>
+                   <span>{displayLocation(selectedDoctor.location, am)}</span>
+                   {selectedDoctor.specialties.length > 0 && (
+-                    <small>{selectedDoctor.specialties.map((item) => displaySpecialty(item, am)).join(" ┬╖ ")}</small>
++                    <small>{selectedDoctor.specialties.map((item) => displaySpecialty(item, am)).join(" ├é┬╖ ")}</small>
+                   )}
+                 </div>
+               </div>
+             )}
+ 
+             <label className="booking-field">
+-              <span>{am ? "ßëÇßèò" : "Date"}</span>
++              <span>{am ? "├íΓÇ░Γé¼├í┼áΓÇó" : "Date"}</span>
+               <EthiopianDatePicker
+                 language={language}
+                 minDate={today}
+@@ -497,14 +531,14 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                   setSelectedTime("");
+                 }}
+               />
+-              <small>{am ? "ßï¿ßêÜßîêßèÖ ßê░ßïôßë╢ßë╜ ßêêßë░ßêÿßê¿ßîáßïì ßëÇßèò ßï¡ßë│ßï½ßêëßìó" : "Availability is shown for the selected date."}</small>
++              <small>{am ? "├íΓÇ╣┬¿├í╦å┼í├í┼Æ╦å├í┼áΓäó ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╢├íΓÇ░┬╜ ├í╦å╦å├íΓÇ░┬░├í╦å╦£├í╦å┬¿├í┼Æ┬á├íΓÇ╣┬ì ├íΓÇ░Γé¼├í┼áΓÇó ├íΓÇ╣┬¡├íΓÇ░┬│├íΓÇ╣┬½├í╦åΓÇ░├í┬ì┬ó" : "Availability is shown for the selected date."}</small>
+             </label>
+ 
+             <div className="booking-field">
+-              <span className="booking-field-label">{am ? "ßï¿ßêÜßîêßèÖ ßï¿ßëÇßîáßê« ßê░ßïôßë╢ßë╜" : "Available time slots"}</span>
++              <span className="booking-field-label">{am ? "├íΓÇ╣┬¿├í╦å┼í├í┼Æ╦å├í┼áΓäó ├íΓÇ╣┬¿├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╢├íΓÇ░┬╜" : "Available time slots"}</span>
+               {loadingSlots ? (
+                 <div className="booking-slot-message" role="status">
+-                  {am ? "ßï¿ßêÖßè¿ßê½ ßëÇßîáßê« ßê░ßïôßë╢ßë╜ßèò ßëáßêÿßìêßêêßîì ßêïßï¡ΓÇª" : "Checking demo availabilityΓÇª"}
++                  {am ? "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╢├íΓÇ░┬╜├í┼áΓÇó ├íΓÇ░┬á├í╦å╦£├í┬ì╦å├í╦å╦å├í┼Æ┬ì ├í╦åΓÇ╣├íΓÇ╣┬¡├óΓé¼┬ª" : "Checking demo availability├óΓé¼┬ª"}
+                 </div>
+               ) : availableSlots.length > 0 ? (
+                 <div className="booking-slots">
+@@ -526,19 +560,19 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                 </div>
+               ) : (
+                 <div className="booking-slot-message">
+-                  {am ? `ßêê${formatDate(date, language)} ßï¿ßêÜßîêßè¥ ßï¿ßêÖßè¿ßê½ ßê░ßïôßë╡ ßèáßêìßë░ßîêßèÿßê¥ßìó` : `No available demo slots were found for ${formatDate(date, language)}.`}
+-                  {am ? "ßêîßêï ßëÇßèò ßï¡ßê¥ßê¿ßîíßìó" : "Try another date."}
++                  {am ? `├í╦å╦å${formatDate(date, language)} ├íΓÇ╣┬¿├í╦å┼í├í┼Æ╦å├í┼á┬¥ ├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├í┼á┬á├í╦å┬ì├íΓÇ░┬░├í┼Æ╦å├í┼á╦£├í╦å┬¥├í┬ì┬ó` : `No available demo slots were found for ${formatDate(date, language)}.`}
++                  {am ? "├í╦å┼Æ├í╦åΓÇ╣ ├íΓÇ░Γé¼├í┼áΓÇó ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í├í┬ì┬ó" : "Try another date."}
+                 </div>
+               )}
+             </div>
+ 
+             {!reschedulingId && (
+               <label className="booking-field">
+-                <span>{am ? "ßï¿ßîëßëÑßè¥ßë╡ ßê¥ßè¡ßèòßï½ßë╡" : "Purpose of visit"} <small>({am ? "ßèáßê¢ßê½ßî¡" : "optional"})</small></span>
++                <span>{am ? "├íΓÇ╣┬¿├í┼ÆΓÇ░├íΓÇ░┬Ñ├í┼á┬¥├íΓÇ░┬╡ ├í╦å┬¥├í┼á┬¡├í┼áΓÇó├íΓÇ╣┬½├íΓÇ░┬╡" : "Purpose of visit"} <small>({am ? "├í┼á┬á├í╦åΓÇ║├í╦å┬½├í┼Æ┬¡" : "optional"})</small></span>
+                 <textarea
+                   value={purpose}
+                   onChange={(event) => setPurpose(event.target.value)}
+-                  placeholder={am ? "ßï¿ßïÜßêàßèò ßï¿ßêÖßè¿ßê½ ßëÇßîáßê« ßê¥ßè¡ßèòßï½ßë╡ ßëáßèáßî¡ßê⌐ ßï¡ßîìßêêßî╣" : "Briefly describe the reason for this demo appointment"}
++                  placeholder={am ? "├íΓÇ╣┬¿├íΓÇ╣┼í├í╦åΓÇª├í┼áΓÇó ├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å┬¥├í┼á┬¡├í┼áΓÇó├íΓÇ╣┬½├íΓÇ░┬╡ ├íΓÇ░┬á├í┼á┬á├í┼Æ┬¡├í╦å┬⌐ ├íΓÇ╣┬¡├í┼Æ┬ì├í╦å╦å├í┼Æ┬╣" : "Briefly describe the reason for this demo appointment"}
+                   rows={3}
+                   maxLength={200}
+                 />
+@@ -559,10 +593,10 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                 }
+               >
+                 {submitting
+-                  ? "Please waitΓÇª"
++                  ? "Please wait├óΓé¼┬ª"
+                   : reschedulingId
+-                    ? am ? "ßï¿ßëÇßîáßê« ßêêßïìßîíßèò ßï½ßê¿ßîïßîìßîí" : "Confirm demo reschedule"
+-                    : am ? "ßï¿ßêÖßè¿ßê½ ßëÇßîáßê« ßï¡ßï½ßïÖ" : "Book demo appointment"}
++                    ? am ? "├íΓÇ╣┬¿├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å╦å├íΓÇ╣┬ì├í┼Æ┬í├í┼áΓÇó ├íΓÇ╣┬½├í╦å┬¿├í┼ÆΓÇ╣├í┼Æ┬ì├í┼Æ┬í" : "Confirm demo reschedule"
++                    : am ? "├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├íΓÇ╣┬¡├íΓÇ╣┬½├íΓÇ╣Γäó" : "Book demo appointment"}
+               </button>
+               {reschedulingId && (
+                 <button
+@@ -571,7 +605,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                   onClick={stopRescheduling}
+                   disabled={submitting}
+                 >
+-                  {am ? "ßï¿ßëÇßîáßê« ßêêßïìßîíßèò ßï¡ßë░ßïë" : "Stop rescheduling"}
++                  {am ? "├íΓÇ╣┬¿├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├í╦å╦å├íΓÇ╣┬ì├í┼Æ┬í├í┼áΓÇó ├íΓÇ╣┬¡├íΓÇ░┬░├íΓÇ╣ΓÇ░" : "Stop rescheduling"}
+                 </button>
+               )}
+             </div>
+@@ -582,8 +616,8 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+           <div className="booking-panel-heading">
+             <div className="booking-step">02</div>
+             <div>
+-              <h2>{am ? "ßëÇßîáßê«ßïÄßë╝" : "My appointments"}</h2>
+-              <p>{am ? "ßêêßèáßêüßèæ ßï¿ßêÖßè¿ßê½ ßë│ßè½ßêÜ ßï¿ßë░ßï½ßïÖ ßëÇßîáßê«ßïÄßë╜ßìó" : "Your bookings for the current demo patient."}</p>
++              <h2>{am ? "├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜├íΓÇ░┬╝" : "My appointments"}</h2>
++              <p>{am ? "├í╦å╦å├í┼á┬á├í╦å┬ü├í┼áΓÇÿ ├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░┬│├í┼á┬½├í╦å┼í ├íΓÇ╣┬¿├íΓÇ░┬░├íΓÇ╣┬½├íΓÇ╣Γäó ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜├íΓÇ░┬╜├í┬ì┬ó" : "Your bookings for the current demo patient."}</p>
+             </div>
+             <button
+               className="booking-refresh-button"
+@@ -591,15 +625,15 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+               onClick={() => void refreshAppointments()}
+               disabled={refreshing}
+             >
+-              {refreshing ? (am ? "ßëáßê¢ßï░ßê╡ ßêïßï¡ΓÇª" : "RefreshingΓÇª") : (am ? "ßèáßï╡ßê╡" : "Refresh")}
++              {refreshing ? (am ? "├íΓÇ░┬á├í╦åΓÇ║├íΓÇ╣┬░├í╦å┬╡ ├í╦åΓÇ╣├íΓÇ╣┬¡├óΓé¼┬ª" : "Refreshing├óΓé¼┬ª") : (am ? "├í┼á┬á├íΓÇ╣┬╡├í╦å┬╡" : "Refresh")}
+             </button>
+           </div>
+ 
+           {activeAppointments.length === 0 ? (
+             <div className="booking-empty">
+-              <div className="booking-empty-icon" aria-hidden="true">∩╝ï</div>
+-              <strong>{am ? "ßèòßëü ßï¿ßêÖßè¿ßê½ ßëÇßîáßê«ßïÄßë╜ ßï¿ßêëßê¥" : "No active demo appointments"}</strong>
+-              <p>{am ? "ßï¿ßêÿßîÇßêÿßê¬ßï½ ßï¿ßêÖßè¿ßê½ ßëÇßîáßê«ßïÄßèò ßêêßêÿßï½ßï¥ ßê░ßïôßë╡ ßï¡ßê¥ßê¿ßîíßìó" : "Choose a slot to create your first fictional booking."}</p>
++              <div className="booking-empty-icon" aria-hidden="true">├»┬╝ΓÇ╣</div>
++              <strong>{am ? "├í┼áΓÇó├íΓÇ░┬ü ├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜├íΓÇ░┬╜ ├íΓÇ╣┬¿├í╦åΓÇ░├í╦å┬¥" : "No active demo appointments"}</strong>
++              <p>{am ? "├íΓÇ╣┬¿├í╦å╦£├í┼ÆΓé¼├í╦å╦£├í╦å┬¬├íΓÇ╣┬½ ├íΓÇ╣┬¿├í╦åΓäó├í┼á┬¿├í╦å┬½ ├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┼╜├í┼áΓÇó ├í╦å╦å├í╦å╦£├íΓÇ╣┬½├íΓÇ╣┬¥ ├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡ ├íΓÇ╣┬¡├í╦å┬¥├í╦å┬¿├í┼Æ┬í├í┬ì┬ó" : "Choose a slot to create your first fictional booking."}</p>
+             </div>
+           ) : (
+             <div className="booking-appointment-list">
+@@ -620,11 +654,11 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                   </p>
+                   <div className="booking-appointment-details">
+                     <span>
+-                      <strong>{am ? "ßëÇßèò" : "Date"}</strong>
++                      <strong>{am ? "├íΓÇ░Γé¼├í┼áΓÇó" : "Date"}</strong>
+                       {formatDate(appointment.date, language)}
+                     </span>
+                     <span>
+-                      <strong>{am ? "ßê░ßïôßë╡" : "Time"}</strong>
++                      <strong>{am ? "├í╦å┬░├íΓÇ╣ΓÇ£├íΓÇ░┬╡" : "Time"}</strong>
+                       {formatTime(appointment.time)}
+                     </span>
+                   </div>
+@@ -633,7 +667,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                   )}
+                   {appointment.purpose && (
+                     <p className="booking-purpose">
+-                      <strong>{am ? "ßê¥ßè¡ßèòßï½ßë╡ßìª" : "Purpose:"}</strong> {appointment.purpose}
++                      <strong>{am ? "├í╦å┬¥├í┼á┬¡├í┼áΓÇó├íΓÇ╣┬½├íΓÇ░┬╡├í┬ì┬ª" : "Purpose:"}</strong> {appointment.purpose}
+                     </p>
+                   )}
+                   <div className="booking-card-actions">
+@@ -642,14 +676,14 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+                       className="booking-secondary-button"
+                       onClick={() => startRescheduling(appointment)}
+                     >
+-                      {am ? "ßëÇßîáßê«ßïìßèò ßï¡ßëÇßï¡ßê⌐" : "Reschedule"}
++                      {am ? "├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬«├íΓÇ╣┬ì├í┼áΓÇó ├íΓÇ╣┬¡├íΓÇ░Γé¼├íΓÇ╣┬¡├í╦å┬⌐" : "Reschedule"}
+                     </button>
+                     <button
+                       type="button"
+                       className="booking-cancel-button"
+                       onClick={() => void handleCancel(appointment)}
+                     >
+-                      {am ? "ßê░ßê¡ßï¥" : "Cancel"}
++                      {am ? "├í╦å┬░├í╦å┬¡├íΓÇ╣┬¥" : "Cancel"}
+                     </button>
+                   </div>
+                 </article>
+@@ -660,36 +694,56 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
+           {previousAppointments.length > 0 && (
+             <details className="booking-history">
+               <summary>
+-                {am ? "ßï½ßêêßìë ßèÑßèô ßï¿ßë░ßê░ßê¿ßïÖ ßï¿ßêÖßè¿ßê½ ßëÇßîáßê«ßïÄßë╜" : "Previous and cancelled demo appointments"} ({previousAppointments.length})
++                {am ? "├íΓÇ╣┬¿├íΓÇ░Γé¼├í┼Æ┬á├í╦å┬« ├íΓÇ░┬│├í╦å┬¬├í┼á┬¡" : "Appointment history"} ({previousAppointments.length})
+               </summary>
+               <div className="booking-appointment-list">
+-                {previousAppointments.map((appointment) => (
++                {visiblePreviousAppointments.map((appointment) => (
+                   <article
+                     className="booking-appointment-card booking-appointment-inactive"
+                     key={appointment.bookingId}
+                   >
+                     <div className="booking-appointment-top">
+                       <span className="booking-status">
+-                        {statusLabel(appointment.status, am)}
++                        {statusLabel(
++                          appointment.status,
++                          am,
++                          isAppointmentPast(appointment),
++                        )}
+                       </span>
+                       <span className="booking-id">{appointment.bookingId}</span>
+                     </div>
+                     <h3>{appointment.doctorName}</h3>
+                     <p>
+-                      {formatDate(appointment.date, language)} ┬╖ {formatTime(appointment.time)}
++                      {formatDate(appointment.date, language)} ├é┬╖ {formatTime(appointment.time)}
+                     </p>
+                   </article>
+                 ))}
+               </div>
++              {previousAppointments.length > 5 && (
++                <button
++                  type="button"
++                  className="booking-history-toggle"
++                  onClick={() => setHistoryExpanded((expanded) => !expanded)}
++                  aria-expanded={historyExpanded}
++                >
++                  {historyExpanded
++                    ? (am ? "├íΓÇ╣┬½├í┼á┬É├í╦å┬░ ├í┼á┬á├í╦å┬│├íΓÇ╣┬¡" : "Show less")
++                    : (am
++                        ? `├í╦å┬ü├í╦åΓÇ░├í┼áΓÇó├í╦å┬¥ ├íΓÇ░┬│├í╦å┬¬├í┼á┬¡ ├íΓÇ╣┬¡├í╦å╦£├í╦å┬ì├í┼á┬¿├íΓÇ░┬▒ (${previousAppointments.length})`
++                        : `View all history (${previousAppointments.length})`)}
++                </button>
++              )}
+             </details>
+           )}
+         </section>
+       </div>
+ 
+       <p className="booking-bottom-note">
+-        Demo only ┬╖ Availability and booking status are not connected to a live
++        Demo only ├é┬╖ Availability and booking status are not connected to a live
+         {am ? "" : "hospital scheduling system."}
+       </p>
+     </main>
+   );
+ }
++
++

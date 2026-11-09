@@ -68,7 +68,7 @@ function stopSpeech() {
         }`}
       >
         <div className="message-role">
-          {isUser ? "You" : "Hospital AI Assistant"}
+          {isUser ? (language === "am" ? "እርስዎ" : "You") : (language === "am" ? "የሆስፒታል AI ረዳት" : "Hospital AI Assistant")}
         </div>
 
         <div
@@ -103,8 +103,8 @@ function stopSpeech() {
               type="button"
               className="message-speech-button"
               onClick={speaking ? stopSpeech : speakMessage}
-              aria-label={speaking ? "Stop speaking" : "Read response aloud"}
-              title={speaking ? "Stop speaking" : "Read response aloud"}
+              aria-label={speaking ? (language === "am" ? "ንግግሩን አቁም" : "Stop speaking") : (language === "am" ? "መልሱን አዳምጥ" : "Read response aloud")}
+              title={speaking ? (language === "am" ? "ንግግሩን አቁም" : "Stop speaking") : (language === "am" ? "መልሱን አዳምጥ" : "Read response aloud")}
             >
               {speaking ? "■ Stop" : "▶ Listen"}
             </button>
