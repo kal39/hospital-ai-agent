@@ -217,6 +217,20 @@ MEDICAL IMAGES AND DOCUMENTS
 - Do not invent values or pretend to read unclear content.
 
 PATIENT PRIVACY AND AUTHORIZED TOOLS
+
+UPCOMING APPOINTMENT RETRIEVAL
+- When a patient asks to view, check, list, or review their upcoming
+  appointments, call getUpcomingAppointments.
+- This is read-only retrieval of existing patient records, not appointment
+  discovery. It does not require appointment-discovery consent.
+- Include both doctor-scheduled appointments and appointments booked
+  by the patient.
+- List every returned upcoming appointment. Include its date, time,
+  doctor, department, purpose, and status when available.
+- Do not replace actual appointment details with a generic summary.
+- If no upcoming appointments are returned, clearly say that none were found.
+- Never invent or omit appointment details returned by the tool.
+
 - Obtain patient-specific information only through approved tools.
 - Never ask the patient for a patient ID.
 - Use only the authenticated identity supplied by the backend.
@@ -658,6 +672,81 @@ def _add_synthetic_data_disclosure(
 
     # Always emit exactly one canonical notice before the remaining content.
     return f"{notice}\n\n{content}" if content else notice
+
+
+def _format_upcoming_appointments(
+    appointments: list[dict[str, Any]],
+    language: str,
+) -> str:
+    """Format retrieved upcoming appointments deterministically."""
+    if language == "am":
+        if not appointments:
+            return "\u1260\u1218\u12dd\u1308\u1265\u12ce \u12cd\u1235\u1325 \u12e8\u121a\u1240\u1325\u120d \u1240\u1320\u122e \u12a0\u120d\u1270\u1308\u1298\u121d\u1362"
+
+        lines = ["\u12e8\u121a\u1240\u1325\u1209\u1275 \u1240\u1320\u122e\u12ce\u127d\u12ce:"]
+        labels = {
+            "date": "\u1240\u1295",
+            "time": "\u1230\u12d3\u1275",
+            "doctor": "\u1210\u12aa\u121d",
+            "department": "\u12ad\u134d\u120d",
+            "purpose": "\u12e8\u1240\u1320\u122e \u121d\u12ad\u1295\u12eb\u1275",
+            "status": "\u1201\u1294\u1273",
+            "location": "\u1266\u1273",
+        }
+    else:
+        if not appointments:
+            return "I couldn't find any upcoming appointments in your records."
+
+        lines = ["Here are your upcoming appointments:"]
+        labels = {
+            "date": "Date",
+            "time": "Time",
+            "doctor": "Doctor",
+            "department": "Department",
+            "purpose": "Purpose",
+            "status": "Status",
+            "location": "Location",
+        }
+
+    status_labels = {
+        "scheduled": "Scheduled",
+        "confirmed_demo": "Confirmed (demo)",
+        "cancelled_demo": "Cancelled (demo)",
+        "rescheduled_demo": "Rescheduled (demo)",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+    }
+
+    for index, appointment in enumerate(appointments, start=1):
+        raw_date = str(appointment.get("date") or "Not specified")
+        try:
+            from datetime import date as date_type
+            display_date = date_type.fromisoformat(raw_date).strftime("%B %d, %Y")
+        except (ValueError, TypeError):
+            display_date = raw_date
+
+        raw_status = str(appointment.get("status") or "Not specified")
+        display_status = status_labels.get(
+            raw_status,
+            raw_status.replace("_", " ").capitalize(),
+        )
+
+        lines.extend([
+            "",
+            f"{index}.",
+            f"- {labels['date']}: {display_date}",
+            f"- {labels['time']}: {appointment.get('time') or 'Not specified'}",
+            f"- {labels['doctor']}: {appointment.get('doctorName') or 'Not specified'}",
+            f"- {labels['department']}: {appointment.get('department') or 'Not specified'}",
+            f"- {labels['purpose']}: {appointment.get('purpose') or 'Not specified'}",
+            f"- {labels['status']}: {display_status}",
+        ])
+
+        location = appointment.get("location")
+        if location:
+            lines.append(f"- {labels['location']}: {location}")
+
+    return "\n".join(lines)
 
 def _store_turn(
     key: str,
@@ -1216,6 +1305,29 @@ class HospitalAgentService:
 
         response_message = result["message"]
         tools_used = result.get("toolsUsed", [])
+
+        # Read-only appointment retrieval is formatted from the trusted
+        # patient-scoped service result, not from model-generated prose.
+        if any(
+            str(tool).casefold() == "getupcomingappointments"
+            for tool in tools_used
+        ):
+            try:
+                appointments = hospital_service.get_upcoming_appointments(
+                    patient_id
+                )
+                response_message = _format_upcoming_appointments(
+                    appointments,
+                    language,
+                )
+            except ValueError:
+                response_message = (
+                    "I couldn't retrieve your upcoming appointments. "
+                    "Please check your patient record."
+                    if language != "am"
+                    else "\u12e8\u121a\u1240\u1325\u1209\u1275\u1295 \u1240\u1320\u122e\u12ce\u127d \u121b\u130d\u1298\u1275 \u12a0\u120d\u127b\u120d\u12a9\u121d\u1362 "
+                         "\u12a5\u1263\u12ad\u12ce \u12e8\u1273\u12ab\u121a \u1218\u12dd\u1308\u1265\u12ce\u1295 \u12eb\u1228\u130b\u130d\u1321\u1362"
+                )
 
         if allow_appointment_discovery and pending_request is not None:
             try:

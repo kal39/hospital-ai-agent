@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.auth import get_current_demo_staff, get_current_patient_id
 from app.data.scheduling import DATA_SOURCE, DOCTORS, generate_synthetic_slots
 from app.services.audit import record_audit_event
+from app.services.hospital import hospital_service
 from app.services.demo_scheduler import (
     DEMO_NOTICE,
     BookingConflictError,
@@ -218,9 +219,10 @@ async def book_appointment(
 async def list_patient_appointments(
     patient_id: str = Depends(get_current_patient_id),
 ) -> dict[str, Any]:
-    appointments = demo_scheduler.get_patient_bookings(
+    appointments = hospital_service.get_patient_appointments(
         patient_id,
         include_inactive=True,
+        scheduler=demo_scheduler,
     )
     return {
         "appointments": appointments,
@@ -234,10 +236,22 @@ async def get_patient_appointment(
     booking_id: str,
     patient_id: str = Depends(get_current_patient_id),
 ) -> dict[str, Any]:
-    try:
-        booking = demo_scheduler.get_patient_booking(patient_id, booking_id)
-    except BookingNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Appointment not found.") from exc
+    appointments = hospital_service.get_patient_appointments(
+        patient_id,
+        include_inactive=True,
+        scheduler=demo_scheduler,
+    )
+
+    booking = next(
+        (
+            item for item in appointments
+            if item.get("bookingId") == booking_id
+        ),
+        None,
+    )
+
+    if booking is None:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
 
     return {
         "booking": booking,
@@ -251,6 +265,28 @@ async def cancel_patient_appointment(
     booking_id: str,
     patient_id: str = Depends(get_current_patient_id),
 ) -> dict[str, Any]:
+    appointments = hospital_service.get_patient_appointments(
+        patient_id,
+        include_inactive=True,
+        scheduler=demo_scheduler,
+    )
+    existing = next(
+        (
+            item for item in appointments
+            if item.get("bookingId") == booking_id
+        ),
+        None,
+    )
+
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    if existing.get("readOnly") is True:
+        raise HTTPException(
+            status_code=409,
+            detail="This appointment was scheduled by hospital staff and cannot be cancelled by the patient.",
+        )
+
     try:
         booking = demo_scheduler.cancel_appointment(patient_id, booking_id)
     except BookingNotFoundError as exc:
@@ -273,6 +309,28 @@ async def reschedule_patient_appointment(
     payload: RescheduleInput,
     patient_id: str = Depends(get_current_patient_id),
 ) -> dict[str, Any]:
+    appointments = hospital_service.get_patient_appointments(
+        patient_id,
+        include_inactive=True,
+        scheduler=demo_scheduler,
+    )
+    existing = next(
+        (
+            item for item in appointments
+            if item.get("bookingId") == booking_id
+        ),
+        None,
+    )
+
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    if existing.get("readOnly") is True:
+        raise HTTPException(
+            status_code=409,
+            detail="This appointment was scheduled by hospital staff and cannot be rescheduled by the patient.",
+        )
+
     _doctor_or_404(payload.doctorId)
     appointment_date = _require_future_date(payload.date)
 

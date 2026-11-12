@@ -39,6 +39,8 @@ export interface Appointment {
   time: string;
   purpose: string;
   status: string;
+  origin?: "doctor_scheduled" | "patient_created";
+  readOnly?: boolean;
   createdAt?: string;
   updatedAt?: string;
   dataNotice?: string;
@@ -215,3 +217,4 @@ export function getLocalDateString(date = new Date()): string {
 
   return `${year}-${month}-${day}`;
 }
+

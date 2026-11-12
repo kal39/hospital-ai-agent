@@ -353,15 +353,18 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
     setNotice(null);
   }
 
-  const activeAppointments = appointments.filter(
-    (appointment) =>
-      appointment.status === "confirmed_demo" &&
-      !isAppointmentPast(appointment),
-  );
+  const isActiveAppointment = (appointment: Appointment) =>
+    (
+      appointment.status === "confirmed_demo" ||
+      (
+        appointment.origin === "doctor_scheduled" &&
+        appointment.status === "scheduled"
+      )
+    ) && !isAppointmentPast(appointment);
+
+  const activeAppointments = appointments.filter(isActiveAppointment);
   const previousAppointments = appointments.filter(
-    (appointment) =>
-      appointment.status !== "confirmed_demo" ||
-      isAppointmentPast(appointment),
+    (appointment) => !isActiveAppointment(appointment),
   );
 
   const sortedPreviousAppointments = [...previousAppointments].sort((a, b) => {
@@ -378,7 +381,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
     return (
       <main className="booking-page">
         <div className="booking-loading" role="status">
-          Loading appointment servicesâ€¦
+          Loading appointment services…
         </div>
       </main>
     );
@@ -593,7 +596,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
                 }
               >
                 {submitting
-                  ? "Please waitâ€¦"
+                  ? "Please wait…"
                   : reschedulingId
                     ? am ? "የቀጠሮ ለውጡን ያረጋግጡ" : "Confirm demo reschedule"
                     : am ? "የሙከራ ቀጠሮ ይያዙ" : "Book demo appointment"}
@@ -631,7 +634,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
 
           {activeAppointments.length === 0 ? (
             <div className="booking-empty">
-              <div className="booking-empty-icon" aria-hidden="true">ï¼‹</div>
+              <div className="booking-empty-icon" aria-hidden="true">＋</div>
               <strong>{am ? "ንቁ የሙከራ ቀጠሮዎች የሉም" : "No active demo appointments"}</strong>
               <p>{am ? "የመጀመሪያ የሙከራ ቀጠሮዎን ለመያዝ ሰዓት ይምረጡ።" : "Choose a slot to create your first fictional booking."}</p>
             </div>
@@ -644,7 +647,9 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
                 >
                   <div className="booking-appointment-top">
                     <span className="booking-status booking-status-active">
-                      {statusLabel(appointment.status, am)}
+                      {appointment.origin === "doctor_scheduled"
+                        ? (am ? "በሆስፒታል የተመደበ" : "Doctor scheduled")
+                        : statusLabel(appointment.status, am)}
                     </span>
                     <span className="booking-id">{appointment.bookingId}</span>
                   </div>
@@ -670,22 +675,25 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
                       <strong>{am ? "ምክንያት፦" : "Purpose:"}</strong> {appointment.purpose}
                     </p>
                   )}
-                  <div className="booking-card-actions">
-                    <button
-                      type="button"
-                      className="booking-secondary-button"
-                      onClick={() => startRescheduling(appointment)}
-                    >
-                      {am ? "ቀጠሮውን ይቀይሩ" : "Reschedule"}
-                    </button>
-                    <button
-                      type="button"
-                      className="booking-cancel-button"
-                      onClick={() => void handleCancel(appointment)}
-                    >
-                      {am ? "ሰርዝ" : "Cancel"}
-                    </button>
-                  </div>
+                  {!appointment.readOnly &&
+                    appointment.origin !== "doctor_scheduled" && (
+                      <div className="booking-card-actions">
+                        <button
+                          type="button"
+                          className="booking-secondary-button"
+                          onClick={() => startRescheduling(appointment)}
+                        >
+                          {am ? "ቀጠሮውን ይቀይሩ" : "Reschedule"}
+                        </button>
+                        <button
+                          type="button"
+                          className="booking-cancel-button"
+                          onClick={() => void handleCancel(appointment)}
+                        >
+                          {am ? "ሰርዝ" : "Cancel"}
+                        </button>
+                      </div>
+                    )}
                 </article>
               ))}
             </div>
@@ -745,5 +753,3 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
     </main>
   );
 }
-
-

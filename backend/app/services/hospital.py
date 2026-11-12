@@ -94,32 +94,88 @@ class HospitalService:
     ) -> list[dict[str, Any]]:
         return self._tag_records(MEDICAL_HISTORY.get(patient_id, []))
 
-    def get_upcoming_appointments(
-        self, patient_id: str
+    def get_patient_appointments(
+        self,
+        patient_id: str,
+        include_inactive: bool = False,
+        scheduler: Any = None,
     ) -> list[dict[str, Any]]:
-        """Return this patient's active future bookings from the shared demo scheduler."""
+        """Return this patient's fixed and scheduler-created demo appointments."""
         self._require_patient(patient_id)
 
-        today = date.today().isoformat()
-        bookings = demo_scheduler.get_patient_bookings(patient_id)
+        active_scheduler = scheduler if scheduler is not None else demo_scheduler
 
-        appointments = []
-        for booking in bookings:
-            if booking.get("date", "") < today:
-                continue
+        fixed_appointments = []
+        care_team = PATIENT_CARE_TEAMS.get(patient_id, {})
+        doctor_id = care_team.get("doctorId")
+        doctor = next(
+            (item for item in DOCTORS if item["id"] == doctor_id),
+            {},
+        )
 
+        for record in APPOINTMENTS.get(patient_id, []):
+            appointment = dict(record)
+            appointment.update({
+                "bookingId": record["id"],
+                "doctorId": doctor.get("id", doctor_id or ""),
+                "doctorName": doctor.get("name", "Assigned hospital doctor"),
+                "location": doctor.get(
+                    "location",
+                    record.get("location", "Synthetic Demo Clinic"),
+                ),
+                "origin": "doctor_scheduled",
+                "readOnly": True,
+            })
+            fixed_appointments.append(appointment)
+
+        created_appointments = active_scheduler.get_patient_bookings(
+            patient_id,
+            include_inactive=include_inactive,
+        )
+
+        for booking in created_appointments:
             appointment = dict(booking)
-            appointment["id"] = appointment.get("bookingId")
-            appointments.append(appointment)
+            appointment["origin"] = "patient_created"
+            appointment["readOnly"] = False
+            fixed_appointments.append(appointment)
 
-        appointments.sort(
+        for appointment in fixed_appointments:
+            appointment["id"] = appointment.get("bookingId")
+
+        fixed_appointments.sort(
             key=lambda appointment: (
                 appointment.get("date", ""),
                 appointment.get("time", ""),
             )
         )
 
-        return self._tag_records(appointments)
+        return self._tag_records(fixed_appointments)
+
+    def get_upcoming_appointments(
+        self, patient_id: str, scheduler: Any = None
+    ) -> list[dict[str, Any]]:
+        """Return this patient's active future fixed and created appointments."""
+        today = date.today().isoformat()
+
+        appointments = self.get_patient_appointments(
+            patient_id,
+            include_inactive=False,
+            scheduler=scheduler,
+        )
+
+        upcoming = [
+            appointment
+            for appointment in appointments
+            if appointment.get("date", "") >= today
+            and appointment.get("status") not in {
+                "cancelled_demo",
+                "rescheduled_demo",
+                "cancelled",
+                "completed",
+            }
+        ]
+
+        return upcoming
 
     def get_appointment_preparation_context(
         self, patient_id: str

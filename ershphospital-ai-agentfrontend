@@ -1,0 +1,193 @@
+warning: in the working copy of 'frontend/src/components/AppointmentBooking/AppointmentBooking.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/frontend/src/components/AppointmentBooking/AppointmentBooking.tsx b/frontend/src/components/AppointmentBooking/AppointmentBooking.tsx[m
+[1mindex 595a764..9900331 100644[m
+[1m--- a/frontend/src/components/AppointmentBooking/AppointmentBooking.tsx[m
+[1m+++ b/frontend/src/components/AppointmentBooking/AppointmentBooking.tsx[m
+[36m@@ -47,8 +47,8 @@[m [mfunction displayLocation(value: string, am: boolean): string {[m
+   if (!am) return value;[m
+ [m
+   const labels: Record<string, string> = {[m
+[31m-    "Synthetic Demo Clinic A": "የሙከራ ክሊኒክ A",[m
+[31m-    "Synthetic Demo Clinic B": "የሙከራ ክሊኒክ B",[m
+[32m+[m[32m    "Synthetic Demo Clinic A": "á‹¨áˆ™áŠ¨áˆ« áŠ­áˆŠáŠ’áŠ­ A",[m
+[32m+[m[32m    "Synthetic Demo Clinic B": "á‹¨áˆ™áŠ¨áˆ« áŠ­áˆŠáŠ’áŠ­ B",[m
+   };[m
+ [m
+   return labels[value] ?? value;[m
+[36m@@ -58,7 +58,7 @@[m [mfunction displaySpecialty(value: string, am: boolean): string {[m
+   if (!am) return value;[m
+ [m
+   const labels: Record<string, string> = {[m
+[31m-    "Hypertension follow-up": "የደም ግፊት ክትትል",[m
+[32m+[m[32m    "Hypertension follow-up": "á‹¨á‹°áˆ áŒáŠá‰µ áŠ­á‰µá‰µáˆ",[m
+   };[m
+ [m
+   return labels[value] ?? value;[m
+[36m@@ -104,7 +104,7 @@[m [mfunction statusLabel([m
+     if (isPast) {[m
+       return am[m
+         ? "ያለፈ — ውጤት አልተመዘገበም"[m
+[31m-        : "Past — Outcome Not Recorded";[m
+[32m+[m[32m        : "Past â€” Outcome Not Recorded";[m
+     }[m
+     return am ? "ተመዝግቧል · ሙከራ" : "Booked · Demo";[m
+   }[m
+[36m@@ -353,15 +353,18 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+     setNotice(null);[m
+   }[m
+ [m
+[31m-  const activeAppointments = appointments.filter([m
+[31m-    (appointment) =>[m
+[31m-      appointment.status === "confirmed_demo" &&[m
+[31m-      !isAppointmentPast(appointment),[m
+[31m-  );[m
+[32m+[m[32m  const isActiveAppointment = (appointment: Appointment) =>[m
+[32m+[m[32m    ([m
+[32m+[m[32m      appointment.status === "confirmed_demo" ||[m
+[32m+[m[32m      ([m
+[32m+[m[32m        appointment.origin === "doctor_scheduled" &&[m
+[32m+[m[32m        appointment.status === "scheduled"[m
+[32m+[m[32m      )[m
+[32m+[m[32m    ) && !isAppointmentPast(appointment);[m
+[32m+[m
+[32m+[m[32m  const activeAppointments = appointments.filter(isActiveAppointment);[m
+   const previousAppointments = appointments.filter([m
+[31m-    (appointment) =>[m
+[31m-      appointment.status !== "confirmed_demo" ||[m
+[31m-      isAppointmentPast(appointment),[m
+[32m+[m[32m    (appointment) => !isActiveAppointment(appointment),[m
+   );[m
+ [m
+   const sortedPreviousAppointments = [...previousAppointments].sort((a, b) => {[m
+[36m@@ -378,7 +381,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+     return ([m
+       <main className="booking-page">[m
+         <div className="booking-loading" role="status">[m
+[31m-          Loading appointment servicesâ€¦[m
+[32m+[m[32m          Loading appointment servicesÃ¢â‚¬Â¦[m
+         </div>[m
+       </main>[m
+     );[m
+[36m@@ -419,7 +422,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+       <aside className="booking-demo-warning" role="note">[m
+         <span className="booking-warning-mark" aria-hidden="true">!</span>[m
+         <div>[m
+[31m-          <strong>Demonstration mode — fictional appointments</strong>[m
+[32m+[m[32m          <strong>Demonstration mode â€” fictional appointments</strong>[m
+           <p>[m
+             {am ? "ሐኪሞች፣ የሚገኙ ሰዓቶች እና ቀጠሮዎች በምሳሌ የተዘጋጀ የአካባቢ ውሂብ ይጠቀማሉ።" : "Doctors, availability, and bookings use synthetic local prototype"}[m
+             {am ? "ይህ ከሆስፒታል ሰራተኞች ጋር አይገናኝም፣ እውነተኛ የሆስፒታል ቀጠሮም አይፈጥርም። ለአስቸኳይ ሕክምና አይጠቀሙበት።" : "data. This does not contact hospital staff or create a real hospital"}[m
+[36m@@ -439,7 +442,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+             aria-label={am ? "መልዕክቱን ዝጋ" : "Dismiss message"}[m
+             onClick={() => setNotice(null)}[m
+           >[m
+[31m-            ×[m
+[32m+[m[32m            Ã—[m
+           </button>[m
+         </div>[m
+       )}[m
+[36m@@ -514,7 +517,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+                   <span>{displayDepartment(selectedDoctor.department, am)}</span>[m
+                   <span>{displayLocation(selectedDoctor.location, am)}</span>[m
+                   {selectedDoctor.specialties.length > 0 && ([m
+[31m-                    <small>{selectedDoctor.specialties.map((item) => displaySpecialty(item, am)).join(" · ")}</small>[m
+[32m+[m[32m                    <small>{selectedDoctor.specialties.map((item) => displaySpecialty(item, am)).join(" Â· ")}</small>[m
+                   )}[m
+                 </div>[m
+               </div>[m
+[36m@@ -593,7 +596,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+                 }[m
+               >[m
+                 {submitting[m
+[31m-                  ? "Please waitâ€¦"[m
+[32m+[m[32m                  ? "Please wait…"[m
+                   : reschedulingId[m
+                     ? am ? "የቀጠሮ ለውጡን ያረጋግጡ" : "Confirm demo reschedule"[m
+                     : am ? "የሙከራ ቀጠሮ ይያዙ" : "Book demo appointment"}[m
+[36m@@ -631,7 +634,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+ [m
+           {activeAppointments.length === 0 ? ([m
+             <div className="booking-empty">[m
+[31m-              <div className="booking-empty-icon" aria-hidden="true">ï¼‹</div>[m
+[32m+[m[32m              <div className="booking-empty-icon" aria-hidden="true">Ã¯Â¼â€¹</div>[m
+               <strong>{am ? "ንቁ የሙከራ ቀጠሮዎች የሉም" : "No active demo appointments"}</strong>[m
+               <p>{am ? "የመጀመሪያ የሙከራ ቀጠሮዎን ለመያዝ ሰዓት ይምረጡ።" : "Choose a slot to create your first fictional booking."}</p>[m
+             </div>[m
+[36m@@ -644,7 +647,9 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+                 >[m
+                   <div className="booking-appointment-top">[m
+                     <span className="booking-status booking-status-active">[m
+[31m-                      {statusLabel(appointment.status, am)}[m
+[32m+[m[32m                      {appointment.origin === "doctor_scheduled"[m
+[32m+[m[32m                        ? (am ? "በሆስፒታል የተመደበ" : "Doctor scheduled")[m
+[32m+[m[32m                        : statusLabel(appointment.status, am)}[m
+                     </span>[m
+                     <span className="booking-id">{appointment.bookingId}</span>[m
+                   </div>[m
+[36m@@ -670,22 +675,25 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+                       <strong>{am ? "ምክንያት፦" : "Purpose:"}</strong> {appointment.purpose}[m
+                     </p>[m
+                   )}[m
+[31m-                  <div className="booking-card-actions">[m
+[31m-                    <button[m
+[31m-                      type="button"[m
+[31m-                      className="booking-secondary-button"[m
+[31m-                      onClick={() => startRescheduling(appointment)}[m
+[31m-                    >[m
+[31m-                      {am ? "ቀጠሮውን ይቀይሩ" : "Reschedule"}[m
+[31m-                    </button>[m
+[31m-                    <button[m
+[31m-                      type="button"[m
+[31m-                      className="booking-cancel-button"[m
+[31m-                      onClick={() => void handleCancel(appointment)}[m
+[31m-                    >[m
+[31m-                      {am ? "ሰርዝ" : "Cancel"}[m
+[31m-                    </button>[m
+[31m-                  </div>[m
+[32m+[m[32m                  {!appointment.readOnly &&[m
+[32m+[m[32m                    appointment.origin !== "doctor_scheduled" && ([m
+[32m+[m[32m                      <div className="booking-card-actions">[m
+[32m+[m[32m                        <button[m
+[32m+[m[32m                          type="button"[m
+[32m+[m[32m                          className="booking-secondary-button"[m
+[32m+[m[32m                          onClick={() => startRescheduling(appointment)}[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                          {am ? "ቀጠሮውን ይቀይሩ" : "Reschedule"}[m
+[32m+[m[32m                        </button>[m
+[32m+[m[32m                        <button[m
+[32m+[m[32m                          type="button"[m
+[32m+[m[32m                          className="booking-cancel-button"[m
+[32m+[m[32m                          onClick={() => void handleCancel(appointment)}[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                          {am ? "ሰርዝ" : "Cancel"}[m
+[32m+[m[32m                        </button>[m
+[32m+[m[32m                      </div>[m
+[32m+[m[32m                    )}[m
+                 </article>[m
+               ))}[m
+             </div>[m
+[36m@@ -714,7 +722,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+                     </div>[m
+                     <h3>{appointment.doctorName}</h3>[m
+                     <p>[m
+[31m-                      {formatDate(appointment.date, language)} · {formatTime(appointment.time)}[m
+[32m+[m[32m                      {formatDate(appointment.date, language)} Â· {formatTime(appointment.time)}[m
+                     </p>[m
+                   </article>[m
+                 ))}[m
+[36m@@ -739,7 +747,7 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+       </div>[m
+ [m
+       <p className="booking-bottom-note">[m
+[31m-        Demo only · Availability and booking status are not connected to a live[m
+[32m+[m[32m        Demo only Â· Availability and booking status are not connected to a live[m
+         {am ? "" : "hospital scheduling system."}[m
+       </p>[m
+     </main>[m
+[36m@@ -747,3 +755,6 @@[m [mexport default function AppointmentBooking({ language }: AppointmentBookingProps[m
+ }[m
+ [m
+ [m
+[41m+[m
+[41m+[m
+[41m+[m
