@@ -1,0 +1,19 @@
+warning: in the working copy of 'backend/app/api/appointments.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/api/chat.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/agent.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/appointment_requests.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/hospital.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/test_appointments.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/test_document_instructions.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/tests/test_safety.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/App.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/Chat/ChatWindow.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/Message/MessageBubble.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/hospital-ui-polish.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/index.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/services/api.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/services/staffAppointmentRequests.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/types/chat.ts', LF will be replaced by CRLF the next time Git touches it
+backend/app/main.py:118: new blank line at EOF.
+backend/app/services/agent.py:2329: new blank line at EOF.
+backend/tests/test_agent_consent.py:998: new blank line at EOF.

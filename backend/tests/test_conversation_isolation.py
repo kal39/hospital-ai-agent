@@ -14,7 +14,8 @@ def isolate_agent_state(monkeypatch):
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
     monkeypatch.setattr(
         agent_module,
@@ -36,7 +37,8 @@ def isolate_agent_state(monkeypatch):
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
 
 def test_llm_conversation_history_is_isolated_between_patients(monkeypatch):

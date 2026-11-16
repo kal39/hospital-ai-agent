@@ -14,8 +14,11 @@ def isolate_agent_state(monkeypatch):
     """Keep conversation state isolated between tests."""
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
+    agent_module._pending_appointment_suggested_departments.clear()
+    agent_module._pending_appointment_departments.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
     monkeypatch.setattr(
         agent_module,
@@ -36,8 +39,11 @@ def isolate_agent_state(monkeypatch):
 
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
+    agent_module._pending_appointment_suggested_departments.clear()
+    agent_module._pending_appointment_departments.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
 
 def run_agent(
@@ -180,7 +186,7 @@ def test_explicit_yes_continues_only_after_consent(monkeypatch):
     assert "select" in second["message"].lower() or "number" in (
         second["message"].lower()
     )
-    assert second["toolsUsed"] == ["getAvailableAppointmentSlots"]
+    assert second["toolsUsed"] == ["findAppropriateDoctors"]
     assert "patient-001:consent-test" not in (
         agent_module._pending_appointment_requests
     )
@@ -216,7 +222,7 @@ def test_full_explicit_appointment_consent_statement(monkeypatch):
     assert "select" in result["message"].lower() or "number" in (
         result["message"].lower()
     )
-    assert result["toolsUsed"] == ["getAvailableAppointmentSlots"]
+    assert result["toolsUsed"] == ["findAppropriateDoctors"]
     assert "patient-001:consent-test" not in (
         agent_module._pending_appointment_requests
     )
@@ -392,19 +398,43 @@ def test_orphaned_explicit_appointment_consent_does_not_call_llm(monkeypatch):
 
 
 def _prepare_demo_selection(monkeypatch, service, slots, patient_id="patient-001"):
-    """Start a consented demo search and return its options response."""
+    """Start a consented demo search and return doctor recommendations."""
+    doctors_by_id = {}
+
+    for slot in slots:
+        doctor_id = slot["doctorId"]
+        doctors_by_id.setdefault(doctor_id, {
+            "id": doctor_id,
+            "name": slot["doctorName"],
+            "department": slot["department"],
+            "specialties": [],
+            "location": slot.get("location", ""),
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        })
+
+    doctors = list(doctors_by_id.values())
+
     monkeypatch.setattr(
-        agent_module,
-        "_get_available_demo_options",
-        lambda requested_patient_id: slots,
+        agent_module, "_get_demo_doctors",
+        lambda requested_patient_id, department="": [
+            doctor
+            for doctor in doctors
+            if not department
+            or doctor.get("department", "").casefold() == department.casefold()
+        ],
     )
-    mock_llm(
-        monkeypatch,
-        response={
-            "message": "I can show the available demonstration options.",
-            "toolsUsed": [],
-        },
+    monkeypatch.setattr(
+        agent_module, "_get_available_slots_for_doctor",
+        lambda requested_patient_id, doctor_id: [
+            slot for slot in slots if slot["doctorId"] == doctor_id
+        ],
     )
+    mock_llm(monkeypatch, response={
+        "message": "I can show the available demonstration options.",
+        "toolsUsed": [],
+    })
 
     first = run_agent(
         service,
@@ -414,7 +444,6 @@ def _prepare_demo_selection(monkeypatch, service, slots, patient_id="patient-001
     assert "reply yes or no" in first["message"].lower()
 
     return run_agent(service, "Yes", patient_id=patient_id)
-
 
 def _demo_test_slots():
     return [
@@ -439,94 +468,188 @@ def _demo_test_slots():
     ]
 
 
-def test_demo_booking_requires_explicit_confirmation_and_books_exact_slot(
+def _fake_request_service(requests, failure=None):
+    """Build a fake request service that records submitted request data."""
+
+    class FakeRequestService:
+        def create_request(self, **kwargs):
+            requests.append(kwargs)
+
+            if failure is not None:
+                raise failure
+
+            preferred_date = kwargs["preferred_date_start"].isoformat()
+
+            return {
+                "requestId": f"DEMO-REQUEST-{len(requests):03d}",
+                "status": "submitted",
+                "department": kwargs["department"],
+                "preferredDoctor": kwargs["preferred_doctor"],
+                "preferredDateStart": preferred_date,
+                "preferredDateEnd": kwargs["preferred_date_end"].isoformat(),
+                "dataSource": "synthetic_demo",
+                "dataNotice": "Synthetic demo data only",
+            }
+
+    return FakeRequestService()
+
+
+def test_doctor_can_be_selected_by_exact_displayed_name(monkeypatch):
+    service = HospitalAgentService()
+    _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
+
+    result = run_agent(service, "Dr. Demo Two")
+
+    assert "dr. demo two" in result["message"].lower()
+    assert any(
+        slot.get("date") == "2099-06-11"
+        and slot.get("time") == "10:00"
+        for slot in result.get("appointmentSlots", [])
+    )
+    assert "choose a date from the calendar" in result["message"].lower()
+    assert "select an available time" in result["message"].lower()
+
+
+def test_doctor_name_selection_is_case_and_punctuation_insensitive(monkeypatch):
+    service = HospitalAgentService()
+    _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
+
+    result = run_agent(service, "DR demo TWO")
+
+    assert "dr. demo two" in result["message"].lower()
+    assert any(
+        slot.get("date") == "2099-06-11"
+        and slot.get("time") == "10:00"
+        for slot in result.get("appointmentSlots", [])
+    )
+
+
+def test_unique_short_doctor_name_can_be_selected(monkeypatch):
+    service = HospitalAgentService()
+    _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
+
+    result = run_agent(service, "Demo Two")
+
+    assert "dr. demo two" in result["message"].lower()
+    assert any(
+        slot.get("date") == "2099-06-11"
+        and slot.get("time") == "10:00"
+        for slot in result.get("appointmentSlots", [])
+    )
+
+
+def test_ambiguous_doctor_name_does_not_select_a_doctor(monkeypatch):
+    service = HospitalAgentService()
+    slots = [
+        {
+            **_demo_test_slots()[0],
+            "doctorName": "Dr. Hana Tesfaye",
+        },
+        {
+            **_demo_test_slots()[1],
+            "doctorName": "Dr. Hana Bekele",
+        },
+    ]
+    _prepare_demo_selection(monkeypatch, service, slots)
+
+    result = run_agent(service, "Hana")
+
+    assert "choose one of the displayed doctors" in result["message"].lower()
+    assert "no request has been submitted" in result["message"].lower()
+    assert agent_module._pending_appointment_selections[
+        "patient-001:consent-test"
+    ]["status"] == "awaiting_doctor_selection"
+
+
+def test_appointment_request_requires_explicit_confirmation_and_preserves_details(
     monkeypatch,
 ):
     service = HospitalAgentService()
     slots = _demo_test_slots()
-    booked = []
-
-    def fake_book_demo_appointment(**kwargs):
-        booked.append(kwargs)
-        return {
-            "bookingId": "DEMO-TEST-001",
-            "doctorId": kwargs["doctor_id"],
-            "doctorName": "Dr. Demo Two",
-            "department": "Cardiology",
-            "location": "Demo Clinic B",
-            "date": kwargs["appointment_date"],
-            "time": kwargs["appointment_time"],
-            "dataSource": "synthetic_demo",
-        }
+    submitted = []
+    fake_service = _fake_request_service(submitted)
 
     monkeypatch.setattr(
-        agent_module.hospital_service,
-        "book_demo_appointment",
-        fake_book_demo_appointment,
+        agent_module,
+        "get_appointment_request_service",
+        lambda scheduler: fake_service,
     )
 
     options_result = _prepare_demo_selection(monkeypatch, service, slots)
+
     assert "fictional" in options_result["message"].lower()
-    assert "no appointment has been booked" in (
+    assert "no appointment request has been submitted" in (
         options_result["message"].lower()
     )
-    assert booked == []
+    assert submitted == []
 
-    selection_result = run_agent(service, "2")
-    assert "dr. demo two" in selection_result["message"].lower()
-    assert "2099-06-11" in selection_result["message"]
-    assert "10:00" in selection_result["message"]
-    assert "reply yes" in selection_result["message"].lower()
-    assert "nothing is booked yet" in selection_result["message"].lower()
-    assert booked == []
+    assert [doctor["id"] for doctor in options_result["doctorRecommendations"]] == [
+        "doctor-demo-001", "doctor-demo-002"
+    ]
+
+    doctor_selection_result = run_agent(service, "2")
+    assert "dr. demo two" in doctor_selection_result["message"].lower()
+    assert any(
+        slot.get("date") == "2099-06-11"
+        and slot.get("time") == "10:00"
+        for slot in doctor_selection_result.get("appointmentSlots", [])
+    )
+    assert "choose a date from the calendar" in doctor_selection_result["message"].lower()
+    assert "select an available time" in doctor_selection_result["message"].lower()
+    assert submitted == []
+
+    slot_selection_result = run_agent(service, "1")
+    assert "dr. demo two" in slot_selection_result["message"].lower()
+    assert "2099-06-11" in slot_selection_result["message"]
+    assert "10:00" in slot_selection_result["message"]
+    assert "reply yes" in slot_selection_result["message"].lower()
+    assert "no request has been submitted yet" in (
+        slot_selection_result["message"].lower()
+    )
+    assert submitted == []
 
     confirmation_result = run_agent(service, "YES")
-    assert "demo booking confirmed" in (
+
+    assert "appointment request submitted" in (
         confirmation_result["message"].lower()
     )
-    assert "DEMO-TEST-001" in confirmation_result["message"]
-    assert len(booked) == 1
-    assert booked[0] == {
-        "patient_id": "patient-001",
-        "doctor_id": "doctor-demo-002",
-        "appointment_date": "2099-06-11",
-        "appointment_time": "10:00",
-        "purpose": "",
-    }
+    assert "DEMO-REQUEST-001" in confirmation_result["message"]
+    assert "pending staff review" in confirmation_result["message"].lower()
+    assert "not a confirmed appointment" in (
+        confirmation_result["message"].lower()
+    )
+    assert "not been reserved" in confirmation_result["message"].lower()
+
+    assert len(submitted) == 1
+    assert submitted[0]["patient_id"] == "patient-001"
+    assert submitted[0]["department"] == "Cardiology"
+    assert submitted[0]["preferred_doctor"] == "Dr. Demo Two"
+    assert submitted[0]["preferred_date_start"].isoformat() == "2099-06-11"
+    assert submitted[0]["preferred_date_end"].isoformat() == "2099-06-11"
+    assert submitted[0]["reason"] == "Can you help me find an appointment?"
 
 
 @pytest.mark.parametrize(
-    ("exception_type", "expected_text", "expected_category"),
-    [
-        (
-            agent_module.BookingConflictError,
-            "no longer available",
-            "booking_conflict",
-        ),
-        (
-            agent_module.BookingNotFoundError,
-            "could not be found",
-            "booking_not_found",
-        ),
-    ],
+    "exception_type",
+    [ValueError, RuntimeError],
 )
-def test_demo_booking_expected_failures_are_safe_and_clear_pending_state(
+def test_appointment_request_submission_failures_are_safe_and_clear_pending_state(
     monkeypatch,
     exception_type,
-    expected_text,
-    expected_category,
 ):
     service = HospitalAgentService()
+    submitted = []
     internal_message = "INTERNAL-SECRET-DETAIL-DO-NOT-EXPOSE"
+    fake_service = _fake_request_service(
+        submitted,
+        failure=exception_type(internal_message),
+    )
     audit_events = []
 
-    def fail_booking(**kwargs):
-        raise exception_type(internal_message)
-
     monkeypatch.setattr(
-        agent_module.hospital_service,
-        "book_demo_appointment",
-        fail_booking,
+        agent_module,
+        "get_appointment_request_service",
+        lambda scheduler: fake_service,
     )
     monkeypatch.setattr(
         agent_module,
@@ -536,77 +659,103 @@ def test_demo_booking_expected_failures_are_safe_and_clear_pending_state(
 
     _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
     run_agent(service, "2")
+    run_agent(service, "1")
 
     key = "patient-001:consent-test"
     assert key in agent_module._pending_appointment_selections
 
     result = run_agent(service, "YES")
 
-    assert expected_text in result["message"].lower()
-    assert "no appointment was created" in result["message"].lower()
     assert internal_message not in result["message"]
-    assert key not in agent_module._pending_appointment_selections
-    assert key not in agent_module._completed_demo_bookings
+    assert "no appointment" in result["message"].lower()
+    assert key not in agent_module._completed_appointment_requests
+    assert len(submitted) == 1
+
+    if exception_type is ValueError:
+        # Validation failures must clear the pending confirmation.
+        assert "couldn't submit" in result["message"].lower()
+        assert key not in agent_module._pending_appointment_selections
+    else:
+        # Unexpected failures retain the confirmation for safe retry.
+        assert "couldn't verify" in result["message"].lower()
+        assert "reply yes" in result["message"].lower()
+        assert key in agent_module._pending_appointment_selections
+
+        pending = agent_module._pending_appointment_selections[key]
+        assert pending["status"] == "awaiting_request_confirmation"
+        assert pending.get("idempotency_key")
 
     failure_event = next(
         event
         for event in audit_events
-        if event.get("event") == "DEMO_APPOINTMENT_BOOKING_FAILED"
+        if event.get("event") == "AI_APPOINTMENT_REQUEST_FAILED"
     )
-    assert failure_event["details"]["reason"] == expected_category
+    assert failure_event["details"]["reason"] in {
+        "validation_failed",
+        "submission_error",
+    }
     assert internal_message not in str(failure_event)
 
-def test_declining_demo_booking_does_not_create_booking(monkeypatch):
+
+def test_declining_appointment_request_does_not_submit_request(monkeypatch):
     service = HospitalAgentService()
-    booked = []
+    submitted = []
+    fake_service = _fake_request_service(submitted)
 
     monkeypatch.setattr(
-        agent_module.hospital_service,
-        "book_demo_appointment",
-        lambda **kwargs: booked.append(kwargs),
+        agent_module,
+        "get_appointment_request_service",
+        lambda scheduler: fake_service,
     )
 
     _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
     run_agent(service, "2")
+    run_agent(service, "1")
     result = run_agent(service, "No")
 
-    assert "no appointment was created" in result["message"].lower()
-    assert booked == []
+    assert "cancelled before submission" in result["message"].lower()
+    assert "no request was submitted" in result["message"].lower()
+    assert submitted == []
     assert "patient-001:consent-test" not in (
         agent_module._pending_appointment_selections
     )
 
 
-def test_unclear_booking_response_does_not_create_booking(monkeypatch):
+def test_unclear_request_confirmation_does_not_submit_request(monkeypatch):
     service = HospitalAgentService()
-    booked = []
+    submitted = []
+    fake_service = _fake_request_service(submitted)
 
     monkeypatch.setattr(
-        agent_module.hospital_service,
-        "book_demo_appointment",
-        lambda **kwargs: booked.append(kwargs),
+        agent_module,
+        "get_appointment_request_service",
+        lambda scheduler: fake_service,
     )
 
     _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
     run_agent(service, "1")
+    run_agent(service, "1")
     result = run_agent(service, "Maybe later")
 
     assert "clear yes" in result["message"].lower()
-    assert "nothing has been booked yet" in result["message"].lower()
-    assert booked == []
+    assert "nothing has been submitted" in result["message"].lower()
+    assert submitted == []
     assert agent_module._pending_appointment_selections[
         "patient-001:consent-test"
-    ]["status"] == "awaiting_booking_confirmation"
+    ]["status"] == "awaiting_request_confirmation"
 
 
-def test_pending_demo_selection_is_isolated_between_patients(monkeypatch):
+def test_pending_appointment_request_selection_is_isolated_between_patients(
+    monkeypatch,
+):
     service = HospitalAgentService()
-    booked = []
+    submitted = []
+    fake_service = _fake_request_service(submitted)
 
     monkeypatch.setattr(
-        agent_module.hospital_service,
-        "book_demo_appointment",
-        lambda **kwargs: booked.append(kwargs),
+        agent_module,
+        "get_appointment_request_service",
+        lambda scheduler: fake_service,
     )
 
     _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
@@ -614,7 +763,6 @@ def test_pending_demo_selection_is_isolated_between_patients(monkeypatch):
     patient_a_key = "patient-001:consent-test"
     assert patient_a_key in agent_module._pending_appointment_selections
 
-    # Patient 2 uses the same conversation ID but has a different patient ID.
     other_patient_result = run_agent(
         service,
         "2",
@@ -624,99 +772,292 @@ def test_pending_demo_selection_is_isolated_between_patients(monkeypatch):
     assert "dr. demo two" not in other_patient_result["message"].lower()
     assert patient_a_key in agent_module._pending_appointment_selections
 
-    # A YES from patient 2 must not confirm patient 1's pending selection.
     run_agent(service, "YES", patient_id="patient-002")
-    assert booked == []
-    assert patient_a_key in agent_module._pending_appointment_selections
-def test_repeated_yes_does_not_create_a_second_demo_booking(monkeypatch):
-    service = HospitalAgentService()
-    booked = []
 
-    def fake_book_demo_appointment(**kwargs):
-        booked.append(kwargs)
-        return {
-            "bookingId": "DEMO-TEST-REPEAT-001",
-            "doctorId": kwargs["doctor_id"],
-            "doctorName": "Dr. Demo Two",
-            "department": "Cardiology",
-            "location": "Demo Clinic B",
-            "date": kwargs["appointment_date"],
-            "time": kwargs["appointment_time"],
-            "dataSource": "synthetic_demo",
-        }
+    assert submitted == []
+    assert patient_a_key in agent_module._pending_appointment_selections
+
+
+def test_repeated_yes_does_not_submit_a_second_appointment_request(monkeypatch):
+    service = HospitalAgentService()
+    submitted = []
+    fake_service = _fake_request_service(submitted)
 
     monkeypatch.setattr(
-        agent_module.hospital_service,
-        "book_demo_appointment",
-        fake_book_demo_appointment,
+        agent_module,
+        "get_appointment_request_service",
+        lambda scheduler: fake_service,
     )
 
     _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
     run_agent(service, "2")
+    run_agent(service, "1")
 
     first_confirmation = run_agent(service, "YES")
-    assert "DEMO-TEST-REPEAT-001" in first_confirmation["message"]
-    assert len(booked) == 1
+
+    assert "DEMO-REQUEST-001" in first_confirmation["message"]
+    assert len(submitted) == 1
 
     repeated_confirmation = run_agent(service, "YES")
-    assert "already confirmed" in repeated_confirmation["message"].lower()
-    assert "DEMO-TEST-REPEAT-001" in repeated_confirmation["message"]
-    assert "not created another booking" in repeated_confirmation["message"].lower()
-    assert len(booked) == 1
+
+    assert "already submitted" in repeated_confirmation["message"].lower()
+    assert "DEMO-REQUEST-001" in repeated_confirmation["message"]
+    assert "not submitted another request" in (
+        repeated_confirmation["message"].lower()
+    )
+    assert len(submitted) == 1
 
 
-
-def test_completed_demo_booking_is_isolated_between_patients(monkeypatch):
+def test_completed_appointment_request_is_isolated_between_patients(
+    monkeypatch,
+):
     service = HospitalAgentService()
-    booked = []
-
-    def fake_book_demo_appointment(**kwargs):
-        booked.append(kwargs)
-        return {
-            "bookingId": "DEMO-ISOLATION-001",
-            "doctorId": kwargs["doctor_id"],
-            "doctorName": "Dr. Demo Two",
-            "department": "Cardiology",
-            "location": "Demo Clinic B",
-            "date": kwargs["appointment_date"],
-            "time": kwargs["appointment_time"],
-            "dataSource": "synthetic_demo",
-        }
+    submitted = []
+    fake_service = _fake_request_service(submitted)
 
     monkeypatch.setattr(
-        agent_module.hospital_service,
-        "book_demo_appointment",
-        fake_book_demo_appointment,
+        agent_module,
+        "get_appointment_request_service",
+        lambda scheduler: fake_service,
     )
 
     _prepare_demo_selection(monkeypatch, service, _demo_test_slots())
+
     first_selection = run_agent(
-        service, "2", patient_id="patient-001"
+        service,
+        "2",
+        patient_id="patient-001",
     )
     assert "dr. demo two" in first_selection["message"].lower()
 
+    slot_selection = run_agent(
+        service,
+        "1",
+        patient_id="patient-001",
+    )
+    assert "2099-06-11" in slot_selection["message"]
+
     first_result = run_agent(
-        service, "YES", patient_id="patient-001"
+        service,
+        "YES",
+        patient_id="patient-001",
     )
 
-    assert "DEMO-ISOLATION-001" in first_result["message"]
-    assert len(booked) == 1
+    assert "DEMO-REQUEST-001" in first_result["message"]
+    assert len(submitted) == 1
 
     patient_one_key = "patient-001:consent-test"
     patient_two_key = "patient-002:consent-test"
 
-    assert patient_one_key in agent_module._completed_demo_bookings
-    assert patient_two_key not in agent_module._completed_demo_bookings
+    assert patient_one_key in agent_module._completed_appointment_requests
+    assert patient_two_key not in agent_module._completed_appointment_requests
 
-    # Patient 2 must not receive Patient 1's completed booking confirmation.
     second_result = run_agent(
-        service, "YES", patient_id="patient-002"
+        service,
+        "YES",
+        patient_id="patient-002",
     )
 
-    assert "DEMO-ISOLATION-001" not in second_result["message"]
-    assert patient_one_key in agent_module._completed_demo_bookings
-    assert patient_two_key not in agent_module._completed_demo_bookings
-    assert len(booked) == 1
+    assert "DEMO-REQUEST-001" not in second_result["message"]
+    assert patient_one_key in agent_module._completed_appointment_requests
+    assert patient_two_key not in agent_module._completed_appointment_requests
+    assert len(submitted) == 1
+
+
+
+def test_symptom_request_for_department_and_available_doctors_asks_consent(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(monkeypatch)
+
+    result = run_agent(
+        service,
+        "I've had a persistent cough for five days. "
+        "Can you help me find the appropriate department and available doctors?",
+    )
+
+    key = "patient-001:consent-test"
+    assert result["toolsUsed"] == []
+    assert calls == []
+    assert key in agent_module._pending_appointment_requests
+
+
+def test_department_preference_does_not_grant_consent_or_query_directory(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(monkeypatch)
+    directory_calls = []
+    original_lookup = (
+        agent_module.hospital_service.find_appropriate_doctors
+    )
+
+    def tracked_lookup(patient_id, department=""):
+        directory_calls.append((patient_id, department))
+        return original_lookup(patient_id, department=department)
+
+    monkeypatch.setattr(
+        agent_module.hospital_service,
+        "find_appropriate_doctors",
+        tracked_lookup,
+    )
+
+    first = run_agent(
+        service,
+        "I've had a persistent cough for five days. "
+        "Can you help me find the appropriate department and available doctors?",
+    )
+    second = run_agent(service, "ok respiratory clinic")
+
+    key = "patient-001:consent-test"
+    assert first["toolsUsed"] == []
+    assert second["toolsUsed"] == []
+    assert calls == []
+    assert directory_calls == []
+    assert key in agent_module._pending_appointment_requests
+    assert agent_module._pending_appointment_departments[key] == (
+        "Respiratory Clinic"
+    )
+    assert "respiratory clinic" in second["message"].lower()
+    assert "yes or no" in second["message"].lower()
+
+
+def test_department_filter_is_applied_only_after_explicit_yes(monkeypatch):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": "I can show the available demonstration options.",
+            "toolsUsed": [],
+        },
+    )
+    directory_calls = []
+    original_lookup = (
+        agent_module.hospital_service.find_appropriate_doctors
+    )
+
+    def tracked_lookup(patient_id, department=""):
+        directory_calls.append((patient_id, department))
+        return original_lookup(patient_id, department=department)
+
+    monkeypatch.setattr(
+        agent_module.hospital_service,
+        "find_appropriate_doctors",
+        tracked_lookup,
+    )
+
+    run_agent(
+        service,
+        "I've had a persistent cough for five days. "
+        "Can you help me find the appropriate department and available doctors?",
+    )
+    preference = run_agent(service, "ok respiratory clinic")
+
+    assert preference["toolsUsed"] == []
+    assert directory_calls == []
+
+    result = run_agent(service, "yes")
+
+    key = "patient-001:consent-test"
+    assert len(calls) == 1
+    assert directory_calls == [("patient-001", "Respiratory Clinic")]
+    assert result["toolsUsed"] == ["findAppropriateDoctors"]
+    assert result["doctorRecommendations"]
+    assert all(
+        doctor["department"] == "Respiratory Clinic"
+        for doctor in result["doctorRecommendations"]
+    )
+    assert "general medicine" not in result["message"].lower()
+    assert "respiratory clinic" in result["message"].lower()
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_departments
+
+
+def test_natural_yes_accepts_department_filter_but_still_requires_search_consent(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": "I can show the available demonstration doctors.",
+            "toolsUsed": [],
+        },
+    )
+    directory_calls = []
+    original_lookup = (
+        agent_module.hospital_service.find_appropriate_doctors
+    )
+
+    def tracked_lookup(patient_id, department=""):
+        directory_calls.append((patient_id, department))
+        return original_lookup(patient_id, department=department)
+
+    monkeypatch.setattr(
+        agent_module.hospital_service,
+        "find_appropriate_doctors",
+        tracked_lookup,
+    )
+
+    first = run_agent(
+        service,
+        "I've had a persistent cough for five days. "
+        "Can you help me find the appropriate department and available doctors?",
+    )
+
+    # This accepts the suggested filter only. It must not search the directory.
+    second = run_agent(
+        service,
+        "Yes, please help me find an available doctor.",
+    )
+
+    key = "patient-001:consent-test"
+    assert first["toolsUsed"] == []
+    assert second["toolsUsed"] == []
+    assert calls == []
+    assert directory_calls == []
+    assert key in agent_module._pending_appointment_requests
+    assert agent_module._pending_appointment_departments[key] == (
+        "Respiratory Clinic"
+    )
+    assert "yes or no" in second["message"].lower()
+    assert "search the demonstration doctor directory" in second["message"].lower()
+
+    # Only the separate, explicit consent reply may trigger directory discovery.
+    third = run_agent(
+        service,
+        "Yes, I consent to searching for available doctors and appointment times.",
+    )
+
+    assert len(calls) == 1
+    assert directory_calls == [("patient-001", "Respiratory Clinic")]
+    assert third["toolsUsed"] == ["findAppropriateDoctors"]
+    assert third["doctorRecommendations"]
+    assert all(
+        doctor["department"] == "Respiratory Clinic"
+        for doctor in third["doctorRecommendations"]
+    )
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_departments
+
+
+def test_workflow_detector_matches_department_and_doctor_discovery_request():
+    assert agent_module._is_appointment_workflow_request(
+        "I've had a persistent cough for five days. "
+        "Can you help me find the appropriate department and available doctors?"
+    )
+    assert agent_module._is_appointment_workflow_request(
+        "I need appointment for persistent cough and breathing issue"
+    )
+    assert agent_module._is_appointment_workflow_request(
+        "I would like an appointment"
+    )
+    assert not agent_module._is_appointment_workflow_request(
+        "I have a cough. What could be causing it?"
+    )
+
+
 def test_medical_history_response_includes_synthetic_disclosure(monkeypatch):
     service = HospitalAgentService()
     mock_llm(
@@ -744,3 +1085,223 @@ def test_medical_history_response_includes_synthetic_disclosure(monkeypatch):
     assert "medication review" in message
     assert message.count("Synthetic-data notice:") == 1
     assert result["toolsUsed"] == ["getMedicalHistory"]
+
+
+def test_model_generated_consent_uses_tentative_symptom_department_filter(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Would you like help checking available appointment options?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    symptom = (
+        "My heartbeat feels irregular, and sometimes my heart starts racing."
+    )
+    first = run_agent(service, symptom)
+
+    key = "patient-001:consent-test"
+
+    assert first["toolsUsed"] == []
+    assert "cardiology" in first["message"].lower()
+    assert "preferred directory filter" in first["message"].lower()
+    assert "separately" in first["message"].lower()
+    assert len(calls) == 1
+    assert agent_module._pending_appointment_requests[key] == symptom
+    assert (
+        agent_module._pending_appointment_suggested_departments[key]
+        == "Cardiology"
+    )
+
+    # First yes accepts only the suggested filter, not directory discovery.
+    second = run_agent(service, "Yes")
+
+    assert second["toolsUsed"] == []
+    assert "cardiology" in second["message"].lower()
+    assert "read-only" in second["message"].lower()
+    assert "reply yes or no" in second["message"].lower()
+    assert len(calls) == 1
+    assert key in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert agent_module._pending_appointment_departments[key] == "Cardiology"
+
+    # The second yes grants read-only discovery and returns only Cardiology.
+    third = run_agent(service, "Yes")
+
+    assert third["toolsUsed"] == ["findAppropriateDoctors"]
+    assert third.get("doctorRecommendations")
+    assert all(
+        doctor["department"] == "Cardiology"
+        for doctor in third["doctorRecommendations"]
+    )
+    assert len(calls) == 2
+    assert key not in agent_module._pending_appointment_requests
+
+
+def test_model_generated_consent_uses_general_medicine_fallback_for_explicit_department_question(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Would you like help checking available appointment options?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    symptom = (
+        "I have been experiencing frequent headaches. "
+        "Which department should I visit?"
+    )
+    key = "patient-001:consent-test"
+
+    # First turn: suggest General Medicine as a tentative filter.
+    first = run_agent(service, symptom)
+
+    assert first["toolsUsed"] == []
+    assert "general medicine" in first["message"].lower()
+    assert "preferred directory filter" in first["message"].lower()
+    assert "separately" in first["message"].lower()
+    assert len(calls) == 1
+    assert agent_module._pending_appointment_requests[key] == symptom
+    assert (
+        agent_module._pending_appointment_suggested_departments[key]
+        == "General Medicine"
+    )
+
+    # First yes: accept the filter only, not the directory search.
+    second = run_agent(service, "Yes")
+
+    assert second["toolsUsed"] == []
+    assert "general medicine" in second["message"].lower()
+    assert "read-only" in second["message"].lower()
+    assert "reply yes or no" in second["message"].lower()
+    assert len(calls) == 1
+    assert key in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert (
+        agent_module._pending_appointment_departments[key]
+        == "General Medicine"
+    )
+
+    # Second yes: permit read-only discovery, filtered to General Medicine.
+    third = run_agent(service, "Yes")
+
+    assert third["toolsUsed"] == ["findAppropriateDoctors"]
+    assert third.get("doctorRecommendations")
+    assert all(
+        doctor["department"] == "General Medicine"
+        for doctor in third["doctorRecommendations"]
+    )
+    assert len(calls) == 2
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_departments
+
+    # Discovery must not submit or book an appointment.
+    assert "bookAppointment" not in third["toolsUsed"]
+    assert "createAppointmentRequest" not in third["toolsUsed"]
+
+
+@pytest.mark.parametrize(
+    "symptom",
+    [
+        "I have a headache.",
+        "I have chest pain and an irregular heartbeat.",
+        "I feel dizzy and my heart is beating fast.",
+    ],
+)
+def test_model_generated_consent_does_not_create_unsafe_or_ambiguous_filter(
+    monkeypatch,
+    symptom,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Would you like help checking available appointment options?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    result = run_agent(service, symptom)
+
+    key = "patient-001:consent-test"
+
+    assert result["toolsUsed"] == []
+    assert len(calls) == 1
+    assert key in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert key not in agent_module._pending_appointment_departments
+
+
+@pytest.mark.parametrize(
+    "department",
+    sorted({
+        doctor["department"]
+        for doctor in agent_module.DOCTORS
+        if doctor.get("department")
+    }),
+)
+def test_model_generated_consent_preserves_explicit_department_filter(
+    monkeypatch,
+    department,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                f"Would you like me to search the demonstration doctor "
+                f"directory for available {department} doctors?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    message = (
+        f"I would like to explore doctors in the {department} "
+        "department. Can you help me?"
+    )
+
+    first = run_agent(service, message)
+    key = "patient-001:consent-test"
+
+    # The model-generated consent question must not search yet.
+    assert first["toolsUsed"] == []
+    assert len(calls) == 1
+    assert key in agent_module._pending_appointment_requests
+    assert agent_module._pending_appointment_departments[key] == department
+
+    # The patient's yes grants read-only discovery for the saved department.
+    second = run_agent(service, "Yes")
+
+    assert len(calls) == 2
+    assert second["toolsUsed"] == ["findAppropriateDoctors"]
+    assert second.get("doctorRecommendations")
+
+    assert all(
+        doctor["department"] == department
+        for doctor in second["doctorRecommendations"]
+    )
+
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_departments
+
+    # The patient must now choose from the filtered doctor recommendations.
+    selection = agent_module._pending_appointment_selections[key]
+    assert selection["status"] == "awaiting_doctor_selection"
+    assert all(
+        doctor["department"] == department
+        for doctor in selection["doctors"]
+    )

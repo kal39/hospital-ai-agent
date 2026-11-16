@@ -1,4 +1,6 @@
-from datetime import date, timedelta
+﻿from datetime import date, datetime, timedelta
+
+import app.services.hospital as hospital_module
 
 import pytest
 
@@ -169,3 +171,55 @@ def test_unapproved_tool_is_rejected():
             "deletePatientRecord",
             "patient-001",
         )
+def test_upcoming_appointments_exclude_same_day_expired_times(monkeypatch):
+    fixed_now = datetime(2026, 11, 12, 18, 29).astimezone()
+
+    class FixedDateTime:
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now
+
+    monkeypatch.setattr(hospital_module, "datetime", FixedDateTime)
+
+    appointments = [
+        {
+            "bookingId": "expired-today",
+            "date": "2026-11-12",
+            "time": "13:00",
+            "status": "confirmed_demo",
+        },
+        {
+            "bookingId": "future-today",
+            "date": "2026-11-12",
+            "time": "19:00",
+            "status": "confirmed_demo",
+        },
+        {
+            "bookingId": "exact-current-time",
+            "date": "2026-11-12",
+            "time": "18:29",
+            "status": "confirmed_demo",
+        },
+        {
+            "bookingId": "future-date",
+            "date": "2026-11-13",
+            "time": "09:00",
+            "status": "scheduled",
+        },
+    ]
+
+    service = HospitalService()
+
+    monkeypatch.setattr(
+        service,
+        "get_patient_appointments",
+        lambda patient_id, include_inactive=False, scheduler=None: appointments,
+    )
+
+    result = service.get_upcoming_appointments("patient-001")
+    result_ids = {item["bookingId"] for item in result}
+
+    assert "expired-today" not in result_ids
+    assert "exact-current-time" not in result_ids
+    assert "future-today" in result_ids
+    assert "future-date" in result_ids

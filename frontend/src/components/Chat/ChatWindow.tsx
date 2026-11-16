@@ -35,23 +35,23 @@ const translations = {
 
   am: {
     greeting:
-      "ሰላም! እኔ የሆስፒታል AI ረዳትዎ ነኝ። የላቦራቶሪ ውጤቶችን፣ መድኃኒቶችን፣ የሕክምና ታሪክን እና የሕክምና መረጃዎችን ለመረዳት ልረዳዎ እችላለሁ።\n\nየሕክምና መረጃን በቀላል ቋንቋ ልገልጽልዎ እችላለሁ፤ ሆኖም በሽታ መመርመር ወይም የመድኃኒት አጠቃቀምዎን መቀየር አልችልም።",
-    suggestionsTitle: "ከዚህ ውስጥ ይምረጡ ወይም ይጠይቁ",
+      "áˆ°áˆ‹áˆ! áŠ¥áŠ” á‹¨áˆ†áˆµá’á‰³áˆ AI áˆ¨á‹³á‰µá‹Ž áŠáŠá¢ á‹¨áˆ‹á‰¦áˆ«á‰¶áˆª á‹áŒ¤á‰¶á‰½áŠ•á£ áˆ˜á‹µáŠƒáŠ’á‰¶á‰½áŠ•á£ á‹¨áˆ•áŠ­áˆáŠ“ á‰³áˆªáŠ­áŠ• áŠ¥áŠ“ á‹¨áˆ•áŠ­áˆáŠ“ áˆ˜áˆ¨áŒƒá‹Žá‰½áŠ• áˆˆáˆ˜áˆ¨á‹³á‰µ áˆáˆ¨á‹³á‹Ž áŠ¥á‰½áˆ‹áˆˆáˆá¢\n\ná‹¨áˆ•áŠ­áˆáŠ“ áˆ˜áˆ¨áŒƒáŠ• á‰ á‰€áˆ‹áˆ á‰‹áŠ•á‰‹ áˆáŒˆáˆáŒ½áˆá‹Ž áŠ¥á‰½áˆ‹áˆˆáˆá¤ áˆ†áŠ–áˆ á‰ áˆ½á‰³ áˆ˜áˆ˜áˆ­áˆ˜áˆ­ á‹ˆá‹­áˆ á‹¨áˆ˜á‹µáŠƒáŠ’á‰µ áŠ áŒ á‰ƒá‰€áˆá‹ŽáŠ• áˆ˜á‰€á‹¨áˆ­ áŠ áˆá‰½áˆáˆá¢",
+    suggestionsTitle: "áŠ¨á‹šáˆ… á‹áˆµáŒ¥ á‹­áˆáˆ¨áŒ¡ á‹ˆá‹­áˆ á‹­áŒ á‹­á‰",
     suggestions: [
-      "የቅርብ ጊዜ የላቦራቶሪ ውጤቶቼን አብራራልኝ",
-      "የሕክምና ታሪኬን አጠቃልልልኝ",
-      "ስለ መድኃኒቶቼ አብራራልኝ",
-      "ለቀጣዩ ቀጠሮዬ ምን ማዘጋጀት አለብኝ?",
+      "á‹¨á‰…áˆ­á‰¥ áŒŠá‹œ á‹¨áˆ‹á‰¦áˆ«á‰¶áˆª á‹áŒ¤á‰¶á‰¼áŠ• áŠ á‰¥áˆ«áˆ«áˆáŠ",
+      "á‹¨áˆ•áŠ­áˆáŠ“ á‰³áˆªáŠ¬áŠ• áŠ áŒ á‰ƒáˆáˆáˆáŠ",
+      "áˆµáˆˆ áˆ˜á‹µáŠƒáŠ’á‰¶á‰¼ áŠ á‰¥áˆ«áˆ«áˆáŠ",
+      "áˆˆá‰€áŒ£á‹© á‰€áŒ áˆ®á‹¬ áˆáŠ• áˆ›á‹˜áŒ‹áŒ€á‰µ áŠ áˆˆá‰¥áŠ?",
     ],
-    assistantName: "የሆስፒታል AI ረዳት",
+    assistantName: "á‹¨áˆ†áˆµá’á‰³áˆ AI áˆ¨á‹³á‰µ",
     requestError:
-      "ጥያቄዎን አሁን ማስኬድ አልቻልኩም። እባክዎ ከጥቂት ጊዜ በኋላ እንደገና ይሞክሩ።",
-    fileReadError: "የተመረጠውን ፋይል ማንበብ አልተቻለም።",
-    fileReadFailure: "ፋይሉን ማንበብ አልተሳካም።",
-    attachedImage: "የተያያዘ ምስል",
-    attachedDocument: "የተያያዘ PDF ሰነድ",
+      "áŒ¥á‹«á‰„á‹ŽáŠ• áŠ áˆáŠ• áˆ›áˆµáŠ¬á‹µ áŠ áˆá‰»áˆáŠ©áˆá¢ áŠ¥á‰£áŠ­á‹Ž áŠ¨áŒ¥á‰‚á‰µ áŒŠá‹œ á‰ áŠ‹áˆ‹ áŠ¥áŠ•á‹°áŒˆáŠ“ á‹­áˆžáŠ­áˆ©á¢",
+    fileReadError: "á‹¨á‰°áˆ˜áˆ¨áŒ á‹áŠ• á‹á‹­áˆ áˆ›áŠ•á‰ á‰¥ áŠ áˆá‰°á‰»áˆˆáˆá¢",
+    fileReadFailure: "á‹á‹­áˆ‰áŠ• áˆ›áŠ•á‰ á‰¥ áŠ áˆá‰°áˆ³áŠ«áˆá¢",
+    attachedImage: "á‹¨á‰°á‹«á‹«á‹˜ áˆáˆµáˆ",
+    attachedDocument: "á‹¨á‰°á‹«á‹«á‹˜ PDF áˆ°áŠá‹µ",
     unsupportedFileError:
-      "እባክዎ JPG፣ PNG፣ WebP ምስል ወይም PDF ሰነድ ይምረጡ።",
+      "áŠ¥á‰£áŠ­á‹Ž JPGá£ PNGá£ WebP áˆáˆµáˆ á‹ˆá‹­áˆ PDF áˆ°áŠá‹µ á‹­áˆáˆ¨áŒ¡á¢",
   },
 } satisfies Record<
   Language,
@@ -225,7 +225,7 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
         setError(
           requestLanguage === "en"
             ? "The file must be 5 MB or smaller."
-            : "ፋይሉ ከ5 MB መብለጥ የለበትም።"
+            : "á‹á‹­áˆ‰ áŠ¨5 MB áˆ˜á‰¥áˆˆáŒ¥ á‹¨áˆˆá‰ á‰µáˆá¢"
         );
         return;
       }
@@ -274,6 +274,8 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
                 response.safety.requiresAttention,
             }
           : undefined,
+        doctorRecommendations: response.doctorRecommendations ?? [],
+        appointmentSlots: response.appointmentSlots ?? [],
       };
 
       setMessages((currentMessages) => [
@@ -312,7 +314,17 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
           >
             {messages.map((message) => (
               <div key={message.id}>
-               <MessageBubble message={message} language={language} />
+                <MessageBubble
+                  message={message}
+                  language={language}
+                  disabled={loading}
+                  onDoctorSelect={(doctorId) =>
+                    void handleSend(`Select doctor: ${doctorId}`)
+                  }
+                  onSlotSelect={(slotIndex) =>
+                    void handleSend(String(slotIndex + 1))
+                  }
+                />
 
                 {message.role === "user" &&
                   message.attachment && (
@@ -343,7 +355,7 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
                               lineHeight: 1,
                             }}
                           >
-                            ðŸ“„
+                            Ã°Å¸â€œâ€ž
                           </span>
 
                           <div style={{ minWidth: 0 }}>
@@ -443,7 +455,7 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
                   <path d="M12 5v14" />
                   <path d="m19 12-7 7-7-7" />
                 </svg>
-                <span>{language === "am" ? "ወደ መጨረሻው መልዕክት" : "Latest"}</span>
+                <span>{language === "am" ? "á‹ˆá‹° áˆ˜áŒ¨áˆ¨áˆ»á‹ áˆ˜áˆá‹•áŠ­á‰µ" : "Latest"}</span>
               </button>
             )}
           </div>
@@ -474,9 +486,9 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
           language={language}
         />
       </section>
+
     </main>
   );
 }
-
 
 

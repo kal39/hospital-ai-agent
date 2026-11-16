@@ -1,4 +1,4 @@
- *{ box-sizing: border-box; }
+﻿ *{ box-sizing: border-box; }
 
 :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f4f7fb; font-synthesis: none; text-rendering: optimizeLegibility; }
 
@@ -3275,4 +3275,1317 @@ textarea:focus-visible {
     padding: 9px 7px;
     font-size: 12px;
   }
+}
+
+/* Staff appointment request review workspace */
+.staff-requests-workspace {
+  min-width: 0;
+}
+
+.staff-requests-workspace > .staff-review-toolbar {
+  align-items: end;
+}
+
+.staff-requests-workspace > .staff-review-toolbar h2 {
+  margin: 0.25rem 0 0;
+}
+
+.staff-requests-workspace > .staff-review-toolbar select {
+  min-height: 42px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border-color, #d8e0e8);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.staff-request-list {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.staff-request-card {
+  display: grid;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d8e0e8);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.staff-request-card:hover,
+.staff-request-card.active {
+  border-color: var(--primary-color, #276b9b);
+  background: var(--surface-secondary, rgba(39, 107, 155, 0.05));
+}
+
+.staff-request-card:focus-visible {
+  outline: 2px solid var(--primary-color, #276b9b);
+  outline-offset: 2px;
+}
+
+.staff-request-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.staff-request-card-patient {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #667085);
+}
+
+.staff-request-card-reason {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.45;
+}
+
+.staff-request-card-date {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #667085);
+}
+
+.staff-request-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-secondary, #edf2f7);
+  color: var(--text-secondary, #475467);
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.staff-request-status--submitted,
+.staff-request-status--under_review,
+.staff-request-status--needs_information {
+  background: #fff4d6;
+  color: #875c08;
+}
+
+.staff-request-status--appointment_offered,
+.staff-request-status--appointment_confirmed {
+  background: #e4f4ea;
+  color: #17663b;
+}
+
+.staff-request-status--declined,
+.staff-request-status--cancelled {
+  background: #fce8e8;
+  color: #9c3030;
+}
+
+.staff-request-detail {
+  min-width: 0;
+}
+
+.staff-request-information {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.staff-request-information > div {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.staff-request-information span {
+  color: var(--text-secondary, #667085);
+  font-size: 0.8rem;
+}
+
+.staff-request-information strong {
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
+}
+
+.staff-request-reason {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border-radius: 10px;
+  background: var(--surface-secondary, rgba(127, 127, 127, 0.07));
+}
+
+.staff-request-reason h3,
+.staff-request-history h3,
+.staff-request-approval h3,
+.staff-decline-form h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.staff-request-reason p {
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.staff-request-history {
+  margin: 1.5rem 0;
+}
+
+.staff-request-history-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+}
+
+.staff-request-history-item > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.staff-request-history-item small {
+  color: var(--text-secondary, #667085);
+}
+
+.staff-request-history-item p {
+  margin: 0.2rem 0 0;
+  line-height: 1.5;
+}
+
+.staff-request-history-marker {
+  width: 9px;
+  height: 9px;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: var(--primary-color, #276b9b);
+}
+
+.staff-request-decision {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color, #e3e8ee);
+}
+
+.staff-request-approval,
+.staff-decline-form {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.staff-request-approval label,
+.staff-decline-form label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.staff-request-approval select,
+.staff-decline-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-color, #d8e0e8);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.staff-decline-form textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.staff-form-help {
+  margin: 0;
+  color: var(--text-secondary, #667085);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.staff-request-approval button,
+.staff-decline-button {
+  min-height: 42px;
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.staff-request-approval button {
+  background: var(--primary-color, #276b9b);
+  color: white;
+}
+
+.staff-decline-button {
+  background: transparent;
+  border-color: #b45353;
+  color: #a33b3b;
+}
+
+.staff-request-approval button:disabled,
+.staff-decline-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.staff-request-decided {
+  margin: 1.25rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: var(--surface-secondary, rgba(127, 127, 127, 0.07));
+  color: var(--text-secondary, #667085);
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .staff-request-decision {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .staff-request-information {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-request-card-top {
+    align-items: flex-start;
+  }
+
+  .staff-workspace-tabs button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* Doctor recommendations rendered inside the patient assistant conversation. */
+.chat-doctor-results {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.1rem;
+  min-width: 0;
+}
+
+.chat-doctor-results-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.chat-doctor-results-heading > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.chat-doctor-results-heading strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.95rem;
+}
+
+.chat-doctor-results-heading > div > span {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.76rem;
+}
+
+.chat-doctor-demo-label {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d8e4ed;
+  border-radius: 999px;
+  background: #f1f6fa;
+  color: #496477;
+  font-size: 0.64rem;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+}
+
+.chat-doctor-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.chat-doctor-card {
+  position: relative;
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--border-color, #dce4eb);
+  border-radius: 13px;
+  background: var(--surface, #fff);
+}
+
+.chat-doctor-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.chat-doctor-avatar {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  place-items: center;
+  border: 1px solid #d8e5ed;
+  border-radius: 12px;
+  background: #edf3f7;
+  color: #38576c;
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+
+.chat-doctor-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.chat-doctor-summary > .chat-doctor-department,
+.chat-doctor-summary > .chat-doctor-location {
+  display: block;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.chat-doctor-name-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.chat-doctor-name-line strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-doctor-assigned {
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: #edf6f1;
+  color: #28664b;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.chat-doctor-department {
+  color: var(--text-primary, #334155);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.chat-doctor-location {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.75rem;
+}
+
+.chat-doctor-specialties {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  min-width: 0;
+}
+
+.chat-doctor-specialties span {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 6px;
+  color: var(--text-secondary, #536477);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.chat-doctor-details {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border-radius: 9px;
+  background: var(--surface-secondary, #f7f9fb);
+}
+
+.chat-doctor-details > strong {
+  color: var(--text-primary, #334155);
+  font-size: 0.78rem;
+}
+
+.chat-doctor-details dl {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.chat-doctor-details dl > div {
+  display: grid;
+  grid-template-columns: minmax(95px, 0.7fr) minmax(0, 1.3fr);
+  gap: 0.6rem;
+}
+
+.chat-doctor-details dt {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.72rem;
+}
+
+.chat-doctor-details dd {
+  margin: 0;
+  color: var(--text-primary, #334155);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-doctor-details p {
+  margin: 0;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.chat-doctor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chat-doctor-actions button {
+  min-height: 36px;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border-color, #d7e0e8);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.chat-doctor-details-button {
+  background: transparent;
+  color: var(--text-primary, #334155);
+}
+
+.chat-doctor-select-button {
+  border-color: var(--primary-color, #276b9b) !important;
+  background: var(--primary-color, #276b9b);
+  color: #fff;
+}
+
+.chat-doctor-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chat-doctor-number {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.62rem;
+}
+
+.chat-doctor-disclaimer {
+  margin: 0;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .chat-doctor-card {
+    padding: 0.75rem;
+  }
+
+  .chat-doctor-actions {
+    justify-content: stretch;
+  }
+
+  .chat-doctor-actions button {
+    flex: 1 1 auto;
+  }
+
+  .chat-doctor-details dl > div {
+    grid-template-columns: minmax(80px, 0.8fr) minmax(0, 1.2fr);
+  }
+}
+
+
+/* Staff unified dashboard: overview and appointment analytics. */
+
+.staff-dashboard-overview,
+.staff-analytics-panel {
+  display: grid;
+  gap: 1.15rem;
+  min-width: 0;
+  margin: 1.4rem 0;
+}
+
+.staff-dashboard-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.staff-dashboard-section-heading > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.staff-dashboard-section-heading h2,
+.staff-analytics-panel h2 {
+  margin: 0;
+  color: var(--text-primary, #1e293b);
+  font-size: 1.2rem;
+  font-weight: 750;
+}
+
+.staff-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.staff-overview-card {
+  display: grid;
+  align-content: space-between;
+  gap: 0.8rem;
+  min-width: 0;
+  min-height: 112px;
+  padding: 1.05rem 1.1rem;
+  border: 1px solid var(--border-color, #dce4ec);
+  border-radius: 13px;
+  background: var(--surface, #fff);
+  box-shadow: 0 3px 12px rgba(25, 45, 65, 0.045);
+}
+
+.staff-overview-card > span {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.staff-overview-card > strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 1.85rem;
+  font-weight: 780;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-analytics-panel {
+  padding: 1.25rem;
+  border: 1px solid var(--border-color, #dce4ec);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  box-shadow: 0 3px 14px rgba(25, 45, 65, 0.045);
+}
+
+.staff-analytics-panel .appointment-panel-heading {
+  margin-bottom: 0;
+}
+
+.staff-analytics-note {
+  margin: -0.45rem 0 0;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.staff-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.staff-analytics-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #e1e7ee);
+  border-radius: 11px;
+  background: var(--surface-secondary, #f8fafc);
+}
+
+.staff-analytics-card h3 {
+  margin: 0 0 0.9rem;
+  color: var(--text-primary, #243447);
+  font-size: 0.92rem;
+  font-weight: 730;
+}
+
+.staff-analytics-card > p {
+  margin: 0;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.staff-analytics-ranking {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.staff-analytics-ranking li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color, #e1e7ee);
+}
+
+.staff-analytics-ranking li:first-child {
+  padding-top: 0.1rem;
+}
+
+.staff-analytics-ranking li:last-child {
+  padding-bottom: 0.1rem;
+  border-bottom: 0;
+}
+
+.staff-analytics-ranking li > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.staff-analytics-ranking li strong {
+  color: var(--text-primary, #263648);
+  font-size: 0.83rem;
+  font-weight: 680;
+  overflow-wrap: anywhere;
+}
+
+.staff-analytics-ranking li small {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.74rem;
+}
+
+.staff-analytics-ranking li > span {
+  flex: 0 0 auto;
+  min-width: 2rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #263648);
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-analytics-card--trend {
+  grid-column: 1 / -1;
+}
+
+.staff-monthly-trend {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.staff-monthly-trend-item {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.staff-monthly-trend-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.78rem;
+}
+
+.staff-monthly-trend-label strong {
+  color: var(--text-primary, #263648);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-monthly-trend-track {
+  width: 100%;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border-color, #e5eaf0);
+}
+
+.staff-monthly-trend-track > span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: var(--primary-color, #276b9b);
+  transition: width 180ms ease;
+}
+
+.staff-ai-analytics-notice {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-color, #dce4ec);
+  border-left: 3px solid var(--primary-color, #276b9b);
+  border-radius: 8px;
+  background: var(--surface-secondary, #f8fafc);
+  color: var(--text-secondary, #526477);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.staff-ai-analytics-notice strong {
+  color: var(--text-primary, #334155);
+  font-weight: 680;
+}
+
+@media (max-width: 900px) {
+  .staff-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .staff-dashboard-overview,
+  .staff-analytics-panel {
+    gap: 0.9rem;
+    margin: 1rem 0;
+  }
+
+  .staff-overview-grid,
+  .staff-analytics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-overview-card {
+    min-height: 90px;
+  }
+
+  .staff-analytics-panel {
+    padding: 0.9rem;
+  }
+
+  .staff-analytics-card--trend {
+    grid-column: auto;
+  }
+}
+
+
+/* Selectable appointment time cards in the patient conversation. */
+.chat-slot-results {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.1rem;
+  min-width: 0;
+}
+
+.chat-slot-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 0.7rem;
+}
+
+.chat-slot-card {
+  position: relative;
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 1rem;
+  padding-top: 1.25rem;
+  border: 1px solid var(--border-color, #dce4eb);
+  border-radius: 13px;
+  background: var(--surface, #fff);
+}
+
+.chat-slot-card-details {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.chat-slot-date {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.chat-slot-time {
+  color: var(--primary-color, #276b9b);
+  font-size: 1.05rem;
+  font-weight: 750;
+}
+
+.chat-slot-doctor {
+  color: var(--text-primary, #334155);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.chat-slot-location {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-slot-select-button {
+  min-height: 38px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--primary-color, #276b9b);
+  border-radius: 8px;
+  background: var(--primary-color, #276b9b);
+  color: #fff;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chat-slot-select-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chat-slot-number {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.65rem;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.62rem;
+}
+
+@media (max-width: 480px) {
+  .chat-slot-list {
+    grid-template-columns: 1fr;
+  }
+}
+/* Date selection and doctor summary for appointment availability. */
+.chat-slot-doctor-summary {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-color, #dce4eb);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.chat-slot-doctor-summary strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.chat-slot-doctor-summary span {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-slot-date-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.45rem 0.8rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-color, #dce4eb);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.chat-slot-date-control label {
+  color: var(--text-primary, #334155);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.chat-slot-date-control input {
+  min-height: 40px;
+  max-width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #1e293b);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.chat-slot-date-control input:focus {
+  outline: 2px solid var(--primary-color, #276b9b);
+  outline-offset: 2px;
+}
+
+.chat-slot-date-control > span {
+  grid-column: 1 / -1;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.72rem;
+}
+
+.chat-slot-empty {
+  margin: 0;
+  padding: 1rem;
+  border: 1px dashed var(--border-color, #cbd5e1);
+  border-radius: 10px;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 480px) {
+  .chat-slot-date-control {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-slot-date-control input {
+    width: 100%;
+  }
+}
+/* Selectable appointment dates in the patient conversation. */
+.chat-slot-date-picker {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.chat-slot-date-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chat-slot-date-heading strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.chat-slot-date-heading > span {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.72rem;
+}
+
+.chat-slot-date-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
+  gap: 0.6rem;
+}
+
+.chat-slot-date-card {
+  display: grid;
+  justify-items: start;
+  gap: 0.25rem;
+  min-width: 0;
+  min-height: 88px;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color, #dce4eb);
+  border-radius: 11px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #1e293b);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.chat-slot-date-card:hover:not(:disabled) {
+  border-color: var(--primary-color, #276b9b);
+}
+
+.chat-slot-date-card-selected {
+  border: 2px solid var(--primary-color, #276b9b);
+  background: var(--surface, #fff);
+  padding: calc(0.75rem - 1px);
+}
+
+.chat-slot-date-card-selected strong {
+  color: var(--primary-color, #276b9b);
+}
+
+.chat-slot-date-card:focus-visible {
+  outline: 2px solid var(--primary-color, #276b9b);
+  outline-offset: 2px;
+}
+
+.chat-slot-date-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chat-slot-date-weekday {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.chat-slot-date-card strong {
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+.chat-slot-date-count {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.68rem;
+}
+
+@media (max-width: 480px) {
+  .chat-slot-date-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* Native date picker for appointment availability. */
+.chat-slot-date-picker {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.chat-slot-native-date {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 9px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #1e293b);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.chat-slot-native-date:focus {
+  outline: 2px solid var(--primary-color, #276b9b);
+  outline-offset: 2px;
+}
+
+.chat-slot-native-date:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chat-slot-selected-date {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0;
+}
+
+.chat-slot-selected-date strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+.chat-slot-selected-date span {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.78rem;
+}
+
+.chat-slot-available-times-heading {
+  color: var(--text-primary, #334155);
+  font-size: 0.84rem;
+}
+
+/* Structured appointment review panel. */
+.chat-appointment-review {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #dce4eb);
+  border-radius: 13px;
+  background: var(--surface, #fff);
+}
+
+.chat-appointment-review-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.chat-appointment-review-heading > strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.98rem;
+  font-weight: 750;
+}
+
+.chat-appointment-review-intro {
+  margin: 0;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.82rem;
+}
+
+.chat-appointment-review-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 0;
+}
+
+.chat-appointment-review-details > div {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.chat-appointment-review-details dt {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.chat-appointment-review-details dd {
+  margin: 0;
+  color: var(--text-primary, #1e293b);
+  font-size: 0.88rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+
+.chat-appointment-review-notice {
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--border-color, #dce4eb);
+  border-radius: 9px;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.chat-appointment-review-confirmation {
+  display: grid;
+  gap: 0.3rem;
+  padding-top: 0.2rem;
+}
+
+.chat-appointment-review-confirmation strong {
+  color: var(--text-primary, #1e293b);
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+
+.chat-appointment-review-confirmation span {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 480px) {
+  .chat-appointment-review-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* Shared doctor portraits used by AI recommendations and appointment booking. */
+.doctor-avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+}
+
+.doctor-avatar img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+
+.doctor-avatar span {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+/* Keep the existing AI recommendation avatar dimensions. */
+.chat-doctor-avatar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* Keep the existing appointment booking avatar dimensions. */
+.booking-doctor-avatar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+
+/* Selected doctor profile in staff appointment approval */
+.staff-selected-doctor {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0.85rem 0 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-color, #d8e0e8);
+  border-radius: 12px;
+  background: var(--surface-secondary, #f7f9fc);
+}
+
+.staff-selected-doctor-avatar {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+}
+
+.staff-selected-doctor-info {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.staff-selected-doctor-info strong {
+  font-weight: 700;
+}
+
+.staff-selected-doctor-info span {
+  color: var(--text-secondary, #667085);
+  font-size: 0.88rem;
+}
+
+.staff-selected-doctor-info small {
+  color: var(--text-secondary, #667085);
+  font-size: 0.8rem;
 }

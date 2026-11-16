@@ -1,0 +1,1279 @@
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  approveStaffAppointmentRequest,
+  declineStaffAppointmentRequest,
+  getStaffAvailability,
+  listStaffAppointmentRequests,
+  listStaffAppointments,
+  listStaffDoctors,
+  recordStaffAttendance,
+  type StaffAppointmentRequest,
+  type StaffAttendanceAppointment,
+} from "../../services/staffAppointmentRequests";
+import type { AppointmentSlot, Doctor } from "../../services/appointments";
+import { getLocalDateString } from "../../services/appointments";
+import type { Language } from "../../types/chat";
+
+type Props = {
+  language: Language;
+};
+
+type Tab = "requests" | "attendance";
+
+const copy = {
+  en: {
+    eyebrow: "STAFF WORKSPACE",
+    title: "Appointment management",
+    intro: "Review appointment requests and manage patient attendance.",
+    demo: "Demo staff workspace — synthetic data only",
+    demoText:
+      "All requests and appointments shown here are fictional demonstration records. This workspace is not connected to a live hospital system. Do not enter real patient information.",
+    requests: "Appointment requests",
+    attendance: "Attendance",
+    openRequests: "requests awaiting a decision",
+    refresh: "Refresh",
+    refreshing: "Refreshing…",
+    open: "Open requests",
+    all: "All requests",
+    queue: "REQUEST QUEUE",
+    incoming: "Incoming requests",
+    loading: "Loading…",
+    noOpen: "No open requests",
+    noRequests: "No requests found",
+    select: "Select a request",
+    selectText: "Choose a request from the list to review its details.",
+    details: "REQUEST DETAILS",
+    patient: "Patient reference",
+    preferredDoctor: "Preferred doctor",
+    noPreference: "No preference",
+    preferredDates: "Preferred dates",
+    submitted: "Submitted",
+    reason: "Reason for visit",
+    booking: "Demo booking reference",
+    assigned: "Assigned doctor",
+    date: "Appointment date",
+    time: "Appointment time",
+    declineExplanation: "Decline explanation",
+    history: "Status history",
+    approveTitle: "Approve and assign appointment",
+    doctor: "Doctor",
+    chooseDoctor: "Select a doctor",
+    appointmentDate: "Available appointment slot",
+    appointmentTime: "Appointment time",
+    approve: "Approve and book demo appointment",
+    decline: "Decline request",
+    explanation: "Explanation (required)",
+    declinePlaceholder: "Explain why this request cannot be accepted.",
+    declineButton: "Decline demo request",
+    processing: "Processing…",
+    decided: "This request has already been decided and cannot be acted on again.",
+    notSpecified: "Not specified",
+    submittedStatus: "Submitted",
+    underReview: "Under review",
+    needsInfo: "Needs information",
+    offered: "Appointment offered",
+    confirmed: "Appointment confirmed",
+    declined: "Declined",
+    cancelled: "Cancelled",
+    attendanceTitle: "Appointment attendance",
+    attendanceText:
+      "Review confirmed appointments and record whether each patient attended.",
+    total: "appointments",
+    search: "Search patient, doctor, department or booking reference",
+    filterAll: "All appointments",
+    filterPending: "Awaiting attendance",
+    filterAttended: "Attended",
+    filterMissed: "Missed",
+    patientColumn: "Patient",
+    departmentColumn: "Department",
+    doctorColumn: "Doctor",
+    schedule: "Scheduled",
+    statusColumn: "Attendance",
+    actions: "Actions",
+    upcoming: "Upcoming",
+    pending: "Pending",
+    attended: "Attended",
+    missed: "Missed",
+    markAttended: "Mark attended",
+    markMissed: "Mark missed",
+    noAppointments: "No appointments found",
+    noAppointmentsText: "Confirmed demo appointments will appear here.",
+    futureNotice:
+      "Attendance can only be recorded after the scheduled appointment time.",
+    confirmAttended: "Confirm that this patient attended the appointment?",
+    confirmMissed: "Confirm that this patient missed the appointment?",
+    attendanceSaved: "Attendance record saved successfully.",
+    patientReference: "Patient reference",
+    bookingReference: "Booking reference",
+    error: "Something went wrong. Please try again.",
+    connection:
+      "Could not connect to the demo backend. Check that the backend is running.",
+    auth:
+      "Staff demo authentication failed. Check the staff token and restart the frontend.",
+    dismiss: "Dismiss message",
+    minimum: "Minimum 10 characters",
+    noDoctors: "No doctors are available for this department.",
+    noSlots: "No available appointment slots were found in the requested date range.",
+    chooseSlot: "Choose an available date and time",
+    requestApproved: "Request approved and demo appointment created.",
+    requestDeclined: "Appointment request declined.",
+    noReason: "Please provide a decline explanation.",
+    preferredRange: "Preferred date range",
+    status: "Status",
+    viewRequest: "Review request",
+    noDoctorPreference: "No preferred doctor was specified.",
+    noDatePreference: "No preferred dates were specified.",
+    loadingDoctors: "Loading doctors…",
+    loadingSlots: "Loading available slots…",
+    slotUnavailable: "This slot is no longer available. Refresh the slots and try again.",
+    requestUnavailable: "This request is no longer available for review.",
+  },
+  am: {
+    eyebrow: "የሰራተኞች የስራ ቦታ",
+    title: "የቀጠሮ አስተዳደር",
+    intro: "የቀጠሮ ጥያቄዎችን ይመልከቱ እና የታካሚዎችን መገኘት ያስተዳድሩ።",
+    demo: "የሙከራ የሰራተኞች ቦታ — ሰው ሰራሽ መረጃ ብቻ",
+    demoText:
+      "እዚህ የሚታዩት ጥያቄዎችና ቀጠሮዎች ሁሉ ለሙከራ የተፈጠሩ ናቸው። ይህ ስርዓት ከእውነተኛ የሆስፒታል ስርዓት ጋር አልተገናኘም። እውነተኛ የታካሚ መረጃ አያስገቡ።",
+    requests: "የቀጠሮ ጥያቄዎች",
+    attendance: "የታካሚ መገኘት",
+    openRequests: "ውሳኔ የሚጠብቁ ጥያቄዎች",
+    refresh: "አድስ",
+    refreshing: "በማደስ ላይ…",
+    open: "ክፍት ጥያቄዎች",
+    all: "ሁሉም ጥያቄዎች",
+    queue: "የጥያቄ ዝርዝር",
+    incoming: "የገቡ ጥያቄዎች",
+    loading: "በመጫን ላይ…",
+    noOpen: "ክፍት ጥያቄ የለም",
+    noRequests: "ምንም ጥያቄ አልተገኘም",
+    select: "ጥያቄ ይምረጡ",
+    selectText: "ዝርዝሩን በመጠቀም የሚፈልጉትን ጥያቄ ይምረጡ።",
+    details: "የጥያቄ ዝርዝር",
+    patient: "የታካሚ መለያ",
+    preferredDoctor: "የተመረጠ ሐኪም",
+    noPreference: "ምርጫ የለም",
+    preferredDates: "የተመረጡ ቀናት",
+    submitted: "የቀረበበት ጊዜ",
+    reason: "የጉብኝት ምክንያት",
+    booking: "የሙከራ ቀጠሮ መለያ",
+    assigned: "የተመደበ ሐኪም",
+    date: "የቀጠሮ ቀን",
+    time: "የቀጠሮ ሰዓት",
+    declineExplanation: "የመከልከያ ምክንያት",
+    history: "የሁኔታ ታሪክ",
+    approveTitle: "ጥያቄውን ያጽድቁ እና ቀጠሮ ይመድቡ",
+    doctor: "ሐኪም",
+    chooseDoctor: "ሐኪም ይምረጡ",
+    appointmentDate: "የቀጠሮ ጊዜ",
+    appointmentTime: "የቀጠሮ ሰዓት",
+    approve: "አጽድቅ እና የሙከራ ቀጠሮ መዝግብ",
+    decline: "ጥያቄውን ከልክል",
+    explanation: "ምክንያት (አስፈላጊ)",
+    declinePlaceholder: "ጥያቄው ለምን መቀበል እንደማይቻል ያብራሩ።",
+    declineButton: "የሙከራ ጥያቄን ከልክል",
+    processing: "በሂደት ላይ…",
+    decided: "ይህ ጥያቄ አስቀድሞ ውሳኔ ተሰጥቶታል።",
+    notSpecified: "አልተገለጸም",
+    submittedStatus: "ቀርቧል",
+    underReview: "በግምገማ ላይ",
+    needsInfo: "ተጨማሪ መረጃ ያስፈልጋል",
+    offered: "ቀጠሮ ቀርቧል",
+    confirmed: "ቀጠሮ ተረጋግጧል",
+    declined: "ተከልክሏል",
+    cancelled: "ተሰርዟል",
+    attendanceTitle: "የቀጠሮ መገኘት መዝገብ",
+    attendanceText: "የተረጋገጡ ቀጠሮዎችን ይመልከቱ እና ታካሚው መጥቶ እንደነበር ይመዝግቡ።",
+    total: "ቀጠሮዎች",
+    search: "ታካሚ፣ ሐኪም፣ ክፍል ወይም የቀጠሮ መለያ ይፈልጉ",
+    filterAll: "ሁሉም ቀጠሮዎች",
+    filterPending: "መገኘት የሚጠብቁ",
+    filterAttended: "ተገኝቷል",
+    filterMissed: "አልተገኘም",
+    patientColumn: "ታካሚ",
+    departmentColumn: "ክፍል",
+    doctorColumn: "ሐኪም",
+    schedule: "የቀጠሮ ጊዜ",
+    statusColumn: "የመገኘት ሁኔታ",
+    actions: "ተግባሮች",
+    upcoming: "ወደፊት ያለ",
+    pending: "በመጠባበቅ ላይ",
+    attended: "ተገኝቷል",
+    missed: "አልተገኘም",
+    markAttended: "ተገኝቷል ብለህ መዝግብ",
+    markMissed: "አልተገኘም ብለህ መዝግብ",
+    noAppointments: "ቀጠሮ አልተገኘም",
+    noAppointmentsText: "የተረጋገጡ የሙከራ ቀጠሮዎች እዚህ ይታያሉ።",
+    futureNotice: "የመገኘት ሁኔታ መመዝገብ የሚቻለው ከቀጠሮው ጊዜ በኋላ ብቻ ነው።",
+    confirmAttended: "ይህ ታካሚ በቀጠሮው ላይ እንደተገኘ ያረጋግጡ?",
+    confirmMissed: "ይህ ታካሚ በቀጠሮው ላይ እንዳልተገኘ ያረጋግጡ?",
+    attendanceSaved: "የመገኘት መረጃው በተሳካ ሁኔታ ተመዝግቧል።",
+    patientReference: "የታካሚ መለያ",
+    bookingReference: "የቀጠሮ መለያ",
+    error: "ችግር ተፈጥሯል። እንደገና ይሞክሩ።",
+    connection: "ከሙከራ ባክኤንድ ጋር መገናኘት አልተቻለም።",
+    auth: "የሰራተኛ ሙከራ ማረጋገጫ አልተሳካም።",
+    dismiss: "መልዕክቱን ዝጋ",
+    minimum: "ቢያንስ 10 ቁምፊዎች",
+    noDoctors: "ለዚህ ክፍል ሐኪም አልተገኘም።",
+    noSlots: "በተመረጠው የቀን ክልል ውስጥ ክፍት ቀጠሮ አልተገኘም።",
+    chooseSlot: "ክፍት ቀንና ሰዓት ይምረጡ",
+    requestApproved: "ጥያቄው ጸድቋል እና የሙከራ ቀጠሮ ተመዝግቧል።",
+    requestDeclined: "የቀጠሮ ጥያቄው ተከልክሏል።",
+    noReason: "እባክዎ የመከልከያ ምክንያት ያስገቡ።",
+    preferredRange: "የተመረጠ የቀን ክልል",
+    status: "ሁኔታ",
+    viewRequest: "ጥያቄውን ይመልከቱ",
+    noDoctorPreference: "የተመረጠ ሐኪም አልተገለጸም።",
+    noDatePreference: "የተመረጡ ቀናት አልተገለጹም።",
+    loadingDoctors: "ሐኪሞችን በመጫን ላይ…",
+    loadingSlots: "ክፍት ቀጠሮዎችን በመፈለግ ላይ…",
+    slotUnavailable: "ይህ ቀጠሮ ከአሁን በኋላ ክፍት አይደለም። እንደገና ይፈልጉ።",
+    requestUnavailable: "ይህ ጥያቄ ከአሁን በኋላ ለግምገማ አይገኝም።",
+  },
+} as const;
+
+type StaffReviewCopy = { [Key in keyof typeof copy.en]: string };
+
+function errorMessage(error: unknown, t: StaffReviewCopy): string {
+  if (!(error instanceof Error)) return t.error;
+  if (error.message.includes("Could not connect")) return t.connection;
+  if (error.message.includes("authentication failed")) return t.auth;
+  return error.message;
+}
+
+function formatDate(value?: string | null, language: Language = "en"): string {
+  if (!value) return language === "am" ? "አልተገለጸም" : "Not specified";
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(language === "am" ? "am-ET" : "en-ET", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+}
+
+function formatTimestamp(value: string, language: Language): string {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(language === "am" ? "am-ET" : "en-ET", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+}
+
+function statusLabel(status: string, t: StaffReviewCopy): string {
+  switch (status) {
+    case "submitted":
+      return t.submittedStatus;
+    case "under_review":
+      return t.underReview;
+    case "needs_information":
+      return t.needsInfo;
+    case "appointment_offered":
+      return t.offered;
+    case "appointment_confirmed":
+      return t.confirmed;
+    case "declined":
+      return t.declined;
+    case "cancelled":
+      return t.cancelled;
+    default:
+      return status.replaceAll("_", " ");
+  }
+}
+
+function isOpenRequest(request: StaffAppointmentRequest): boolean {
+  return !["appointment_confirmed", "declined", "cancelled"].includes(
+    request.status,
+  );
+}
+
+function attendanceStatus(
+  appointment: StaffAttendanceAppointment,
+  t: StaffReviewCopy,
+) {
+  if (appointment.status === "attended_demo") {
+    return { label: t.attended, kind: "attended" };
+  }
+
+  if (appointment.status === "missed_demo") {
+    return { label: t.missed, kind: "missed" };
+  }
+
+  if (appointment.status !== "confirmed_demo") {
+    return { label: t.upcoming, kind: "upcoming" };
+  }
+
+  return { label: t.pending, kind: "pending" };
+}
+
+function appointmentHasPassed(
+  appointment: StaffAttendanceAppointment,
+): boolean {
+  const scheduled = new Date(`${appointment.date}T${appointment.time}:00`);
+
+  return !Number.isNaN(scheduled.getTime()) && scheduled.getTime() <= Date.now();
+}
+
+function isAttendanceEligible(
+  appointment: StaffAttendanceAppointment,
+): boolean {
+  return (
+    appointment.status === "confirmed_demo" &&
+    appointmentHasPassed(appointment)
+  );
+}
+
+function getRequestStartDate(request: StaffAppointmentRequest): string {
+  const today = getLocalDateString();
+  const preferredStart = request.preferredDateStart;
+
+  if (!preferredStart || preferredStart < today) return today;
+  return preferredStart;
+}
+
+function slotKey(slot: AppointmentSlot): string {
+  return `${slot.date}|${slot.time}`;
+}
+
+export default function StaffReview({ language }: Props) {
+  const t = copy[language];
+
+  const [activeTab, setActiveTab] = useState<Tab>("requests");
+
+  const [requests, setRequests] = useState<StaffAppointmentRequest[]>([]);
+  const [requestFilter, setRequestFilter] = useState<"open" | "all">("open");
+  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [requestsLoading, setRequestsLoading] = useState(true);
+
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
+
+  const [slots, setSlots] = useState<AppointmentSlot[]>([]);
+  const [selectedSlotKey, setSelectedSlotKey] = useState("");
+  const [slotsLoading, setSlotsLoading] = useState(false);
+
+  const [declineReason, setDeclineReason] = useState("");
+
+  const [appointments, setAppointments] = useState<
+    StaffAttendanceAppointment[]
+  >([]);
+  const [attendanceFilter, setAttendanceFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
+
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const selectedRequest = useMemo(
+    () => requests.find((item) => item.requestId === selectedRequestId) ?? null,
+    [requests, selectedRequestId],
+  );
+
+  const openRequestCount = useMemo(
+    () => requests.filter(isOpenRequest).length,
+    [requests],
+  );
+
+  const visibleRequests = useMemo(() => {
+    const filtered =
+      requestFilter === "open" ? requests.filter(isOpenRequest) : requests;
+
+    return [...filtered].sort((a, b) =>
+      b.submittedAt.localeCompare(a.submittedAt),
+    );
+  }, [requests, requestFilter]);
+
+  const availableSlots = useMemo(() => {
+    if (!selectedRequest) return [];
+
+    return slots.filter((slot) => {
+      if (!slot.available) return false;
+
+      if (
+        selectedRequest.preferredDateEnd &&
+        slot.date > selectedRequest.preferredDateEnd
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [slots, selectedRequest]);
+
+  const selectedSlot = useMemo(
+    () => availableSlots.find((slot) => slotKey(slot) === selectedSlotKey) ?? null,
+    [availableSlots, selectedSlotKey],
+  );
+
+  const loadRequests = useCallback(async () => {
+    setRequestsLoading(true);
+    setError("");
+
+    try {
+      const result = await listStaffAppointmentRequests();
+      setRequests(result);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setRequestsLoading(false);
+    }
+  }, [t]);
+
+  const loadAppointments = useCallback(async () => {
+    setAttendanceLoading(true);
+    setError("");
+
+    try {
+      const result = await listStaffAppointments();
+      setAppointments(result);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setAttendanceLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadRequests();
+      void loadAppointments();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadRequests, loadAppointments]);
+
+  useEffect(() => {
+    if (visibleRequests.length === 0) {
+      if (selectedRequestId) setSelectedRequestId("");
+      return;
+    }
+
+    const selectedStillVisible = visibleRequests.some(
+      (item) => item.requestId === selectedRequestId,
+    );
+
+    if (!selectedStillVisible) {
+      setSelectedRequestId(visibleRequests[0].requestId);
+    }
+  }, [visibleRequests, selectedRequestId]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDoctors() {
+      if (!selectedRequest || !isOpenRequest(selectedRequest)) {
+        setDoctors([]);
+        setSelectedDoctorId("");
+        setSlots([]);
+        setSelectedSlotKey("");
+        return;
+      }
+
+      setDoctorsLoading(true);
+      setDoctors([]);
+      setSelectedDoctorId("");
+      setSlots([]);
+      setSelectedSlotKey("");
+
+      try {
+        const result = await listStaffDoctors(
+          selectedRequest.department || undefined,
+        );
+
+        if (!active) return;
+
+        setDoctors(result);
+
+        const preferred = selectedRequest.preferredDoctor?.trim().toLowerCase();
+        const preferredDoctor = preferred
+          ? result.find(
+              (doctor) =>
+                doctor.name.trim().toLowerCase() === preferred ||
+                doctor.id.trim().toLowerCase() === preferred,
+            )
+          : undefined;
+
+        setSelectedDoctorId(preferredDoctor?.id ?? result[0]?.id ?? "");
+      } catch (err) {
+        if (active) setError(errorMessage(err, t));
+      } finally {
+        if (active) setDoctorsLoading(false);
+      }
+    }
+
+    void loadDoctors();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRequest, t]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSlots() {
+      if (!selectedRequest || !selectedDoctorId) {
+        setSlots([]);
+        setSelectedSlotKey("");
+        return;
+      }
+
+      setSlotsLoading(true);
+      setSlots([]);
+      setSelectedSlotKey("");
+
+      try {
+        const result = await getStaffAvailability(
+          selectedDoctorId,
+          getRequestStartDate(selectedRequest),
+          30,
+        );
+
+        if (!active) return;
+
+        const filtered = result.filter((slot) => {
+          if (!slot.available) return false;
+
+          if (
+            selectedRequest.preferredDateEnd &&
+            slot.date > selectedRequest.preferredDateEnd
+          ) {
+            return false;
+          }
+
+          return true;
+        });
+
+        setSlots(filtered);
+        setSelectedSlotKey(filtered[0] ? slotKey(filtered[0]) : "");
+      } catch (err) {
+        if (active) setError(errorMessage(err, t));
+      } finally {
+        if (active) setSlotsLoading(false);
+      }
+    }
+
+    void loadSlots();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRequest, selectedDoctorId, t]);
+
+  const visibleAppointments = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return appointments
+      .filter((item) =>
+        ["confirmed_demo", "attended_demo", "missed_demo"].includes(
+          item.status,
+        ),
+      )
+      .filter((item) => {
+        if (attendanceFilter === "pending") {
+          return item.status === "confirmed_demo";
+        }
+
+        if (attendanceFilter === "attended") {
+          return item.status === "attended_demo";
+        }
+
+        if (attendanceFilter === "missed") {
+          return item.status === "missed_demo";
+        }
+
+        return true;
+      })
+      .filter(
+        (item) =>
+          !query ||
+          [
+            item.patientId,
+            item.doctorName,
+            item.department,
+            item.bookingId,
+          ].some((value) => value?.toLowerCase().includes(query)),
+      )
+      .sort((a, b) =>
+        `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`),
+      );
+  }, [appointments, attendanceFilter, search]);
+
+  async function handleApprove() {
+    if (!selectedRequest || !selectedSlot || !selectedDoctorId) return;
+    if (!isOpenRequest(selectedRequest)) {
+      setError(t.requestUnavailable);
+      return;
+    }
+
+    setWorking(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await approveStaffAppointmentRequest(selectedRequest.requestId, {
+        doctorId: selectedDoctorId,
+        date: selectedSlot.date,
+        time: selectedSlot.time,
+      });
+
+      setSuccess(t.requestApproved);
+      setDeclineReason("");
+
+      await Promise.all([loadRequests(), loadAppointments()]);
+    } catch (err) {
+      setError(errorMessage(err, t));
+      if (err instanceof Error && err.message.includes("available")) {
+        setError(t.slotUnavailable);
+      }
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleDecline() {
+    if (!selectedRequest || !isOpenRequest(selectedRequest)) {
+      setError(t.requestUnavailable);
+      return;
+    }
+
+    const reason = declineReason.trim();
+
+    if (reason.length < 10) {
+      setError(t.noReason);
+      return;
+    }
+
+    setWorking(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await declineStaffAppointmentRequest(selectedRequest.requestId, reason);
+
+      setSuccess(t.requestDeclined);
+      setDeclineReason("");
+
+      await loadRequests();
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleAttendance(
+    appointment: StaffAttendanceAppointment,
+    outcome: "attended" | "missed",
+  ) {
+    if (!isAttendanceEligible(appointment)) return;
+
+    const confirmed = window.confirm(
+      outcome === "attended" ? t.confirmAttended : t.confirmMissed,
+    );
+
+    if (!confirmed) return;
+
+    setWorking(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const updated = await recordStaffAttendance(
+        appointment.bookingId,
+        outcome,
+      );
+
+      setAppointments((current) =>
+        current.map((item) =>
+          item.bookingId === updated.bookingId ? updated : item,
+        ),
+      );
+
+      setSuccess(t.attendanceSaved);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  const confirmedCount = appointments.filter(
+    (item) => item.status === "confirmed_demo",
+  ).length;
+
+  const refreshCurrentTab = () => {
+    if (activeTab === "requests") {
+      void loadRequests();
+    } else {
+      void loadAppointments();
+    }
+  };
+
+  return (
+    <section className="appointment-page staff-review-page">
+      <header className="appointment-intro">
+        <div>
+          <span className="appointment-eyebrow">{t.eyebrow}</span>
+          <h1>{t.title}</h1>
+          <p>{t.intro}</p>
+        </div>
+        <div className="appointment-intro-icon" aria-hidden="true">
+          ✓
+        </div>
+      </header>
+
+      <aside className="appointment-demo-notice" role="note">
+        <strong>{t.demo}</strong>
+        <p>{t.demoText}</p>
+      </aside>
+
+      {error && (
+        <div
+          className="appointment-alert appointment-alert--error"
+          role="alert"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError("")}
+            aria-label={t.dismiss}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {success && (
+        <div
+          className="appointment-alert appointment-alert--success"
+          role="status"
+        >
+          <span>{success}</span>
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            aria-label={t.dismiss}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <div className="staff-review-toolbar">
+        <div>
+          <strong>
+            {activeTab === "requests" ? openRequestCount : confirmedCount}
+          </strong>
+          <span>
+            {" "}
+            {activeTab === "requests" ? t.openRequests : t.total}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="appointment-refresh-button"
+          onClick={refreshCurrentTab}
+          disabled={
+            activeTab === "requests"
+              ? requestsLoading
+              : attendanceLoading
+          }
+        >
+          {(activeTab === "requests" ? requestsLoading : attendanceLoading)
+            ? t.refreshing
+            : t.refresh}
+        </button>
+      </div>
+
+      <nav className="staff-workspace-tabs" aria-label={t.title}>
+        <button
+          type="button"
+          className={activeTab === "requests" ? "active" : ""}
+          aria-current={activeTab === "requests" ? "page" : undefined}
+          onClick={() => setActiveTab("requests")}
+        >
+          {t.requests}
+          <span>{openRequestCount}</span>
+        </button>
+
+        <button
+          type="button"
+          className={activeTab === "attendance" ? "active" : ""}
+          aria-current={activeTab === "attendance" ? "page" : undefined}
+          onClick={() => setActiveTab("attendance")}
+        >
+          {t.attendance}
+          <span>{confirmedCount}</span>
+        </button>
+      </nav>
+
+      {activeTab === "requests" && (
+        <section className="staff-requests-workspace">
+          <div className="staff-review-toolbar">
+            <div>
+              <span className="appointment-section-label">{t.queue}</span>
+              <h2>{t.incoming}</h2>
+            </div>
+
+            <select
+              value={requestFilter}
+              onChange={(event) =>
+                setRequestFilter(event.target.value as "open" | "all")
+              }
+              aria-label={t.status}
+            >
+              <option value="open">{t.open}</option>
+              <option value="all">{t.all}</option>
+            </select>
+          </div>
+
+          {requestsLoading ? (
+            <div className="appointment-empty-state">
+              <p>{t.loading}</p>
+            </div>
+          ) : visibleRequests.length === 0 ? (
+            <div className="appointment-empty-state">
+              <h3>
+                {requestFilter === "open" ? t.noOpen : t.noRequests}
+              </h3>
+            </div>
+          ) : (
+            <div className="staff-review-layout">
+              <div className="staff-request-list" aria-label={t.incoming}>
+                {visibleRequests.map((request) => (
+                  <button
+                    type="button"
+                    key={request.requestId}
+                    className={`staff-request-card ${
+                      selectedRequestId === request.requestId ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setSelectedRequestId(request.requestId);
+                      setDeclineReason("");
+                      setError("");
+                      setSuccess("");
+                    }}
+                  >
+                    <span className="staff-request-card-top">
+                      <strong>{request.department || t.notSpecified}</strong>
+                      <span
+                        className={`staff-request-status staff-request-status--${request.status}`}
+                      >
+                        {statusLabel(request.status, t)}
+                      </span>
+                    </span>
+
+                    <span className="staff-request-card-patient">
+                      {request.patientId}
+                    </span>
+
+                    <span className="staff-request-card-reason">
+                      {request.reason}
+                    </span>
+
+                    <span className="staff-request-card-date">
+                      {formatTimestamp(request.submittedAt, language)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="staff-review-detail">
+                {!selectedRequest ? (
+                  <div className="appointment-empty-state">
+                    <h3>{t.select}</h3>
+                    <p>{t.selectText}</p>
+                  </div>
+                ) : (
+                  <article className="appointment-panel staff-request-detail">
+                    <div className="appointment-panel-heading">
+                      <div>
+                        <span className="appointment-section-label">
+                          {t.details}
+                        </span>
+                        <h2>{selectedRequest.department || t.notSpecified}</h2>
+                      </div>
+
+                      <span
+                        className={`staff-request-status staff-request-status--${selectedRequest.status}`}
+                      >
+                        {statusLabel(selectedRequest.status, t)}
+                      </span>
+                    </div>
+
+                    <div className="staff-request-information">
+                      <div>
+                        <span>{t.patient}</span>
+                        <strong>{selectedRequest.patientId}</strong>
+                      </div>
+
+                      <div>
+                        <span>{t.preferredDoctor}</span>
+                        <strong>
+                          {selectedRequest.preferredDoctor || t.noPreference}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>{t.preferredDates}</span>
+                        <strong>
+                          {selectedRequest.preferredDateStart ||
+                          selectedRequest.preferredDateEnd
+                            ? `${formatDate(
+                                selectedRequest.preferredDateStart,
+                                language,
+                              )} – ${formatDate(
+                                selectedRequest.preferredDateEnd,
+                                language,
+                              )}`
+                            : t.noDatePreference}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>{t.submitted}</span>
+                        <strong>
+                          {formatTimestamp(
+                            selectedRequest.submittedAt,
+                            language,
+                          )}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="staff-request-reason">
+                      <h3>{t.reason}</h3>
+                      <p>{selectedRequest.reason}</p>
+                    </div>
+
+                    {selectedRequest.bookingId && (
+                      <div className="staff-request-information">
+                        <div>
+                          <span>{t.booking}</span>
+                          <strong>{selectedRequest.bookingId}</strong>
+                        </div>
+                        <div>
+                          <span>{t.assigned}</span>
+                          <strong>
+                            {selectedRequest.assignedDoctorName ||
+                              t.notSpecified}
+                          </strong>
+                        </div>
+                        <div>
+                          <span>{t.date}</span>
+                          <strong>
+                            {formatDate(
+                              selectedRequest.appointmentDate,
+                              language,
+                            )}
+                          </strong>
+                        </div>
+                        <div>
+                          <span>{t.time}</span>
+                          <strong>
+                            {selectedRequest.appointmentTime ||
+                              t.notSpecified}
+                          </strong>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedRequest.declineReason && (
+                      <div className="staff-request-reason staff-decline-form">
+                        <h3>{t.declineExplanation}</h3>
+                        <p>{selectedRequest.declineReason}</p>
+                      </div>
+                    )}
+
+                    <div className="staff-request-history">
+                      <h3>{t.history}</h3>
+                      {selectedRequest.statusHistory.map((item, index) => (
+                        <div
+                          className="staff-request-history-item"
+                          key={`${item.timestamp}-${index}`}
+                        >
+                          <span
+                            className={`staff-request-history-marker staff-request-status--${item.status}`}
+                          />
+                          <div>
+                            <strong>{statusLabel(item.status, t)}</strong>
+                            <small>
+                              {formatTimestamp(item.timestamp, language)}
+                            </small>
+                            {item.note && <p>{item.note}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {isOpenRequest(selectedRequest) ? (
+                      <div className="staff-request-decision">
+                        <div className="staff-request-approval">
+                          <h3>{t.approveTitle}</h3>
+
+                          <label htmlFor="staff-doctor-select">
+                            {t.doctor}
+                          </label>
+                          <select
+                            id="staff-doctor-select"
+                            value={selectedDoctorId}
+                            onChange={(event) =>
+                              setSelectedDoctorId(event.target.value)
+                            }
+                            disabled={doctorsLoading || working}
+                          >
+                            <option value="">{t.chooseDoctor}</option>
+                            {doctors.map((doctor) => (
+                              <option key={doctor.id} value={doctor.id}>
+                                {doctor.name} — {doctor.department}
+                              </option>
+                            ))}
+                          </select>
+
+                          {doctorsLoading && (
+                            <p className="staff-form-help">{t.loadingDoctors}</p>
+                          )}
+
+                          {!doctorsLoading && doctors.length === 0 && (
+                            <p className="staff-form-help">{t.noDoctors}</p>
+                          )}
+
+                          {selectedDoctorId && (
+                            <>
+                              <label htmlFor="staff-slot-select">
+                                {t.appointmentDate}
+                              </label>
+                              <select
+                                id="staff-slot-select"
+                                value={selectedSlotKey}
+                                onChange={(event) =>
+                                  setSelectedSlotKey(event.target.value)
+                                }
+                                disabled={slotsLoading || working}
+                              >
+                                <option value="">{t.chooseSlot}</option>
+                                {availableSlots.map((slot) => (
+                                  <option
+                                    key={slotKey(slot)}
+                                    value={slotKey(slot)}
+                                  >
+                                    {formatDate(slot.date, language)} —{" "}
+                                    {slot.time}
+                                  </option>
+                                ))}
+                              </select>
+                            </>
+                          )}
+
+                          {slotsLoading && (
+                            <p className="staff-form-help">{t.loadingSlots}</p>
+                          )}
+
+                          {!slotsLoading &&
+                            selectedDoctorId &&
+                            availableSlots.length === 0 && (
+                              <p className="staff-form-help">{t.noSlots}</p>
+                            )}
+
+                          <button
+                            type="button"
+                            className="appointment-primary-button"
+                            onClick={() => void handleApprove()}
+                            disabled={
+                              working ||
+                              doctorsLoading ||
+                              slotsLoading ||
+                              !selectedDoctorId ||
+                              !selectedSlot
+                            }
+                          >
+                            {working ? t.processing : t.approve}
+                          </button>
+                        </div>
+
+                        <div className="staff-decline-form">
+                          <h3>{t.decline}</h3>
+
+                          <label htmlFor="staff-decline-reason">
+                            {t.explanation}
+                          </label>
+                          <textarea
+                            id="staff-decline-reason"
+                            value={declineReason}
+                            onChange={(event) =>
+                              setDeclineReason(event.target.value)
+                            }
+                            placeholder={t.declinePlaceholder}
+                            minLength={10}
+                            maxLength={500}
+                            rows={4}
+                            disabled={working}
+                          />
+
+                          <small className="staff-form-help">
+                            {t.minimum}
+                          </small>
+
+                          <button
+                            type="button"
+                            className="staff-decline-button"
+                            onClick={() => void handleDecline()}
+                            disabled={working || declineReason.trim().length < 10}
+                          >
+                            {working ? t.processing : t.declineButton}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="staff-request-decided">{t.decided}</p>
+                    )}
+                  </article>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === "attendance" && (
+        <section className="appointment-panel staff-attendance-panel">
+          <div className="appointment-panel-heading">
+            <div>
+              <span className="appointment-section-label">
+                {t.attendance}
+              </span>
+              <h2>{t.attendanceTitle}</h2>
+              <p className="appointment-panel-description">
+                {t.attendanceText}
+              </p>
+            </div>
+          </div>
+
+          <div className="staff-attendance-controls">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={t.search}
+              aria-label={t.search}
+            />
+
+            <select
+              value={attendanceFilter}
+              onChange={(event) => setAttendanceFilter(event.target.value)}
+              aria-label={t.statusColumn}
+            >
+              <option value="all">{t.filterAll}</option>
+              <option value="pending">{t.filterPending}</option>
+              <option value="attended">{t.filterAttended}</option>
+              <option value="missed">{t.filterMissed}</option>
+            </select>
+          </div>
+
+          {attendanceLoading ? (
+            <div className="appointment-empty-state">
+              <p>{t.loading}</p>
+            </div>
+          ) : visibleAppointments.length === 0 ? (
+            <div className="appointment-empty-state">
+              <h3>{t.noAppointments}</h3>
+              <p>{t.noAppointmentsText}</p>
+            </div>
+          ) : (
+            <div className="staff-attendance-table-wrap">
+              <table className="staff-attendance-table">
+                <thead>
+                  <tr>
+                    <th>{t.patientColumn}</th>
+                    <th>{t.departmentColumn}</th>
+                    <th>{t.doctorColumn}</th>
+                    <th>{t.schedule}</th>
+                    <th>{t.statusColumn}</th>
+                    <th>{t.actions}</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {visibleAppointments.map((appointment) => {
+                    const status = attendanceStatus(appointment, t);
+                    const eligible = isAttendanceEligible(appointment);
+
+                    return (
+                      <tr key={appointment.bookingId}>
+                        <td>
+                          <strong>{appointment.patientId}</strong>
+                          <small>{appointment.bookingId}</small>
+                        </td>
+
+                        <td>{appointment.department}</td>
+                        <td>{appointment.doctorName}</td>
+
+                        <td>
+                          <strong>
+                            {formatDate(appointment.date, language)}
+                          </strong>
+                          <small>{appointment.time}</small>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`staff-attendance-status staff-attendance-status--${status.kind}`}
+                          >
+                            {status.label}
+                          </span>
+                        </td>
+
+                        <td>
+                          {eligible ? (
+                            <div className="staff-attendance-actions">
+                              <button
+                                type="button"
+                                disabled={working}
+                                onClick={() =>
+                                  void handleAttendance(appointment, "attended")
+                                }
+                              >
+                                {t.markAttended}
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={working}
+                                onClick={() =>
+                                  void handleAttendance(appointment, "missed")
+                                }
+                              >
+                                {t.markMissed}
+                              </button>
+                            </div>
+                          ) : appointment.status === "confirmed_demo" ? (
+                            <span className="staff-attendance-upcoming">
+                              {t.futureNotice}
+                            </span>
+                          ) : (
+                            <span className="staff-attendance-recorded">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+    </section>
+  );
+}

@@ -185,4 +185,6 @@ async def chat(
         "toolsUsed": result.get("toolsUsed", []),
         "safetyFlag": safety_flag,
         "safety": {"requiresAttention": safety_flag},
+        "doctorRecommendations": result.get("doctorRecommendations", []),
+        "appointmentSlots": result.get("appointmentSlots", []),
     }

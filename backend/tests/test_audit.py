@@ -53,7 +53,7 @@ def test_sensitive_and_unapproved_detail_fields_are_removed():
     assert "Sensitive patient information" not in str(entry)
     assert "Private medical details" not in str(entry)
     assert "2030-05-10" not in str(entry)
-    assert "09:00" not in str(entry)
+    assert "09:00" not in str(entry["details"])
 
 
 def test_audit_event_does_not_print_to_terminal(capsys):

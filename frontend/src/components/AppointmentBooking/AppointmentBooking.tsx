@@ -1,4 +1,5 @@
 import type { Language } from "../../types/chat";
+import DoctorAvatar from "../Doctor/DoctorAvatar";
 import EthiopianDatePicker from "./EthiopianDatePicker";
 import { formatEthiopianDate } from "../../utils/ethiopianCalendar";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -121,6 +122,19 @@ interface AppointmentBookingProps {
 export default function AppointmentBooking({ language }: AppointmentBookingProps) {
   const am = language === "am";
   const today = useMemo(() => getLocalDateString(), []);
+  const maxBookingDate = useMemo(() => {
+    const [year, month, day] = today.split("-").map(Number);
+    const nextYear = year + 1;
+    const lastDayOfMonth = new Date(
+      Date.UTC(nextYear, month, 0),
+    ).getUTCDate();
+
+    return [
+      String(nextYear).padStart(4, "0"),
+      String(month).padStart(2, "0"),
+      String(Math.min(day, lastDayOfMonth)).padStart(2, "0"),
+    ].join("-");
+  }, [today]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [department, setDepartment] = useState("");
@@ -504,14 +518,12 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
 
             {selectedDoctor && (
               <div className="booking-doctor-card">
-                <div className="booking-doctor-avatar" aria-hidden="true">
-                  {selectedDoctor.name
-                    .replace(/^Dr\.\s*/i, "")
-                    .split(/\s+/)
-                    .slice(0, 2)
-                    .map((part) => part[0])
-                    .join("")}
-                </div>
+                <DoctorAvatar
+                  key={selectedDoctor.id}
+                  doctorId={selectedDoctor.id}
+                  doctorName={selectedDoctor.name}
+                  className="booking-doctor-avatar"
+                />
                 <div>
                   <strong>{selectedDoctor.name}</strong>
                   <span>{displayDepartment(selectedDoctor.department, am)}</span>
@@ -528,6 +540,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
               <EthiopianDatePicker
                 language={language}
                 minDate={today}
+                maxDate={maxBookingDate}
                 value={date}
                 onChange={(gregorianIsoDate) => {
                   setDate(gregorianIsoDate);

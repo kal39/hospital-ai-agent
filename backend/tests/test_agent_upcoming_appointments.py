@@ -11,7 +11,8 @@ def isolate_agent_state(monkeypatch):
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
     monkeypatch.setattr(
         agent_module,
@@ -33,7 +34,8 @@ def isolate_agent_state(monkeypatch):
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
 
 def run_agent(service, message, language="en"):
@@ -177,3 +179,48 @@ def test_appointment_formatter_is_not_used_without_tool_call(monkeypatch):
 
     assert "Here are your appointments: ***" in result["message"]
     assert result["toolsUsed"] == []
+
+def test_combined_medical_summary_preserves_model_response(monkeypatch):
+    async def fake_generate_with_tools(**kwargs):
+        return {
+            "message": (
+                "MEDICAL SUMMARY BODY\n"
+                "Previous visits: General Medicine consultation.\n"
+                "Laboratory results: Fasting glucose 112 mg/dL.\n"
+                "Current medications: Medication A."
+            ),
+            "toolsUsed": [
+                "getMedicalHistory",
+                "getLatestLabResults",
+                "getMedications",
+                "getUpcomingAppointments",
+            ],
+        }
+
+    monkeypatch.setattr(
+        agent_module.gemini_llm_service,
+        "generate_with_tools",
+        fake_generate_with_tools,
+    )
+    monkeypatch.setattr(
+        agent_module.hospital_service,
+        "get_upcoming_appointments",
+        lambda patient_id: sample_appointments(),
+    )
+
+    result = run_agent(
+        HospitalAgentService(),
+        (
+            "Give me a complete summary of my medical records, "
+            "including previous visits, laboratory results, "
+            "current medications, and upcoming appointments."
+        ),
+    )
+
+    assert "MEDICAL SUMMARY BODY" in result["message"]
+    assert "Previous visits:" in result["message"]
+    assert "Fasting glucose 112 mg/dL" in result["message"]
+    assert "Current medications:" in result["message"]
+    assert "November 20, 2026" in result["message"]
+    assert "Dr. Hana Tesfaye" in result["message"]
+    assert "Synthetic-data notice:" in result["message"]

@@ -417,3 +417,84 @@ async def record_staff_attendance(
     }
 
 
+
+
+# ---------------------------------------------------------------------------
+# Staff-only directory and availability endpoints.
+# These reuse the same synthetic scheduling data as patient booking.
+# ---------------------------------------------------------------------------
+
+@router.get("/api/staff/doctors")
+async def list_staff_doctors(
+    department: str | None = Query(default=None, max_length=100),
+    _staff_id: str = Depends(get_current_demo_staff),
+) -> dict[str, Any]:
+    """List synthetic doctors for authenticated staff."""
+    normalized_department = department.strip().casefold() if department else ""
+
+    doctors = [
+        {
+            "id": doctor["id"],
+            "name": doctor["name"],
+            "department": doctor["department"],
+            "specialties": doctor["specialties"],
+            "location": doctor["location"],
+        }
+        for doctor in DOCTORS
+        if (
+            not normalized_department
+            or doctor["department"].casefold() == normalized_department
+        )
+    ]
+
+    return {
+        "doctors": doctors,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+    }
+
+
+@router.get("/api/staff/availability")
+async def list_staff_availability(
+    doctorId: str = Query(min_length=1, max_length=64),
+    startDate: date = Query(),
+    days: int = Query(default=14, ge=1, le=30),
+    _staff_id: str = Depends(get_current_demo_staff),
+) -> dict[str, Any]:
+    """List synthetic appointment slots for authenticated staff."""
+    doctor = _doctor_or_404(doctorId)
+    start = _require_future_date(startDate)
+
+    slots = generate_synthetic_slots(
+        doctor_id=doctorId,
+        start_date=date.fromisoformat(start),
+        days=days,
+    )
+
+    for slot in slots:
+        capacity = demo_scheduler.get_slot_status(
+            doctorId,
+            slot["date"],
+            slot["time"],
+        )
+        slot.update(
+            {
+                "doctorName": doctor["name"],
+                "location": doctor["location"],
+                "slotCapacity": capacity["slotCapacity"],
+                "slotBookedCount": capacity["slotBookedCount"],
+                "slotRemainingCapacity": capacity["slotRemainingCapacity"],
+                "dailyCapacity": capacity["dailyCapacity"],
+                "dailyBookedCount": capacity["dailyBookedCount"],
+                "dailyRemainingCapacity": capacity["dailyRemainingCapacity"],
+                "available": capacity["available"],
+                "dataNotice": DEMO_NOTICE,
+            }
+        )
+
+    return {
+        "slots": slots,
+        "dataSource": DATA_SOURCE,
+        "dataNotice": DEMO_NOTICE,
+        "notice": "These are fictional demo slots, not live hospital availability.",
+    }

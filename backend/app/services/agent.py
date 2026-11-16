@@ -2,16 +2,24 @@
 """Patient-isolated hospital AI agent with consent-first appointment support."""
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
+from uuid import uuid4
 
+from app.data.scheduling import DOCTORS
 from app.services.audit import record_audit_event
 from app.services.glossary import get_glossary_context
 from app.services.llm import gemini_llm_service
 from app.services.hospital import hospital_service
-from app.services.demo_scheduler import BookingConflictError, BookingNotFoundError
+from app.services.demo_scheduler import demo_scheduler
+from app.services.appointment_requests import (
+    AppointmentRequestConflict,
+    AppointmentRequestNotFound,
+    get_appointment_request_service,
+)
 from app.services.privacy import requests_another_patient_data
 from app.services.safety import evaluate_safety
+from app.services.symptom_matching import suggest_department, suggest_department_or_general_medicine
 
 MAX_HISTORY_MESSAGES = 20
 HISTORY_MESSAGES_SENT_TO_LLM = 8
@@ -22,8 +30,11 @@ DetailLevel = Literal["short", "normal", "detailed"]
 # Use a persistent, appropriately secured store for production.
 _conversations: dict[str, list[dict[str, str]]] = {}
 _pending_appointment_requests: dict[str, str] = {}
+_pending_appointment_departments: dict[str, str] = {}
+_pending_appointment_suggested_departments: dict[str, str] = {}
 _pending_appointment_selections: dict[str, dict[str, Any]] = {}
-_completed_demo_bookings: dict[str, dict[str, Any]] = {}
+_completed_appointment_requests: dict[str, dict[str, Any]] = {}
+_pending_appointment_cancellations: dict[str, dict[str, Any]] = {}
 
 SYNTHETIC_RECORD_TOOL_NAMES = {
     "getpatientprofile",
@@ -142,11 +153,20 @@ APPOINTMENT SUPPORT: CONSENT IS REQUIRED
   exploring appointment options. Do not search for slots before consent.
 - If the patient asks directly to find or compare appointment availability
   before consent has been obtained, ask permission first.
-- Consent to explore options is NOT consent to book, reschedule, or cancel.
-- Never claim that an appointment was booked, reserved, changed, or cancelled.
-- Actual booking or changes require an authorized hospital API and separate
-  explicit confirmation for the specific action. No such booking operation
-  is available to you in this prototype.
+- Consent to explore options is NOT consent to submit an appointment request.
+- Selecting an option is NOT consent to submit an appointment request.
+- Before submitting a request, obtain a separate, clear YES from the patient
+  after showing the exact preferred doctor, department, and date.
+- After explicit confirmation, use the authorized appointment-request service
+  to submit the request for staff review. Do not describe this as booking an
+  appointment or reserving a slot.
+- A submitted request is pending staff review; it is NOT a confirmed
+  appointment. The preferred time is reference information only and is not
+  reserved.
+- Never claim that an appointment was booked, reserved, confirmed, changed,
+  or cancelled.
+- This prototype does not perform real appointment booking, rescheduling,
+  or cancellation.
 - When the patient agrees to explore options, prioritize their assigned
   doctor when appropriate, then explain suitable alternatives if available.
 - Ask about preferences when needed; do not assume which slot the patient
@@ -242,6 +262,33 @@ UPCOMING APPOINTMENT RETRIEVAL
 - Use getMedicalHistory for recorded medical history.
 - Use getPatientProfile for profile information and recorded allergies.
 - Do not claim to have checked a record unless the relevant tool returned it.
+COMBINED MEDICAL RECORD SUMMARIES
+- When a patient requests a broad or complete summary of their medical
+  records, retrieve the relevant available record categories rather than
+  relying on only one category.
+- For previous visits and recorded medical events, use getMedicalHistory.
+- For latest laboratory findings, use getLatestLabResults.
+- Use compareLabResults when laboratory trends or changes are relevant.
+- Use getMedications for currently recorded medications and instructions.
+- Use getPatientProfile when profile information or recorded allergies
+  are relevant to the request.
+- Use getUpcomingAppointments when upcoming appointments are requested
+  or are relevant to the summary.
+- Retrieve only the categories relevant to the patient's actual question.
+  Do not call unrelated tools merely to make a response appear comprehensive.
+- When multiple categories are retrieved, organize dated events in
+  chronological order where useful.
+- Clearly distinguish previous medical events, current recorded
+  medications, laboratory findings, and upcoming appointments.
+- Do not assume that a medication was started on the date of a visit or
+  laboratory test. If a record has no date, say that its date is not
+  available rather than inventing one.
+- Include only information returned by the authorized tools. If a category
+  has no available records, explain that limitation instead of filling
+  the gap with assumptions.
+- Preserve exact laboratory values, units, reference ranges, and dates.
+- A combined summary is an explanation of available records, not a diagnosis
+  or a recommendation to change treatment.
 
 LABORATORY RESULTS
 - Preserve recorded values, units, reference ranges, and dates accurately.
@@ -263,7 +310,7 @@ RESPONSE QUALITY
 
 
 
-def _is_explicit_booking_confirmation(message: str) -> bool:
+def _is_explicit_request_confirmation(message: str) -> bool:
     """Recognize a clear confirmation in an already-pending booking flow."""
     if _consent_decision(message) == "yes":
         return True
@@ -280,113 +327,196 @@ def _is_explicit_booking_confirmation(message: str) -> bool:
     )
 
 
-def _get_available_demo_options(patient_id: str) -> list[dict[str, Any]]:
-    """Build a small list of available fictional slots, preferring the assigned doctor."""
-    directory = hospital_service.find_appropriate_doctors(patient_id)
+def _is_explicit_cancellation_confirmation(message: str) -> bool:
+    """Require a direct confirmation before cancelling an appointment request."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+    text = re.sub(r"[.!?,;:]+$", "", text)
+
+    return bool(
+        re.fullmatch(
+            r"(?:yes|yes cancel|yes cancel it|confirm|"
+            r"confirm cancellation|confirm the cancellation|"
+            r"i confirm|i confirm the cancellation|"
+            r"cancel it|cancel this request)",
+            text,
+        )
+    )
+
+
+def _extract_requested_department(message: str) -> str | None:
+    """Return an exact known directory department mentioned by the patient."""
+    text = message.casefold()
+
+    departments = sorted(
+        {
+            doctor["department"]
+            for doctor in DOCTORS
+            if doctor.get("department")
+        },
+        key=len,
+        reverse=True,
+    )
+
+    for department in departments:
+        pattern = rf"(?<!\w){re.escape(department.casefold())}(?!\w)"
+        if re.search(pattern, text):
+            return department
+
+    return None
+
+
+def _get_demo_doctors(
+    patient_id: str,
+    department: str = "",
+) -> list[dict[str, Any]]:
+    """
+    Return trusted fictional doctor-directory records.
+
+    No appointment slots are retrieved at this stage.
+    Doctor details come exclusively from the patient-scoped directory.
+    """
+    directory = hospital_service.find_appropriate_doctors(
+        patient_id,
+        department=department,
+    )
     doctors = directory.get("doctors", [])
 
-    assigned_options: list[dict[str, Any]] = []
-    alternative_options: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     for doctor in doctors:
-        result = hospital_service.get_available_appointment_slots(
-            patient_id=patient_id,
-            doctor_id=doctor["id"],
-            days=14,
-        )
+        results.append({
+            "id": doctor["id"],
+            "name": doctor["name"],
+            "department": doctor.get("department", ""),
+            "specialties": doctor.get("specialties", []),
+            "location": doctor.get("location", ""),
+            "isAssignedDoctor": doctor.get("isAssignedDoctor", False),
+            "dataSource": "synthetic_demo",
+            "dataNotice": directory.get(
+                "dataNotice",
+                "Fictional demonstration doctor directory.",
+            ),
+        })
 
-        doctor_slots = [
-            slot for slot in result.get("slots", [])
-            if slot.get("available") is True
-        ]
-        doctor_slots.sort(key=lambda slot: (slot["date"], slot["time"]))
+    return results
 
-        target = (
-            assigned_options
-            if doctor.get("isAssignedDoctor")
-            else alternative_options
-        )
 
-        for slot in doctor_slots:
-            target.append({
-                "doctorId": doctor["id"],
-                "doctorName": doctor["name"],
-                "department": doctor.get("department", ""),
-                "location": slot.get("location", doctor.get("location", "")),
-                "date": slot["date"],
-                "time": slot["time"],
-                "slotRemainingCapacity": slot.get("slotRemainingCapacity", 0),
-                "dailyRemainingCapacity": slot.get("dailyRemainingCapacity", 0),
-                "dataSource": "synthetic_demo",
-            })
+def _get_available_slots_for_doctor(
+    patient_id: str,
+    doctor_id: str,
+) -> list[dict[str, Any]]:
+    """
+    Retrieve available fictional slots for one selected directory doctor.
+    """
+    directory = hospital_service.find_appropriate_doctors(patient_id)
 
-    # Show up to four assigned-doctor options first, then alternatives.
-    options = assigned_options[:4] + alternative_options[:2]
+    offered_doctor = next(
+        (
+            doctor
+            for doctor in directory.get("doctors", [])
+            if doctor.get("id") == doctor_id
+        ),
+        None,
+    )
 
-    # If one category has too few slots, fill the list with other available
-    # options without repeating any doctor/date/time combination.
-    seen = {
-        (item["doctorId"], item["date"], item["time"])
-        for item in options
+    if offered_doctor is None:
+        raise ValueError("Selected doctor is not in the patient directory.")
+
+    result = hospital_service.get_available_appointment_slots(
+        patient_id=patient_id,
+        doctor_id=doctor_id,
+        days=30,
+    )
+
+    slots: list[dict[str, Any]] = []
+
+    for slot in result.get("slots", []):
+        if slot.get("available") is not True:
+            continue
+
+        slots.append({
+            "doctorId": offered_doctor["id"],
+            "doctorName": offered_doctor["name"],
+            "department": offered_doctor.get("department", ""),
+            "location": slot.get(
+                "location",
+                offered_doctor.get("location", ""),
+            ),
+            "date": slot["date"],
+            "time": slot["time"],
+            "slotRemainingCapacity": slot.get(
+                "slotRemainingCapacity", 0
+            ),
+            "dailyRemainingCapacity": slot.get(
+                "dailyRemainingCapacity", 0
+            ),
+            "dataSource": "synthetic_demo",
+        })
+
+    slots.sort(key=lambda item: (item["date"], item["time"]))
+
+    return slots
+
+
+def _format_demo_doctors(doctors: list[dict[str, Any]]) -> str:
+    """Provide concise guidance when interactive doctor cards are displayed."""
+    count = len(doctors)
+    doctor_label = "doctor" if count == 1 else "doctors"
+
+    departments = {
+        doctor.get("department")
+        for doctor in doctors
+        if doctor.get("department")
     }
-    for item in assigned_options[4:] + alternative_options[2:]:
-        identity = (item["doctorId"], item["date"], item["time"])
-        if identity not in seen:
-            options.append(item)
-            seen.add(identity)
-        if len(options) >= 6:
-            break
 
-    return options[:6]
+    if len(departments) == 1:
+        directory_description = (
+            f" in the {next(iter(departments))} directory"
+        )
+    else:
+        directory_description = " in the hospital demonstration directory"
+
+    return (
+        f"I found {count} {doctor_label}{directory_description}. "
+        "You can view their profiles or select a doctor below "
+        "to explore available demonstration appointment times. "
+        "You can also reply with an option number. "
+        "No appointment request has been submitted."
+    )
 
 
-def _format_demo_options(options: list[dict[str, Any]]) -> str:
-    """Format synthetic appointment options without assuming optional fields exist."""
-    lines = [
-        "These are fictional local demonstration slots, not live hospital availability.",
-        "No appointment has been booked. Reply with an option number to select a slot:",
-        "",
-    ]
-
-    for index, slot in enumerate(options, start=1):
-        doctor_name = slot.get("doctorName", "Doctor name unavailable")
-        department = slot.get("department", "Department not specified")
-        appointment_date = slot.get("date", "Date unavailable")
-        appointment_time = slot.get("time", "Time unavailable")
-
-        line = (
-            f"{index}. {doctor_name} - {department} - "
-            f"{appointment_date} at {appointment_time}"
+def _format_demo_slots(slots: list[dict[str, Any]]) -> str:
+    """Provide concise instructions for the selected fictional demo doctor."""
+    if not slots:
+        return (
+            "I couldn't find an available demonstration time for this doctor "
+            "in the next 30 days. No appointment request has been submitted. "
+            "You can choose another doctor or explore again later."
         )
 
-        location = slot.get("location")
-        if location:
-            line += f" - {location}"
+    first = slots[0]
+    available_dates = {slot["date"] for slot in slots}
 
-        slot_remaining = slot.get("slotRemainingCapacity")
-        daily_remaining = slot.get("dailyRemainingCapacity")
-
-        if slot_remaining is not None:
-            line += f" - {slot_remaining} place(s) remaining in this demo slot"
-
-        if daily_remaining is not None:
-            line += f" - {daily_remaining} place(s) remaining that day"
-
-        lines.append(line)
-
-    lines.extend([
-        "",
-        "Choose a number. I will ask you to confirm the exact selection before creating a demo booking.",
-        "This is a fictional demonstration only, not a real hospital appointment.",
-    ])
-
-    return "\n".join(lines)
+    return (
+        "Here are the available demonstration appointment times for "
+        f"{first['doctorName']} in the {first['department']} department.\n"
+        f"Clinic location: {first.get('location') or 'Location not specified'}.\n\n"
+        f"There are {len(slots)} demonstration time options across "
+        f"{len(available_dates)} available dates. Choose a date from the "
+        "calendar, then select an available time. You can also reply with "
+        "the option number shown on a time card.\n\n"
+        "No appointment request has been submitted. Selecting a time does "
+        "not reserve it. I will ask for your explicit confirmation before "
+        "submitting a request for staff review."
+    )
 
 def _is_appointment_workflow_request(message: str) -> bool:
     """Identify requests to search for or manage appointment options."""
     text = message.casefold()
 
     patterns = (
+        r"\b(?:i\s+)?(?:need|want|would like)\s+(?:an?\s+)?"
+        r"(?:appointment|visit)\b",
         r"\b(?:book|booking|schedule|scheduling|reschedule|"
         r"cancel|change|arrange|find|search for|look for)\b"
         r".{0,100}\b(?:appointment|appointments|visit|visits|"
@@ -400,6 +530,8 @@ def _is_appointment_workflow_request(message: str) -> bool:
         r".{0,80}\b(?:doctor|appointment|visit|slot)\b",
         r"\b(?:see a doctor|find a doctor|doctor availability|"
         r"queue position|people ahead|waiting time|wait time)\b",
+        r"\b(?:appropriate|suitable|right)\s+department\b"
+        r".{0,100}\b(?:available\s+)?(?:doctors?|physicians?)\b",
     )
     return any(re.search(pattern, text, flags=re.DOTALL) for pattern in patterns)
 
@@ -419,12 +551,49 @@ def _is_appointment_action_request(message: str) -> bool:
     return any(re.search(pattern, text, flags=re.DOTALL) for pattern in patterns)
 
 
+
+def _is_appointment_request_status_query(message: str) -> bool:
+    """Identify patient requests to inspect appointment-request status."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+
+    patterns = (
+        r"\b(?:status|progress|update)\b.{0,80}\b"
+        r"(?:appointment request|appointment requests|request|requests)\b",
+        r"\b(?:appointment request|appointment requests|my requests)\b"
+        r".{0,80}\b(?:status|progress|update|show|list|check)\b",
+        r"\b(?:show|list|check)\b.{0,60}\b"
+        r"(?:my appointment requests|my requests)\b",
+        r"\bwhere\b.{0,50}\bmy appointment request\b",
+    )
+    return any(re.search(pattern, text, flags=re.DOTALL) for pattern in patterns)
+
+
+def _is_appointment_request_cancellation(message: str) -> bool:
+    """Match cancellation of a request, not cancellation of a confirmed visit."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+
+    patterns = (
+        r"\b(?:cancel|withdraw|remove)\b.{0,80}\b"
+        r"(?:my\s+)?(?:appointment\s+)?requests?\b",
+        r"\b(?:my\s+)?(?:appointment\s+)?requests?\b.{0,80}\b"
+        r"(?:cancel|withdraw|remove)\b",
+        r"\bcancel\s+(?:the\s+)?request\b",
+    )
+    return any(re.search(pattern, text, flags=re.DOTALL) for pattern in patterns)
+
+
+def _extract_appointment_request_id(message: str) -> str | None:
+    """Extract only a syntactically valid synthetic request reference."""
+    match = re.search(r"\bdemo-req-[a-f0-9]{12}\b", message, flags=re.IGNORECASE)
+    return match.group(0).lower() if match else None
+
+
 def _appointment_action_unavailable_message(language: str) -> str:
     if language == "am":
         return (
-            "በዚህ ሙከራዊ ስርዓት ቀጠሮ መያዝ፣ መቀየር "
-            "ወይም መሰረዝ አይቻልም። እባክዎ ከሆስፒታሉ "
-            "ጋር በቀጥታ ያረጋግጡ።"
+            "Ã¡â€°Â Ã¡â€¹Å¡Ã¡Ë†â€¦ Ã¡Ë†â„¢Ã¡Å Â¨Ã¡Ë†Â«Ã¡â€¹Å  Ã¡Ë†ÂµÃ¡Ë†Â­Ã¡â€¹â€œÃ¡â€°Âµ Ã¡â€°â‚¬Ã¡Å’Â Ã¡Ë†Â® Ã¡Ë†ËœÃ¡â€¹Â«Ã¡â€¹ÂÃ¡ÂÂ£ Ã¡Ë†ËœÃ¡â€°â‚¬Ã¡â€¹Â¨Ã¡Ë†Â­ "
+            "Ã¡â€¹Ë†Ã¡â€¹Â­Ã¡Ë†Â Ã¡Ë†ËœÃ¡Ë†Â°Ã¡Ë†Â¨Ã¡â€¹Â Ã¡Å Â Ã¡â€¹Â­Ã¡â€°Â»Ã¡Ë†ÂÃ¡Ë†ÂÃ¡ÂÂ¢ Ã¡Å Â¥Ã¡â€°Â£Ã¡Å Â­Ã¡â€¹Å½ Ã¡Å Â¨Ã¡Ë†â€ Ã¡Ë†ÂµÃ¡Ââ€™Ã¡â€°Â³Ã¡Ë†â€° "
+            "Ã¡Å’â€¹Ã¡Ë†Â­ Ã¡â€°Â Ã¡â€°â‚¬Ã¡Å’Â¥Ã¡â€°Â³ Ã¡â€¹Â«Ã¡Ë†Â¨Ã¡Å’â€¹Ã¡Å’ÂÃ¡Å’Â¡Ã¡ÂÂ¢"
         )
 
     return (
@@ -457,6 +626,30 @@ def _consent_decision(message: str) -> str:
         return "yes"
 
     return "unclear"
+
+
+def _is_department_suggestion_acceptance(message: str) -> bool:
+    """Recognize a positive reply to a suggested department filter.
+
+    This is deliberately narrower than appointment-search consent. It is
+    used only while a tentative department suggestion is awaiting a reply.
+    """
+    if _consent_decision(message) == "yes":
+        return True
+
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+    text = re.sub(r"[.!?,;:]+$", "", text).strip()
+
+    return bool(
+        re.search(
+            r"^(?:yes|yeah|yep|sure|okay|ok)\b.*"
+            r"\b(?:help me|assist me)\b.*"
+            r"\b(?:find|look for|search for|locate)\b.*"
+            r"\b(?:available\s+)?(?:doctor|doctors|physician|physicians)\b",
+            text,
+        )
+    )
+
 
 def _consent_question(language: str) -> str:
     if language == "am":
@@ -536,14 +729,43 @@ def _is_consent_information_question(message: str) -> bool:
 
 
 def _assistant_asked_for_appointment_consent(message: str) -> bool:
-    """Detect an appointment consent question in either supported language."""
-    text = message.casefold()
-    return (
-        "would you like me to help explore appointment options" in text
-        or "would you like help arranging an appointment" in text
-        or "would you like me to help arrange an appointment" in text
+    """Detect permission questions for read-only appointment discovery."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+
+    # Inspect only the question, not a later safety disclaimer.
+    question = text.split("?", 1)[0]
+
+    permission_pattern = (
+        r"\b(?:would you like(?: me to)?|would like|may i|can i|should i|shall i)\b"
+    )
+
+    search_action_pattern = (
+        r"\b(?:check|search|find|look for|explore|identify|show)\b"
+        r"|\bhelp\s+(?:me\s+to\s+)?"
+        r"(?:explore|exploring|find|search|check|checking|arrange|arranging|finding|looking)\b"
+        r"|\bhelp(?:\s+you)?\s+(?:finding|looking|arranging)\b"
+        r"|\bhelp(?:\s+you)?\s+arrange\b"
+    )
+
+    appointment_target_pattern = (
+        r"\b(?:available\s+)?doctors?\b"
+        r"|\bappointments?\b"
+        r"|\bappointment\s+(?:options?|availability|slots?|times?)\b"
+        r"|\bavailable\s+appointments?\b"
+        r"|\bappropriate department\b"
+    )
+
+    english_consent_question = (
+        re.search(permission_pattern, question)
+        and re.search(search_action_pattern, question)
+        and re.search(appointment_target_pattern, question)
+    )
+
+    return bool(
+        english_consent_question
         or ("የቀጠሮ አማራጮችን" in text and "አዎ" in text and "አይ" in text)
     )
+
 
 def _uses_synthetic_record_tool(tools_used: Any) -> bool:
     """Return True when a patient-record or synthetic scheduling tool was used."""
@@ -585,11 +807,11 @@ def _add_synthetic_data_disclosure(
 
     if language == "am":
         notice = (
-            "ማሳሰቢያ፦ ይህ መረጃ ከሰው ሰራሽ የሙከራ "
-            "መዝገቦች የተገኘ ነው፤ ከቀጥታ የሆስፒታል "
-            "ስርዓት የተረጋገጠ መረጃ አይደለም። "
-            "ለሕክምና ውሳኔ ከመጠቀምዎ በፊት "
-            "ከጤና ባለሙያዎ ጋር ያረጋግጡ።"
+            "Ã¡Ë†â€ºÃ¡Ë†Â³Ã¡Ë†Â°Ã¡â€°Â¢Ã¡â€¹Â«Ã¡ÂÂ¦ Ã¡â€¹Â­Ã¡Ë†â€¦ Ã¡Ë†ËœÃ¡Ë†Â¨Ã¡Å’Æ’ Ã¡Å Â¨Ã¡Ë†Â°Ã¡â€¹Â Ã¡Ë†Â°Ã¡Ë†Â«Ã¡Ë†Â½ Ã¡â€¹Â¨Ã¡Ë†â„¢Ã¡Å Â¨Ã¡Ë†Â« "
+            "Ã¡Ë†ËœÃ¡â€¹ÂÃ¡Å’Ë†Ã¡â€°Â¦Ã¡â€°Â½ Ã¡â€¹Â¨Ã¡â€°Â°Ã¡Å’Ë†Ã¡Å Ëœ Ã¡Å ÂÃ¡â€¹ÂÃ¡ÂÂ¤ Ã¡Å Â¨Ã¡â€°â‚¬Ã¡Å’Â¥Ã¡â€°Â³ Ã¡â€¹Â¨Ã¡Ë†â€ Ã¡Ë†ÂµÃ¡Ââ€™Ã¡â€°Â³Ã¡Ë†Â "
+            "Ã¡Ë†ÂµÃ¡Ë†Â­Ã¡â€¹â€œÃ¡â€°Âµ Ã¡â€¹Â¨Ã¡â€°Â°Ã¡Ë†Â¨Ã¡Å’â€¹Ã¡Å’Ë†Ã¡Å’Â  Ã¡Ë†ËœÃ¡Ë†Â¨Ã¡Å’Æ’ Ã¡Å Â Ã¡â€¹Â­Ã¡â€¹Â°Ã¡Ë†Ë†Ã¡Ë†ÂÃ¡ÂÂ¢ "
+            "Ã¡Ë†Ë†Ã¡Ë†â€¢Ã¡Å Â­Ã¡Ë†ÂÃ¡Å â€œ Ã¡â€¹ÂÃ¡Ë†Â³Ã¡Å â€ Ã¡Å Â¨Ã¡Ë†ËœÃ¡Å’Â Ã¡â€°â‚¬Ã¡Ë†ÂÃ¡â€¹Å½ Ã¡â€°Â Ã¡ÂÅ Ã¡â€°Âµ "
+            "Ã¡Å Â¨Ã¡Å’Â¤Ã¡Å â€œ Ã¡â€°Â£Ã¡Ë†Ë†Ã¡Ë†â„¢Ã¡â€¹Â«Ã¡â€¹Å½ Ã¡Å’â€¹Ã¡Ë†Â­ Ã¡â€¹Â«Ã¡Ë†Â¨Ã¡Å’â€¹Ã¡Å’ÂÃ¡Å’Â¡Ã¡ÂÂ¢"
         )
     else:
         notice = (
@@ -623,9 +845,9 @@ def _add_synthetic_data_disclosure(
             "blood pressure",
             "pulse",
             "temperature",
-            "ሄሞግሎቢን",
-            "ውጤት",
-            "ውጤቶች",
+            "Ã¡Ë†â€žÃ¡Ë†Å¾Ã¡Å’ÂÃ¡Ë†Å½Ã¡â€°Â¢Ã¡Å â€¢",
+            "Ã¡â€¹ÂÃ¡Å’Â¤Ã¡â€°Âµ",
+            "Ã¡â€¹ÂÃ¡Å’Â¤Ã¡â€°Â¶Ã¡â€°Â½",
         )
         has_clinical_content = any(
             indicator in lower for indicator in clinical_indicators
@@ -655,7 +877,7 @@ def _add_synthetic_data_disclosure(
         if "synthetic demo" in lower:
             return True
 
-        if paragraph.startswith("ማሳሰቢያ፦"):
+        if paragraph.startswith("Ã¡Ë†â€ºÃ¡Ë†Â³Ã¡Ë†Â°Ã¡â€°Â¢Ã¡â€¹Â«Ã¡ÂÂ¦"):
             return True
 
         return False
@@ -841,9 +1063,486 @@ class HospitalAgentService:
                 "safetyFlag": True,
             }
 
+        safety_advisory = safety.get("message")
+
+        # Patient request management is handled directly by the trusted
+        # request service. The authenticated patient identity is always used.
+        request_service = None
+
+        if _is_appointment_request_status_query(message):
+            _pending_appointment_cancellations.pop(key, None)
+            _pending_appointment_requests.pop(key, None)
+            _pending_appointment_departments.pop(key, None)
+            _pending_appointment_suggested_departments.pop(key, None)
+            _pending_appointment_selections.pop(key, None)
+
+            request_id = _extract_appointment_request_id(message)
+            request_service_error = False
+
+            try:
+                request_service = get_appointment_request_service(demo_scheduler)
+
+                if request_id:
+                    requests = [
+                        request_service.get_patient_request(
+                            patient_id=patient_id,
+                            request_id=request_id,
+                        )
+                    ]
+                else:
+                    requests = request_service.list_patient_requests(patient_id)
+
+            except AppointmentRequestNotFound:
+                requests = []
+            except Exception:
+                requests = []
+                request_service_error = True
+
+            if request_service_error:
+                response_message = (
+                    "I couldn't retrieve your appointment request status "
+                    "because of a temporary system problem. Please try again later."
+                )
+            elif not requests:
+                response_message = (
+                    "I couldn't find an appointment request matching that "
+                    "reference in your account. Please check the reference "
+                    "or ask me to show your appointment requests."
+                )
+            else:
+                lines = [
+                    "Your appointment request status (synthetic demonstration data):"
+                ]
+                for item in requests:
+                    lines.extend([
+                        "",
+                        f"Reference: {item.get('requestId', 'Unavailable')}",
+                        f"Status: {str(item.get('status', 'unknown')).replace('_', ' ').title()}",
+                        f"Department: {item.get('department') or 'Not specified'}",
+                        f"Preferred doctor: {item.get('preferredDoctor') or 'Not specified'}",
+                        f"Preferred date: {item.get('preferredDateStart') or 'Not specified'}",
+                    ])
+
+                lines.extend([
+                    "",
+                    "A submitted request is not a confirmed appointment. "
+                    "Hospital staff must review it and confirm an appointment separately.",
+                    "These records are from the local synthetic demonstration, "
+                    "not the live hospital system.",
+                ])
+                response_message = "\n".join(lines)
+
+            _store_turn(key, message, response_message)
+            try:
+                record_audit_event({
+                    "patientId": patient_id,
+                    "conversationId": conversation_id,
+                    "event": "PATIENT_APPOINTMENT_REQUEST_STATUS_VIEWED",
+                    "details": {
+                        "requestCount": len(requests),
+                        "dataSource": "synthetic_demo",
+                    },
+                })
+            except Exception:
+                pass
+
+            return {
+                "message": response_message,
+                "toolsUsed": [],
+                "safetyFlag": False,
+            }
+
+        pending_cancellation = _pending_appointment_cancellations.get(key)
+
+        if pending_cancellation is not None:
+            cancellation_status = pending_cancellation.get("status")
+
+            if cancellation_status == "awaiting_selection":
+                selection = re.fullmatch(r"\s*(\d+)\s*", message)
+                selected_request = None
+
+                if selection:
+                    index = int(selection.group(1)) - 1
+                    choices = pending_cancellation.get("requests", [])
+                    if 0 <= index < len(choices):
+                        selected_request = choices[index]
+                else:
+                    supplied_id = _extract_appointment_request_id(message)
+                    if supplied_id:
+                        selected_request = next(
+                            (
+                                item for item in pending_cancellation.get(
+                                    "requests", []
+                                )
+                                if item.get("requestId") == supplied_id
+                            ),
+                            None,
+                        )
+
+                if _consent_decision(message) == "no":
+                    _pending_appointment_cancellations.pop(key, None)
+                    response_message = (
+                        "Okay. I stopped the cancellation process. "
+                        "Your appointment request has not been changed."
+                    )
+                elif selected_request is None:
+                    response_message = (
+                        "Please select one of the listed request numbers or "
+                        "provide its exact reference. Reply NO to stop. "
+                        "Nothing has been cancelled."
+                    )
+                else:
+                    try:
+                        # Re-fetch using the authenticated patient identity.
+                        verified_request = (
+                            get_appointment_request_service(
+                                demo_scheduler
+                            ).get_patient_request(
+                                patient_id=patient_id,
+                                request_id=selected_request["requestId"],
+                            )
+                        )
+                    except AppointmentRequestNotFound:
+                        _pending_appointment_cancellations.pop(key, None)
+                        response_message = (
+                            "I couldn't verify that request in your account. "
+                            "No cancellation was made."
+                        )
+                    except Exception:
+                        _pending_appointment_cancellations.pop(key, None)
+                        response_message = (
+                            "I couldn't verify your appointment request because "
+                            "of a temporary system problem. No cancellation was "
+                            "made. Please try again later."
+                        )
+                    else:
+                        _pending_appointment_cancellations[key] = {
+                            "status": "awaiting_confirmation",
+                            "request_id": verified_request["requestId"],
+                        }
+                        response_message = (
+                            "Please confirm that you want to cancel this "
+                            "appointment request:\n"
+                            f"Reference: {verified_request['requestId']}\n"
+                            f"Department: {verified_request.get('department') or 'Not specified'}\n"
+                            f"Preferred doctor: {verified_request.get('preferredDoctor') or 'Not specified'}\n"
+                            f"Preferred date: {verified_request.get('preferredDateStart') or 'Not specified'}\n"
+                            f"Current status: {verified_request.get('status', 'unknown')}\n\n"
+                            "Reply YES to cancel this request, or NO to keep it. "
+                            "This does not cancel a confirmed appointment. "
+                            "No change has been made yet."
+                        )
+
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": False,
+                }
+
+            if cancellation_status == "awaiting_confirmation":
+                decision = _consent_decision(message)
+
+                if decision == "no":
+                    _pending_appointment_cancellations.pop(key, None)
+                    response_message = (
+                        "Okay. Your appointment request has not been cancelled."
+                    )
+                elif not _is_explicit_cancellation_confirmation(message):
+                    response_message = (
+                        "Please reply YES to cancel the displayed appointment "
+                        "request, or NO to keep it. No change has been made."
+                    )
+                else:
+                    request_id = pending_cancellation.get("request_id")
+                    try:
+                        cancelled_request = (
+                            get_appointment_request_service(
+                                demo_scheduler
+                            ).cancel_patient_request(
+                                patient_id=patient_id,
+                                request_id=request_id,
+                            )
+                        )
+                    except AppointmentRequestNotFound:
+                        response_message = (
+                            "I couldn't verify that request in your account. "
+                            "No cancellation was made."
+                        )
+                        _pending_appointment_cancellations.pop(key, None)
+                    except AppointmentRequestConflict:
+                        response_message = (
+                            "That request is no longer eligible for cancellation. "
+                            "It may already have been processed. Please check its "
+                            "current status or contact the hospital."
+                        )
+                        _pending_appointment_cancellations.pop(key, None)
+                    except Exception:
+                        response_message = (
+                            "I couldn't verify whether the cancellation completed "
+                            "because of a temporary system problem. Please check "
+                            "the request status before trying again."
+                        )
+                        _pending_appointment_cancellations.pop(key, None)
+                    else:
+                        _pending_appointment_cancellations.pop(key, None)
+                        response_message = (
+                            "APPOINTMENT REQUEST CANCELLED - synthetic demo only.\n"
+                            f"Reference: {cancelled_request['requestId']}\n"
+                            f"Status: {cancelled_request['status']}\n\n"
+                            "This cancellation applies to the appointment request, "
+                            "not to a confirmed appointment. The local synthetic "
+                            "demonstration is not connected to the live hospital system."
+                        )
+
+                _store_turn(key, message, response_message)
+                try:
+                    record_audit_event({
+                        "patientId": patient_id,
+                        "conversationId": conversation_id,
+                        "event": "PATIENT_APPOINTMENT_REQUEST_CANCELLATION_HANDLED",
+                        "details": {},
+                    })
+                except Exception:
+                    pass
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": False,
+                }
+
+        if _is_appointment_request_cancellation(message):
+            # A new request-cancellation task interrupts any unfinished
+            # appointment discovery or selection in this conversation.
+            _pending_appointment_requests.pop(key, None)
+            _pending_appointment_departments.pop(key, None)
+            _pending_appointment_suggested_departments.pop(key, None)
+            _pending_appointment_selections.pop(key, None)
+
+            request_service_error = False
+            try:
+                request_service = get_appointment_request_service(
+                    demo_scheduler
+                )
+                patient_requests = request_service.list_patient_requests(
+                    patient_id
+                )
+            except Exception:
+                patient_requests = []
+                request_service_error = True
+
+            eligible_requests = [
+                item for item in patient_requests
+                if item.get("status") in {
+                    "submitted",
+                    "under_review",
+                    "needs_information",
+                    "appointment_offered",
+                }
+            ]
+
+            supplied_id = _extract_appointment_request_id(message)
+            if supplied_id:
+                eligible_requests = [
+                    item for item in eligible_requests
+                    if item.get("requestId") == supplied_id
+                ]
+
+            if request_service_error:
+                response_message = (
+                    "I couldn't retrieve your appointment requests because "
+                    "of a temporary system problem. No cancellation was "
+                    "made. Please try again later."
+                )
+            elif not eligible_requests:
+                response_message = (
+                    "I couldn't find an eligible appointment request to cancel "
+                    "in your account. Confirmed appointments, completed requests, "
+                    "and already cancelled requests cannot be cancelled through "
+                    "this request workflow."
+                )
+            else:
+                _pending_appointment_cancellations[key] = {
+                    "status": "awaiting_selection",
+                    "requests": eligible_requests,
+                }
+                lines = [
+                    "These are your eligible appointment requests "
+                    "(synthetic demonstration data):"
+                ]
+                for index, item in enumerate(eligible_requests, start=1):
+                    lines.append(
+                        f"{index}. {item.get('requestId')} - "
+                        f"{item.get('department') or 'Department not specified'} - "
+                        f"{item.get('preferredDoctor') or 'Doctor not specified'} - "
+                        f"{item.get('preferredDateStart') or 'Date not specified'} - "
+                        f"Status: {item.get('status', 'unknown')}"
+                    )
+                lines.extend([
+                    "",
+                    "Reply with the number or exact reference of the request "
+                    "you want to cancel. I will show its details and ask for "
+                    "separate confirmation before making any change.",
+                    "This is synthetic local demonstration data.",
+                ])
+                response_message = "\n".join(lines)
+
+            _store_turn(key, message, response_message)
+            try:
+                record_audit_event({
+                    "patientId": patient_id,
+                    "conversationId": conversation_id,
+                    "event": "PATIENT_APPOINTMENT_REQUEST_CANCELLATION_STARTED",
+                    "details": {
+                        "eligibleRequestCount": len(eligible_requests),
+                        "dataSource": "synthetic_demo",
+                    },
+                })
+            except Exception:
+                pass
+
+            return {
+                "message": response_message,
+                "toolsUsed": [],
+                "safetyFlag": False,
+            }
+
         pending_selection = _pending_appointment_selections.get(key)
 
         if pending_selection is not None:
+            if pending_selection.get("status") == "awaiting_doctor_selection":
+                if _consent_decision(message) == "no":
+                    _pending_appointment_selections.pop(key, None)
+                    response_message = (
+                        "Okay. I cancelled the doctor selection process. "
+                        "No appointment request was submitted."
+                    )
+                    _store_turn(key, message, response_message)
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                doctor_id_match = re.fullmatch(
+                    r"\s*select\s+doctor\s*:\s*([A-Za-z0-9_.-]+)\s*",
+                    message,
+                    flags=re.IGNORECASE,
+                )
+                doctor_number_match = re.fullmatch(r"\s*(\d+)\s*", message)
+
+                selected_doctor = None
+                doctors = pending_selection.get("doctors", [])
+
+                if doctor_id_match:
+                    requested_doctor_id = doctor_id_match.group(1)
+                    selected_doctor = next(
+                        (
+                            doctor for doctor in doctors
+                            if doctor.get("id") == requested_doctor_id
+                        ),
+                        None,
+                    )
+                elif doctor_number_match:
+                    doctor_index = int(doctor_number_match.group(1)) - 1
+                    if 0 <= doctor_index < len(doctors):
+                        selected_doctor = doctors[doctor_index]
+                else:
+                    def normalize_doctor_name(value: str) -> str:
+                        return " ".join(
+                            re.sub(r"[^a-z0-9]+", " ", value.casefold()).split()
+                        )
+
+                    requested_name = normalize_doctor_name(message)
+                    matching_doctors = [
+                        doctor for doctor in doctors
+                        if requested_name
+                        and (
+                            normalize_doctor_name(doctor.get("name", ""))
+                            == requested_name
+                            or normalize_doctor_name(doctor.get("name", "")).split()[-1:]
+                            == [requested_name]
+                            or normalize_doctor_name(doctor.get("name", "")).split()[1:]
+                            == requested_name.split()
+                        )
+                    ]
+
+                    if len(matching_doctors) == 1:
+                        selected_doctor = matching_doctors[0]
+
+                if selected_doctor is None:
+                    response_message = (
+                        "Please choose one of the displayed doctors, either "
+                        "by selecting its card or replying with its number. "
+                        "You can reply NO to stop. No request has been submitted."
+                    )
+                    _store_turn(key, message, response_message)
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                try:
+                    doctor_slots = _get_available_slots_for_doctor(
+                        patient_id,
+                        selected_doctor["id"],
+                    )
+                except Exception:
+                    response_message = (
+                        "I couldn't retrieve demonstration availability for "
+                        "that doctor because of a temporary system problem. "
+                        "No appointment request has been submitted. Please "
+                        "choose another doctor or try again later."
+                    )
+                    _store_turn(key, message, response_message)
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                if not doctor_slots:
+                    response_message = (
+                        f"I couldn't find an available demonstration time for "
+                        f"{selected_doctor['name']} in the next 30 days. "
+                        "Please choose another doctor or reply NO to stop. "
+                        "No appointment request has been submitted."
+                    )
+                    _store_turn(key, message, response_message)
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                _pending_appointment_selections[key] = {
+                    "status": "awaiting_selection",
+                    "slots": doctor_slots,
+                    "reason": pending_selection.get("reason", ""),
+                    "idempotency_key": pending_selection.get("idempotency_key"),
+                }
+
+                response_message = _format_demo_slots(doctor_slots)
+                _store_turn(key, message, response_message)
+
+                record_audit_event({
+                    "patientId": patient_id,
+                    "conversationId": conversation_id,
+                    "event": "DEMO_DOCTOR_SELECTED_FOR_AVAILABILITY",
+                    "details": {
+                        "doctorId": selected_doctor["id"],
+                        "department": selected_doctor.get("department", ""),
+                    },
+                })
+
+                return {
+                    "message": response_message,
+                    "toolsUsed": ["getAvailableAppointmentSlots"],
+                    "safetyFlag": False,
+                    "appointmentSlots": doctor_slots,
+                }
+
             if pending_selection.get("status") == "awaiting_selection":
                 if _consent_decision(message) == "no":
                     _pending_appointment_selections.pop(key, None)
@@ -862,7 +1561,7 @@ class HospitalAgentService:
                 if not selection_match:
                     response_message = (
                         "Please reply with one of the displayed option numbers, "
-                        "or reply NO to stop. No appointment has been booked."
+                        "or reply NO to stop. No request has been submitted."
                     )
                     _store_turn(key, message, response_message)
                     return {
@@ -887,12 +1586,13 @@ class HospitalAgentService:
 
                 selected_slot = options[selection_index]
                 _pending_appointment_selections[key] = {
-                    "status": "awaiting_booking_confirmation",
+                    "status": "awaiting_request_confirmation",
                     "slot": selected_slot,
-                    "purpose": "",
+                    "reason": pending_selection.get("reason", ""),
+                    "idempotency_key": pending_selection.get("idempotency_key"),
                 }
                 response_message = (
-                    "Please review your selected SYNTHETIC demo appointment:\n"
+                    "Please review your preferred SYNTHETIC demo appointment option:\n"
                     f"Doctor: {selected_slot['doctorName']}\n"
                     f"Department: {selected_slot['department']}\n"
                     f"Date: {selected_slot['date']}\n"
@@ -900,8 +1600,10 @@ class HospitalAgentService:
                     f"Location: {selected_slot.get('location') or 'Not specified'}\n\n"
                     "This is fictional local prototype data, not a real hospital "
                     "appointment. Your earlier consent only allowed searching; "
-                    "it did not authorize booking. Reply YES to confirm this demo "
-                    "booking, or NO to cancel. Nothing is booked yet."
+                    "it did not authorize submitting a request. The selected "
+                    "time is for reference only and will not be reserved. "
+                    "Reply YES to submit an appointment request for staff "
+                    "review, or NO to cancel. No request has been submitted yet."
                 )
                 _store_turn(key, message, response_message)
                 record_audit_event({
@@ -920,17 +1622,18 @@ class HospitalAgentService:
                     "safetyFlag": False,
                 }
 
-            if pending_selection.get("status") == "awaiting_booking_confirmation":
+            if pending_selection.get("status") == "awaiting_request_confirmation":
                 if _consent_decision(message) == "no":
                     _pending_appointment_selections.pop(key, None)
                     response_message = (
-                        "The demo booking was cancelled. No appointment was created."
+                        "Your appointment request was cancelled before submission. "
+                        "No request was submitted and no appointment was booked."
                     )
                     _store_turn(key, message, response_message)
                     record_audit_event({
                         "patientId": patient_id,
                         "conversationId": conversation_id,
-                        "event": "DEMO_APPOINTMENT_BOOKING_DECLINED",
+                        "event": "AI_APPOINTMENT_REQUEST_DECLINED",
                         "details": {},
                     })
                     return {
@@ -939,10 +1642,11 @@ class HospitalAgentService:
                         "safetyFlag": False,
                     }
 
-                if not _is_explicit_booking_confirmation(message):
+                if not _is_explicit_request_confirmation(message):
                     response_message = (
-                        "I need a clear YES to create this fictional demo booking, "
-                        "or NO to cancel it. Nothing has been booked yet."
+                        "I need a clear YES to submit this appointment request "
+                        "for staff review, or NO to cancel it. Nothing has been "
+                        "submitted and no appointment has been booked."
                     )
                     _store_turn(key, message, response_message)
                     return {
@@ -952,48 +1656,80 @@ class HospitalAgentService:
                     }
 
                 selected_slot = pending_selection["slot"]
-                failure_category = None
-                try:
-                    booking = hospital_service.book_demo_appointment(
-                        patient_id=patient_id,
-                        doctor_id=selected_slot["doctorId"],
-                        appointment_date=selected_slot["date"],
-                        appointment_time=selected_slot["time"],
-                        purpose=pending_selection.get("purpose", ""),
-                    )
-                except BookingConflictError:
-                    _pending_appointment_selections.pop(key, None)
-                    response_message = (
-                        "That demo appointment slot is no longer available. "
-                        "No appointment was created. Please explore the "
-                        "available demo slots again."
-                    )
-                    failure_category = "booking_conflict"
-                except BookingNotFoundError:
-                    _pending_appointment_selections.pop(key, None)
-                    response_message = (
-                        "The selected demo booking could not be found. "
-                        "No appointment was created. Please explore the "
-                        "available demo slots again."
-                    )
-                    failure_category = "booking_not_found"
-                except ValueError:
-                    _pending_appointment_selections.pop(key, None)
-                    response_message = (
-                        "I couldn't create the demo booking because the "
-                        "request could not be validated. No appointment "
-                        "was created. Please explore the available demo "
-                        "slots again."
-                    )
-                    failure_category = "booking_validation_failed"
+                reason = pending_selection.get("reason", "")
+                reason = reason.strip() if isinstance(reason, str) else ""
 
-                if failure_category is not None:
+                if not 10 <= len(reason) <= 2000:
+                    _pending_appointment_selections.pop(key, None)
+                    response_message = (
+                        "I couldn't submit the appointment request because the "
+                        "original reason is missing or incomplete. Please start "
+                        "a new appointment request and describe the reason "
+                        "in at least 10 characters."
+                    )
                     _store_turn(key, message, response_message)
                     record_audit_event({
                         "patientId": patient_id,
                         "conversationId": conversation_id,
-                        "event": "DEMO_APPOINTMENT_BOOKING_FAILED",
-                        "details": {"reason": failure_category},
+                        "event": "AI_APPOINTMENT_REQUEST_FAILED",
+                        "details": {"reason": "invalid_original_reason"},
+                    })
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                try:
+                    preferred_date = date.fromisoformat(selected_slot["date"])
+                    request_service = get_appointment_request_service(
+                        demo_scheduler
+                    )
+                    appointment_request = request_service.create_request(
+                        patient_id=patient_id,
+                        department=selected_slot.get("department"),
+                        preferred_doctor=selected_slot.get("doctorName"),
+                        preferred_date_start=preferred_date,
+                        preferred_date_end=preferred_date,
+                        reason=reason,
+                        idempotency_key=pending_selection.get("idempotency_key"),
+                    )
+                except ValueError:
+                    _pending_appointment_selections.pop(key, None)
+                    response_message = (
+                        "I couldn't submit this appointment request because "
+                        "some of its information could not be validated. "
+                        "No appointment was booked. Please start a new "
+                        "appointment request."
+                    )
+                    _store_turn(key, message, response_message)
+                    record_audit_event({
+                        "patientId": patient_id,
+                        "conversationId": conversation_id,
+                        "event": "AI_APPOINTMENT_REQUEST_FAILED",
+                        "details": {"reason": "validation_failed"},
+                    })
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+                except Exception:
+                    response_message = (
+                        "I couldn't verify the result of submitting your "
+                        "appointment request because of a temporary system "
+                        "problem. Your confirmation is still pending. "
+                        "Please reply YES to retry safely, or NO to cancel. "
+                        "The same request reference will be reused if the "
+                        "request was already saved. No appointment is "
+                        "confirmed or reserved."
+                    )
+                    _store_turn(key, message, response_message)
+                    record_audit_event({
+                        "patientId": patient_id,
+                        "conversationId": conversation_id,
+                        "event": "AI_APPOINTMENT_REQUEST_FAILED",
+                        "details": {"reason": "submission_error"},
                     })
                     return {
                         "message": response_message,
@@ -1002,34 +1738,38 @@ class HospitalAgentService:
                     }
 
                 _pending_appointment_selections.pop(key, None)
-                _completed_demo_bookings[key] = dict(booking)
+                _completed_appointment_requests[key] = dict(
+                    appointment_request
+                )
+
+                request_id = appointment_request["requestId"]
                 response_message = (
-                    "DEMO BOOKING CONFIRMED - fictional local prototype only.\n"
-                    f"Booking reference: {booking['bookingId']}\n"
-                    f"Doctor: {booking['doctorName']}\n"
-                    f"Department: {booking['department']}\n"
-                    f"Date: {booking['date']}\n"
-                    f"Time: {booking['time']}\n"
-                    f"Location: {booking.get('location') or 'Not specified'}\n\n"
-                    "This confirmation applies only to the local demonstration. "
-                    "It is not a real hospital appointment, and it will not be "
-                    "sent to a hospital system. Demo booking data is stored "
-                    "locally in the demonstration database. It is not connected "
-                    "to the hospital's live scheduling system."
+                    "APPOINTMENT REQUEST SUBMITTED - synthetic demo only.\n"
+                    f"Request reference: {request_id}\n"
+                    f"Preferred doctor: {appointment_request.get('preferredDoctor') or 'Not specified'}\n"
+                    f"Department: {appointment_request.get('department') or 'Not specified'}\n"
+                    f"Preferred date: {appointment_request.get('preferredDateStart') or 'Not specified'}\n"
+                    "Status: Submitted - pending staff review.\n\n"
+                    "This is a request, not a confirmed appointment. Your "
+                    "selected time was shown for reference only; it has not "
+                    "been reserved. Hospital staff must review your request "
+                    "and confirm an appointment separately. This is synthetic "
+                    "local demonstration data and is not connected to the "
+                    "hospital's live scheduling system."
                 )
                 _store_turn(key, message, response_message)
-                record_audit_event({
-                    "patientId": patient_id,
-                    "conversationId": conversation_id,
-                    "event": "DEMO_APPOINTMENT_BOOKED",
-                    "details": {
-                        "bookingId": booking["bookingId"],
-                        "doctorId": booking["doctorId"],
-                        "date": booking["date"],
-                        "time": booking["time"],
-                        "dataSource": "synthetic_demo",
-                    },
-                })
+                try:
+                    record_audit_event({
+                        "patientId": patient_id,
+                        "conversationId": conversation_id,
+                        "event": "AI_APPOINTMENT_REQUEST_SUBMITTED",
+                        "details": {
+                            "status": "submitted",
+                            "dataSource": "synthetic_demo",
+                        },
+                    })
+                except Exception:
+                    pass
                 return {
                     "message": response_message,
                     "toolsUsed": [],
@@ -1039,6 +1779,8 @@ class HospitalAgentService:
         # Booking or change requests are not discovery consent.
         if _is_appointment_action_request(message):
             _pending_appointment_requests.pop(key, None)
+            _pending_appointment_departments.pop(key, None)
+            _pending_appointment_suggested_departments.pop(key, None)
             response_message = _appointment_action_unavailable_message(language)
             _store_turn(key, message, response_message)
             record_audit_event(
@@ -1056,16 +1798,144 @@ class HospitalAgentService:
             }
 
         pending_request = _pending_appointment_requests.get(key)
+        appointment_department = ""
         effective_message = message
 
         # Default-deny appointment discovery.
         allow_appointment_discovery = False
 
         if pending_request is not None:
+            suggested_department = (
+                _pending_appointment_suggested_departments.get(key)
+            )
+
+            # Confirming a suggestion only selects a directory filter.
+            # It does not grant permission to search the directory.
+            if suggested_department:
+                suggestion_decision = (
+                    "yes"
+                    if _is_department_suggestion_acceptance(message)
+                    else _consent_decision(message)
+                )
+
+                if suggestion_decision == "yes":
+                    _pending_appointment_suggested_departments.pop(key, None)
+                    _pending_appointment_departments[key] = (
+                        suggested_department
+                    )
+                    response_message = (
+                        f"Would you like me to search the demonstration doctor "
+                        f"directory for available doctors in {suggested_department} "
+                        "and check their appointment times? This is a read-only "
+                        "search. It will not book or reserve anything. "
+                        "Please reply yes or no."
+                        if language == "en"
+                        else _consent_question(language)
+                    )
+                    _store_turn(key, message, response_message)
+                    record_audit_event({
+                        "patientId": patient_id,
+                        "conversationId": conversation_id,
+                        "event": "APPOINTMENT_SUGGESTED_DEPARTMENT_ACCEPTED",
+                        "details": {
+                            "department": suggested_department,
+                            "consentGranted": False,
+                        },
+                    })
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                if suggestion_decision == "no":
+                    _pending_appointment_suggested_departments.pop(key, None)
+                    _pending_appointment_departments.pop(key, None)
+                    response_message = (
+                        f"Okay. I won't use {suggested_department} as a "
+                        "suggested directory filter. Would you like me to "
+                        "explore appointment options without that filter? "
+                        "Please reply yes or no."
+                        if language == "en"
+                        else _consent_clarification_message(language)
+                    )
+                    _store_turn(key, message, response_message)
+                    record_audit_event({
+                        "patientId": patient_id,
+                        "conversationId": conversation_id,
+                        "event": "APPOINTMENT_SUGGESTED_DEPARTMENT_DECLINED",
+                        "details": {
+                            "department": suggested_department,
+                            "consentGranted": False,
+                        },
+                    })
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                # An explicitly named department replaces the suggestion,
+                # but still requires separate permission to search.
+                requested_department = _extract_requested_department(message)
+                if requested_department:
+                    _pending_appointment_suggested_departments.pop(key, None)
+                    _pending_appointment_departments[key] = (
+                        requested_department
+                    )
+                    response_message = (
+                        f"I can use {requested_department} as your preferred "
+                        "department filter. This is only a directory filter, "
+                        "not a clinical assessment. I still need your explicit "
+                        "permission before checking the demonstration doctor "
+                        "directory. Please reply yes or no."
+                    )
+                    _store_turn(key, message, response_message)
+                    record_audit_event({
+                        "patientId": patient_id,
+                        "conversationId": conversation_id,
+                        "event": "APPOINTMENT_DEPARTMENT_PREFERENCE_RECEIVED",
+                        "details": {
+                            "department": requested_department,
+                            "consentGranted": False,
+                        },
+                    })
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                # Keep the suggestion pending for clarification or a short
+                # unclear reply. No directory search occurs here.
+                if (
+                    _is_consent_information_question(message)
+                    or len(message.split()) <= 2
+                ):
+                    response_message = (
+                        f"{suggested_department} is only a tentative "
+                        "directory starting point based on the words in your "
+                        "message. It is not a diagnosis or clinical assessment. "
+                        "Would you like to use it as your preferred directory "
+                        "filter? Please reply yes or no."
+                    )
+                    _store_turn(key, message, response_message)
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
+                # A longer unrelated message falls through to the existing
+                # consent-interruption handling.
+                _pending_appointment_suggested_departments.pop(key, None)
+
             decision = _consent_decision(message)
 
             if decision == "no":
                 _pending_appointment_requests.pop(key, None)
+                _pending_appointment_departments.pop(key, None)
+                _pending_appointment_suggested_departments.pop(key, None)
 
                 # Do not let a cancelled appointment request influence
                 # future LLM responses in this conversation.
@@ -1110,6 +1980,38 @@ class HospitalAgentService:
                         "safetyFlag": False,
                     }
 
+                requested_department = _extract_requested_department(message)
+                if requested_department:
+                    _pending_appointment_departments[key] = (
+                        requested_department
+                    )
+                    response_message = (
+                        f"I can use {requested_department} as your preferred "
+                        "department filter. This is only a directory filter, "
+                        "not a clinical assessment. I still need your explicit "
+                        "permission before checking the demonstration doctor "
+                        "directory. Please reply yes or no."
+                        if language == "en"
+                        else _consent_clarification_message(language)
+                    )
+                    _store_turn(key, message, response_message)
+                    record_audit_event(
+                        {
+                            "patientId": patient_id,
+                            "conversationId": conversation_id,
+                            "event": "APPOINTMENT_DEPARTMENT_PREFERENCE_RECEIVED",
+                            "details": {
+                                "department": requested_department,
+                                "consentGranted": False,
+                            },
+                        }
+                    )
+                    return {
+                        "message": response_message,
+                        "toolsUsed": [],
+                        "safetyFlag": False,
+                    }
+
                 if consent_followup or len(message.split()) <= 2:
                     response_message = _consent_clarification_message(language)
                     _store_turn(key, message, response_message)
@@ -1134,6 +2036,8 @@ class HospitalAgentService:
                     # Clear the pending request as expected by the consent
                     # regression test, and do not call the LLM or tools.
                     _pending_appointment_requests.pop(key, None)
+                    _pending_appointment_departments.pop(key, None)
+                    _pending_appointment_suggested_departments.pop(key, None)
                     response_message = _consent_clarification_message(language)
                     _store_turn(key, message, response_message)
                     record_audit_event(
@@ -1153,6 +2057,8 @@ class HospitalAgentService:
                 # A clearly different topic interrupts consent but does not
                 # grant permission to search for appointment options.
                 _pending_appointment_requests.pop(key, None)
+                _pending_appointment_departments.pop(key, None)
+                _pending_appointment_suggested_departments.pop(key, None)
                 record_audit_event(
                     {
                         "patientId": patient_id,
@@ -1166,6 +2072,9 @@ class HospitalAgentService:
             else:
                 # This is the only branch that grants discovery permission.
                 allow_appointment_discovery = True
+                appointment_department = (
+                    _pending_appointment_departments.pop(key, "")
+                )
                 _pending_appointment_requests.pop(key, None)
 
                 record_audit_event(
@@ -1211,9 +2120,9 @@ class HospitalAgentService:
                 "make a new request. I will ask for consent before proceeding."
                 if language == "en"
                 else
-                "???? ?? ??? ????? ?? ???? ??? ???? "
-                "???? ?????? ??? ????? ???? ??? ??? "
-                "????? ????? ??? ????? ???????"
+                "\u12a0\u1201\u1295 \u1348\u1243\u12f5 \u12e8\u121a\u1320\u1265\u1245 \u1295\u1241 \u12e8\u1240\u1320\u122e \u1325\u12eb\u1244 \u12e8\u1208\u121d\u1362 "
+                "\u12e8\u1240\u1320\u122e \u12a0\u121b\u122b\u132e\u127d\u1295 \u121b\u12e8\u1275 \u12a8\u1348\u1208\u1309\u1363 \u12a0\u12f2\u1235 \u1325\u12eb\u1244 \u12eb\u1245\u122d\u1261\u1362 "
+                "\u12a8\u1218\u1240\u1320\u120c \u1260\u134a\u1275 \u1348\u1243\u12f5\u12ce\u1295 \u12a5\u1320\u12ed\u1243\u1208\u1201\u1362"
             )
             record_audit_event(
                 {
@@ -1230,9 +2139,42 @@ class HospitalAgentService:
             }
 
         elif _is_appointment_workflow_request(message):
-            _completed_demo_bookings.pop(key, None)
+            _completed_appointment_requests.pop(key, None)
+            _pending_appointment_suggested_departments.pop(key, None)
+
+            requested_department = _extract_requested_department(message)
+            if requested_department:
+                _pending_appointment_departments[key] = requested_department
+            else:
+                _pending_appointment_departments.pop(key, None)
+
             _pending_appointment_requests[key] = message
-            response_message = _consent_question(language)
+
+            suggestion = (
+                suggest_department_or_general_medicine(message)
+                if language == "en" and not requested_department
+                else None
+            )
+
+            if suggestion:
+                suggested_department = suggestion["department"]
+                _pending_appointment_suggested_departments[key] = (
+                    suggested_department
+                )
+                response_message = (
+                    f"{suggestion['reason']} This is only a tentative "
+                    "directory starting point, not a diagnosis or clinical "
+                    "assessment. Would you like to use "
+                    f"{suggested_department} as your preferred directory "
+                    "filter? Please reply yes or no. I will ask separately "
+                    "for permission before searching the doctor directory."
+                )
+            else:
+                response_message = _consent_question(language)
+            if safety_advisory:
+                response_message = (
+                    f"{safety_advisory.strip()}\n\n{response_message}"
+                )
             _store_turn(key, message, response_message)
             record_audit_event(
                 {
@@ -1248,19 +2190,20 @@ class HospitalAgentService:
                 "safetyFlag": False,
             }
 
-        completed_booking = _completed_demo_bookings.get(key)
+        completed_request = _completed_appointment_requests.get(key)
         if (
-            completed_booking is not None
+            completed_request is not None
             and pending_request is None
             and _pending_appointment_selections.get(key) is None
-            and _is_explicit_booking_confirmation(message)
+            and _is_explicit_request_confirmation(message)
         ):
             response_message = (
-                "This demo booking was already confirmed in this conversation. "
-                "I have not created another booking.\n"
-                f"Booking reference: {completed_booking['bookingId']}\n\n"
-                "If you want to explore another appointment, please make a new "
-                "appointment request. This is only a fictional local demo."
+                "An appointment request was already submitted in this "
+                "conversation. I have not submitted another request.\n"
+                f"Request reference: {completed_request['requestId']}\n"
+                "Its status is pending staff review. No appointment has "
+                "been confirmed. If you need another request, please start "
+                "a new appointment inquiry."
             )
             _store_turn(key, message, response_message)
             return {
@@ -1312,49 +2255,161 @@ class HospitalAgentService:
             str(tool).casefold() == "getupcomingappointments"
             for tool in tools_used
         ):
+            other_tools_used = [
+                str(tool).casefold()
+                for tool in tools_used
+                if str(tool).casefold() != "getupcomingappointments"
+            ]
+
             try:
                 appointments = hospital_service.get_upcoming_appointments(
                     patient_id
                 )
-                response_message = _format_upcoming_appointments(
+                appointment_summary = _format_upcoming_appointments(
                     appointments,
                     language,
                 )
+
+                if other_tools_used:
+                    response_message = (
+                        f"{response_message.rstrip()}\n\n"
+                        f"{appointment_summary}"
+                    )
+                else:
+                    response_message = appointment_summary
+
             except ValueError:
-                response_message = (
+                appointment_error = (
                     "I couldn't retrieve your upcoming appointments. "
                     "Please check your patient record."
                     if language != "am"
                     else "\u12e8\u121a\u1240\u1325\u1209\u1275\u1295 \u1240\u1320\u122e\u12ce\u127d \u121b\u130d\u1298\u1275 \u12a0\u120d\u127b\u120d\u12a9\u121d\u1362 "
-                         "\u12a5\u1263\u12ad\u12ce \u12e8\u1273\u12ab\u121a \u1218\u12dd\u1308\u1265\u12ce\u1295 \u12eb\u1228\u130b\u130d\u1321\u1362"
+                         "\u12e8\u1273\u12ab\u121a \u1218\u12dd\u1308\u1265\u12ce\u1295 \u12eb\u1228\u130b\u130d\u1321\u1362"
                 )
+
+                if other_tools_used:
+                    response_message = (
+                        f"{response_message.rstrip()}\n\n"
+                        f"{appointment_error}"
+                    )
+                else:
+                    response_message = appointment_error
+        doctor_recommendations = None
 
         if allow_appointment_discovery and pending_request is not None:
             try:
-                options = _get_available_demo_options(patient_id)
-            except ValueError as error:
-                options = []
+                doctors = _get_demo_doctors(
+                    patient_id,
+                    department=appointment_department,
+                )
+            except Exception:
+                doctors = None
                 response_message = (
-                    "I couldn't retrieve demo appointment options: "
-                    f"{error} No appointment has been booked."
+                    "I couldn't retrieve the demonstration doctor directory "
+                    "because of a temporary system problem. No appointment "
+                    "request has been submitted. Please try again later."
                 )
 
-            if options:
+            if doctors:
+                doctor_recommendations = doctors
+
                 _pending_appointment_selections[key] = {
-                    "status": "awaiting_selection",
-                    "slots": options,
+                    "status": "awaiting_doctor_selection",
+                    "doctors": doctors,
+                    "reason": pending_request,
+                    "idempotency_key": uuid4().hex,
                 }
-                response_message = _format_demo_options(options)
-                tools_used = ["getAvailableAppointmentSlots"]
-            elif not response_message.startswith(
-                "I couldn't retrieve demo appointment options:"
-            ):
+
+                response_message = _format_demo_doctors(doctors)
+                tools_used = ["findAppropriateDoctors"]
+
+            elif doctors == []:
                 response_message = (
-                    "I couldn't find an available slot in the next 14 days "
-                    "of the fictional demo schedule. No appointment has been "
-                    "booked. You can try exploring a different date range later."
+                    "I couldn't find any doctors in the fictional "
+                    "demonstration directory. No appointment request has "
+                    "been submitted. Please try again later."
                 )
-                tools_used = ["getAvailableAppointmentSlots"]
+                tools_used = ["findAppropriateDoctors"]
+
+        if (
+            safety_advisory
+            and safety_advisory.casefold() not in response_message.casefold()
+        ):
+            response_message = (
+                f"{safety_advisory.strip()}\n\n{response_message}"
+            )
+
+        # A model-generated consent request never grants permission by itself.
+        # Preserve the original symptom context and, when the conservative
+        # matcher finds one safe, unambiguous result, ask about that filter
+        # before asking for separate directory-search permission.
+        if (
+            not allow_appointment_discovery
+            and _assistant_asked_for_appointment_consent(response_message)
+        ):
+            _pending_appointment_requests[key] = message
+
+            requested_department = _extract_requested_department(message)
+
+            # Preserve a department explicitly named by the patient.
+            # The subsequent consent response authorizes read-only discovery;
+            # it must use this exact department as the directory filter.
+            if requested_department:
+                _pending_appointment_departments[key] = (
+                    requested_department
+                )
+
+            # Keep the conservative matcher for ordinary symptom messages.
+            # Use the General Medicine fallback only when the patient
+            # explicitly asks which department they should visit.
+            message_lower = message.casefold()
+            asks_department_guidance = any(
+                phrase in message_lower
+                for phrase in (
+                    "which department should i visit",
+                    "which department should i see",
+                    "which department should i go to",
+                    "what department should i visit",
+                    "what department should i see",
+                    "what department should i go to",
+                    "which department is appropriate",
+                    "what department is appropriate",
+                )
+            )
+
+            if language == "en" and not requested_department:
+                if asks_department_guidance:
+                    suggestion = suggest_department_or_general_medicine(
+                        message
+                    )
+                else:
+                    suggestion = suggest_department(message)
+            else:
+                suggestion = None
+
+            if suggestion:
+                suggested_department = suggestion["department"]
+                _pending_appointment_suggested_departments[key] = (
+                    suggested_department
+                )
+
+                response_message = (
+                    f"{suggestion['reason']} This is only a tentative "
+                    "directory starting point, not a diagnosis or clinical "
+                    "assessment. Would you like to use "
+                    f"{suggested_department} as your preferred directory "
+                    "filter? Please reply yes or no. I will ask separately "
+                    "for permission before searching the doctor directory."
+                )
+
+                if (
+                    safety_advisory
+                    and safety_advisory.strip().casefold()
+                    not in response_message.casefold()
+                ):
+                    response_message = (
+                        f"{safety_advisory.strip()}\n\n{response_message}"
+                    )
 
         # This prototype uses synthetic local hospital records.
         # Always disclose this in normal agent responses, including follow-ups
@@ -1363,10 +2418,6 @@ class HospitalAgentService:
             response_message,
             language,
         )
-
-        # A model-generated consent request never grants permission by itself.
-        if _assistant_asked_for_appointment_consent(response_message):
-            _pending_appointment_requests[key] = message
 
         _store_turn(key, message, response_message)
 
@@ -1387,7 +2438,15 @@ class HospitalAgentService:
             "message": response_message,
             "toolsUsed": tools_used,
             "safetyFlag": False,
+            **(
+                {"doctorRecommendations": doctor_recommendations}
+                if doctor_recommendations is not None
+                else {}
+            ),
         }
 
 
 hospital_agent_service = HospitalAgentService()
+
+
+

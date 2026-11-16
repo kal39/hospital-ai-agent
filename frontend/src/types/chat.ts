@@ -1,4 +1,3 @@
-
 export type Language = "en" | "am";
 
 export type SummaryDetail = "short" | "normal" | "detailed";
@@ -11,6 +10,29 @@ export interface ChatImage {
   dataUrl: string;
 }
 
+export interface DoctorRecommendation {
+  id: string;
+  name: string;
+  department: string;
+  specialties: string[];
+  location: string;
+  isAssignedDoctor: boolean;
+  dataSource: string;
+  dataNotice: string;
+}
+
+export interface AppointmentSlotOption {
+  doctorId: string;
+  doctorName: string;
+  department: string;
+  location: string;
+  date: string;
+  time: string;
+  slotRemainingCapacity: number;
+  dailyRemainingCapacity: number;
+  dataSource: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -20,6 +42,8 @@ export interface ChatMessage {
   safety?: {
     requiresAttention: boolean;
   };
+  doctorRecommendations?: DoctorRecommendation[];
+  appointmentSlots?: AppointmentSlotOption[];
 }
 
 export interface ChatRequest {
@@ -40,4 +64,6 @@ export interface ChatResponse {
   safety: {
     requiresAttention: boolean;
   };
+  doctorRecommendations: DoctorRecommendation[];
+  appointmentSlots: AppointmentSlotOption[];
 }

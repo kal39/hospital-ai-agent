@@ -1,4 +1,4 @@
-﻿"""SQLite-backed appointment request management for synthetic demos."""
+"""SQLite-backed appointment request management for synthetic demos."""
 
 import copy
 import json
@@ -83,6 +83,27 @@ class DemoAppointmentRequestService:
                 ON demo_appointment_requests(status, submitted_at)
                 """
             )
+
+            columns = {
+                row[1]
+                for row in self._connection.execute(
+                    "PRAGMA table_info(demo_appointment_requests)"
+                ).fetchall()
+            }
+            if "idempotency_key" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE demo_appointment_requests "
+                    "ADD COLUMN idempotency_key TEXT"
+                )
+
+            self._connection.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                idx_demo_appointment_requests_patient_idempotency
+                ON demo_appointment_requests(patient_id, idempotency_key)
+                WHERE idempotency_key IS NOT NULL
+                """
+            )
             self._connection.commit()
 
     @staticmethod
@@ -90,6 +111,7 @@ class DemoAppointmentRequestService:
         """Return a patient-safe copy without internal ownership fields."""
         result = copy.deepcopy(record)
         result.pop("patientId", None)
+        result.pop("idempotencyKey", None)
         return result
 
     def _load_record(self, request_id: str) -> dict[str, Any] | None:
@@ -117,15 +139,17 @@ class DemoAppointmentRequestService:
                 status,
                 submitted_at,
                 updated_at,
-                payload_json
+                payload_json,
+                idempotency_key
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(request_id) DO UPDATE SET
                 patient_id = excluded.patient_id,
                 status = excluded.status,
                 submitted_at = excluded.submitted_at,
                 updated_at = excluded.updated_at,
-                payload_json = excluded.payload_json
+                payload_json = excluded.payload_json,
+                idempotency_key = excluded.idempotency_key
             """,
             (
                 record["requestId"],
@@ -134,6 +158,7 @@ class DemoAppointmentRequestService:
                 record["submittedAt"],
                 record["updatedAt"],
                 json.dumps(record, ensure_ascii=False),
+                record.get("idempotencyKey"),
             ),
         )
 
@@ -146,9 +171,19 @@ class DemoAppointmentRequestService:
         preferred_date_start: date | None,
         preferred_date_end: date | None,
         reason: str,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         if patient_id not in PATIENTS:
             raise ValueError("Unknown synthetic patient.")
+
+        if idempotency_key is not None:
+            if (
+                not isinstance(idempotency_key, str)
+                or not idempotency_key.strip()
+                or len(idempotency_key) > 128
+            ):
+                raise ValueError("Invalid request idempotency key.")
+            idempotency_key = idempotency_key.strip()
 
         today = date.today()
 
@@ -196,28 +231,74 @@ class DemoAppointmentRequestService:
             ],
             "dataSource": DATA_SOURCE,
             "dataNotice": DATA_NOTICE,
+            "idempotencyKey": idempotency_key,
         }
+
+        created = False
 
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
-                self._save_record(record)
-                self._connection.commit()
+                existing = None
+
+                if idempotency_key is not None:
+                    row = self._connection.execute(
+                        """
+                        SELECT payload_json
+                        FROM demo_appointment_requests
+                        WHERE patient_id = ? AND idempotency_key = ?
+                        """,
+                        (patient_id, idempotency_key),
+                    ).fetchone()
+
+                    if row is not None:
+                        existing = json.loads(row[0])
+
+                if existing is not None:
+                    comparable_fields = (
+                        "department",
+                        "preferredDoctor",
+                        "preferredDateStart",
+                        "preferredDateEnd",
+                        "reason",
+                    )
+                    if any(
+                        existing.get(field) != record.get(field)
+                        for field in comparable_fields
+                    ):
+                        raise ValueError(
+                            "This request confirmation key was already used "
+                            "for different appointment details."
+                        )
+
+                    self._connection.commit()
+                    record = existing
+                else:
+                    self._save_record(record)
+                    self._connection.commit()
+                    created = True
+
             except Exception:
                 self._connection.rollback()
                 raise
 
-        record_audit_event(
-            {
-                "patientId": patient_id,
-                "event": "appointment_request_submitted",
-                "details": {
-                    "requestId": request_id,
-                    "status": "submitted",
-                    "dataSource": DATA_SOURCE,
-                },
-            }
-        )
+        # The request is already committed. A volatile audit failure must
+        # never make a successful database submission look unsuccessful.
+        if created:
+            try:
+                record_audit_event(
+                    {
+                        "patientId": patient_id,
+                        "event": "appointment_request_submitted",
+                        "details": {
+                            "requestId": record["requestId"],
+                            "status": "submitted",
+                            "dataSource": DATA_SOURCE,
+                        },
+                    }
+                )
+            except Exception:
+                pass
 
         return self._public_request(record)
 
@@ -297,17 +378,22 @@ class DemoAppointmentRequestService:
                 self._connection.rollback()
                 raise
 
-        record_audit_event(
-            {
-                "patientId": patient_id,
-                "event": "appointment_request_cancelled",
-                "details": {
-                    "requestId": request_id,
-                    "status": "cancelled",
-                    "dataSource": DATA_SOURCE,
-                },
-            }
-        )
+        # The cancellation is already committed. A volatile audit failure
+        # must never make a successful database cancellation look unsuccessful.
+        try:
+            record_audit_event(
+                {
+                    "patientId": patient_id,
+                    "event": "appointment_request_cancelled",
+                    "details": {
+                        "requestId": request_id,
+                        "status": "cancelled",
+                        "dataSource": DATA_SOURCE,
+                    },
+                }
+            )
+        except Exception:
+            pass
 
         return result
 

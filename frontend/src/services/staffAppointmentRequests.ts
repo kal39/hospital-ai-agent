@@ -1,5 +1,13 @@
-﻿import type { AppointmentRequestStatus, AppointmentRequestHistoryItem } from "./appointmentRequests";
-import type { Doctor, Appointment } from "./appointments";
+﻿import type {
+  AppointmentRequestStatus,
+  AppointmentRequestHistoryItem,
+} from "./appointmentRequests";
+
+import type {
+  Appointment,
+  AppointmentSlot,
+  Doctor,
+} from "./appointments";
 
 export interface StaffAppointmentRequest {
   requestId: string;
@@ -48,7 +56,9 @@ async function requestJson<T>(
       headers: { ...staffHeaders(), ...options.headers },
     });
   } catch {
-    throw new Error("Could not connect to the demo backend. Check that the backend is running.");
+    throw new Error(
+      "Could not connect to the demo backend. Check that the backend is running.",
+    );
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -58,18 +68,23 @@ async function requestJson<T>(
 
     if (payload && typeof payload === "object" && "detail" in payload) {
       const detail = (payload as { detail: unknown }).detail;
-      if (typeof detail === "string") message = detail;
-      else if (Array.isArray(detail)) {
-        message = detail.map((item) =>
-          item && typeof item === "object" && "msg" in item
-            ? String(item.msg)
-            : String(item),
-        ).join(" ");
+
+      if (typeof detail === "string") {
+        message = detail;
+      } else if (Array.isArray(detail)) {
+        message = detail
+          .map((item) =>
+            item && typeof item === "object" && "msg" in item
+              ? String(item.msg)
+              : String(item),
+          )
+          .join(" ");
       }
     }
 
     if (response.status === 401) {
-      message = "Staff demo authentication failed. Check VITE_DEMO_STAFF_TOKEN and restart the frontend.";
+      message =
+        "Staff demo authentication failed. Check the staff token and restart the frontend.";
     }
 
     throw new Error(message);
@@ -78,20 +93,37 @@ async function requestJson<T>(
   return payload as T;
 }
 
-export async function listStaffAppointmentRequests(): Promise<StaffAppointmentRequest[]> {
-  const result = await requestJson<{ requests: StaffAppointmentRequest[] }>(
-    "/staff/appointment-requests",
-  );
+/* -------------------------------------------------------------------------- */
+/* Appointment request review                                                 */
+/* -------------------------------------------------------------------------- */
+
+export async function listStaffAppointmentRequests(): Promise<
+  StaffAppointmentRequest[]
+> {
+  const result = await requestJson<{
+    requests: StaffAppointmentRequest[];
+  }>("/staff/appointment-requests");
+
   return result.requests;
 }
 
 export async function approveStaffAppointmentRequest(
   requestId: string,
-  input: { doctorId: string; date: string; time: string },
-): Promise<{ request: StaffAppointmentRequest; booking: Appointment }> {
+  input: {
+    doctorId: string;
+    date: string;
+    time: string;
+  },
+): Promise<{
+  request: StaffAppointmentRequest;
+  booking: Appointment;
+}> {
   return requestJson(
     `/staff/appointment-requests/${encodeURIComponent(requestId)}/approve`,
-    { method: "POST", body: JSON.stringify(input) },
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
   );
 }
 
@@ -99,14 +131,63 @@ export async function declineStaffAppointmentRequest(
   requestId: string,
   reason: string,
 ): Promise<StaffAppointmentRequest> {
-  const result = await requestJson<{ request: StaffAppointmentRequest }>(
+  const result = await requestJson<{
+    request: StaffAppointmentRequest;
+  }>(
     `/staff/appointment-requests/${encodeURIComponent(requestId)}/decline`,
-    { method: "POST", body: JSON.stringify({ reason }) },
+    {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    },
   );
+
   return result.request;
 }
 
-export type { Doctor };
+/* -------------------------------------------------------------------------- */
+/* Staff-only doctor directory and availability                              */
+/* -------------------------------------------------------------------------- */
+
+export async function listStaffDoctors(
+  department?: string,
+): Promise<Doctor[]> {
+  const params = new URLSearchParams();
+
+  if (department?.trim()) {
+    params.set("department", department.trim());
+  }
+
+  const query = params.toString();
+  const result = await requestJson<{ doctors: Doctor[] }>(
+    `/staff/doctors${query ? `?${query}` : ""}`,
+  );
+
+  return result.doctors;
+}
+
+export async function getStaffAvailability(
+  doctorId: string,
+  startDate: string,
+  days = 14,
+): Promise<AppointmentSlot[]> {
+  const params = new URLSearchParams({
+    doctorId,
+    startDate,
+    days: String(days),
+  });
+
+  const result = await requestJson<{
+    slots: AppointmentSlot[];
+  }>(`/staff/availability?${params.toString()}`);
+
+  return result.slots;
+}
+
+export type { Doctor, AppointmentSlot };
+
+/* -------------------------------------------------------------------------- */
+/* Staff attendance                                                           */
+/* -------------------------------------------------------------------------- */
 
 export interface StaffAttendanceAppointment {
   bookingId: string;
@@ -123,7 +204,9 @@ export interface StaffAttendanceAppointment {
   updatedAt?: string;
 }
 
-export async function listStaffAppointments(): Promise<StaffAttendanceAppointment[]> {
+export async function listStaffAppointments(): Promise<
+  StaffAttendanceAppointment[]
+> {
   const result = await requestJson<{
     appointments: StaffAttendanceAppointment[];
   }>("/staff/appointments");
@@ -146,4 +229,53 @@ export async function recordStaffAttendance(
   );
 
   return result.booking;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Staff dashboard analytics                                                  */
+/* -------------------------------------------------------------------------- */
+
+export interface StaffAnalytics {
+  dataSource: string;
+  dataNotice: string;
+  appointmentRequests: {
+    total: number;
+    pending: number;
+    confirmed: number;
+    declined: number;
+    cancelled: number;
+    byStatus: {
+      submitted: number;
+      under_review: number;
+      needs_information: number;
+      appointment_offered: number;
+      appointment_confirmed: number;
+      declined: number;
+      cancelled: number;
+    };
+  };
+  appointments: {
+    totalBooked: number;
+    active: number;
+    attended: number;
+    missed: number;
+    doctorRankings: {
+      doctorId: string;
+      doctorName: string;
+      department: string;
+      totalBooked: number;
+    }[];
+    departmentRankings: {
+      department: string;
+      totalBooked: number;
+    }[];
+    monthlyTrend: {
+      month: string;
+      totalBooked: number;
+    }[];
+  };
+}
+
+export async function getStaffAnalytics(): Promise<StaffAnalytics> {
+  return requestJson<StaffAnalytics>("/staff/analytics");
 }

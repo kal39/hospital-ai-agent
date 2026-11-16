@@ -6,7 +6,7 @@ as synthetic demonstration data. Replace these fixtures with authorized
 hospital API calls before any production use.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from app.data.patients import (
@@ -155,7 +155,9 @@ class HospitalService:
         self, patient_id: str, scheduler: Any = None
     ) -> list[dict[str, Any]]:
         """Return this patient's active future fixed and created appointments."""
-        today = date.today().isoformat()
+        now = datetime.now().astimezone()
+        today = now.date().isoformat()
+        current_time = now.strftime("%H:%M")
 
         appointments = self.get_patient_appointments(
             patient_id,
@@ -166,7 +168,13 @@ class HospitalService:
         upcoming = [
             appointment
             for appointment in appointments
-            if appointment.get("date", "") >= today
+            if (
+                appointment.get("date", "") > today
+                or (
+                    appointment.get("date", "") == today
+                    and appointment.get("time", "") > current_time
+                )
+            )
             and appointment.get("status") not in {
                 "cancelled_demo",
                 "rescheduled_demo",

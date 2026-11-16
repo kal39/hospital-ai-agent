@@ -1,11 +1,11 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import AppointmentBooking from "./components/AppointmentBooking/AppointmentBooking";
+
 import StaffReview from "./components/StaffReview/StaffReview";
 import ChatWindow from "./components/Chat/ChatWindow";
 import type { Language, SummaryDetail } from "./types/chat";
 
-type ActivePage = "assistant" | "booking" | "staff";
+type ActivePage = "assistant" | "staff";
 
 function getPageFromPath(pathname: string): ActivePage {
   switch (pathname.replace(/\/+$/, "") || "/") {
@@ -13,7 +13,7 @@ function getPageFromPath(pathname: string): ActivePage {
       return "staff";
 
     case "/patient/appointments":
-      return "booking";
+      return "assistant";
 
     case "/":
       return "assistant";
@@ -28,8 +28,6 @@ function getPathForPage(page: ActivePage): string {
     case "staff":
       return "/staff/appointments";
 
-    case "booking":
-      return "/patient/appointments";
 
     default:
       return "/";
@@ -112,7 +110,7 @@ function App() {
 
   const pageLabels: Record<ActivePage, string> = {
     assistant: amharic ? "AI ረዳት" : "AI Assistant",
-    booking: amharic ? "የቀጠሮ አስተዳደር" : "Appointment Management",
+
     staff: amharic ? "የሰራተኞች የስራ ቦታ" : "Staff Review",
   };
 
@@ -231,16 +229,7 @@ function App() {
             <span className="sage-sidebar-link-arrow" aria-hidden="true">›</span>
           </button>
 
-          <button
-            type="button"
-            className={`sage-sidebar-link ${activePage === "booking" ? "is-active" : ""}`}
-            onClick={() => navigateToPage("booking")}
-            aria-current={activePage === "booking" ? "page" : undefined}
-          >
-            <span className="sage-sidebar-icon" aria-hidden="true">▦</span>
-            <span>{pageLabels.booking}</span>
-            <span className="sage-sidebar-link-arrow" aria-hidden="true">›</span>
-          </button>
+
         </nav>
 
         <div className="sage-sidebar-preferences">
@@ -336,11 +325,7 @@ function App() {
         </header>
 
         <main className="hospital-app-content sage-main-content">
-          {activePage === "assistant" ? (
-            <ChatWindow language={language} detail={detail} />
-          ) : (
-            <AppointmentBooking language={language} />
-          )}
+          <ChatWindow language={language} detail={detail} />
         </main>
 
         <footer className="hospital-app-footer sage-main-footer">

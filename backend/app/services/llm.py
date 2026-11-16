@@ -15,7 +15,10 @@ from app.schemas.clinical_analysis import (
     LaboratoryExplanation,
 )
 from app.services.tool_definitions import HOSPITAL_TOOL_DEFINITIONS
-from app.services.tool_executor import execute_hospital_tool
+from app.services.tool_executor import (
+    APPOINTMENT_DISCOVERY_TOOLS,
+    execute_hospital_tool,
+)
 
 MAX_TOOL_ROUNDS = 5
 MAX_ATTEMPTS = 2
@@ -112,6 +115,7 @@ class GeminiLLMService:
         max_output_tokens: int,
         include_tools: bool = True,
         response_schema: Any | None = None,
+        tool_declarations: list[types.FunctionDeclaration] | None = None,
     ) -> Any:
         """Try configured Gemini models with bounded retries."""
         client = self._require_client()
@@ -141,7 +145,11 @@ class GeminiLLMService:
                     if include_tools:
                         config_options["tools"] = [
                             types.Tool(
-                                function_declarations=self.tool_declarations
+                                function_declarations=(
+                                    self.tool_declarations
+                                    if tool_declarations is None
+                                    else tool_declarations
+                                )
                             )
                         ]
 
@@ -380,11 +388,26 @@ supporting findings and missing information for possible explanations.
 
         tools_used: list[str] = []
 
+        # Appointment discovery is performed by the trusted backend
+        # after consent. Do not expose those tools to Gemini here, or
+        # the model could perform a second, inconsistent discovery.
+        available_tool_names = (
+            self.tool_names - APPOINTMENT_DISCOVERY_TOOLS
+            if allow_appointment_discovery
+            else self.tool_names
+        )
+        available_tool_declarations = [
+            declaration
+            for declaration in self.tool_declarations
+            if declaration.name in available_tool_names
+        ]
+
         for _ in range(MAX_TOOL_ROUNDS):
             response = await self._generate_with_retry(
                 system_instruction=system_instruction,
                 contents=contents,
                 max_output_tokens=output_token_budget,
+                tool_declarations=available_tool_declarations,
             )
 
             candidate = (
@@ -442,7 +465,7 @@ supporting findings and missing information for possible explanations.
                         "Gemini returned a function call without a name."
                     )
 
-                if tool_name not in self.tool_names:
+                if tool_name not in available_tool_names:
                     raise ValueError(
                         "Unauthorized or unknown hospital tool: "
                         f"{tool_name}"

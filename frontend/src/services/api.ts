@@ -1,7 +1,8 @@
-
 import type {
   ChatRequest,
   ChatResponse,
+  AppointmentSlotOption,
+  DoctorRecommendation,
 } from "../types/chat";
 
 const API_URL = (
@@ -52,32 +53,83 @@ function getErrorMessage(data: unknown): string | undefined {
   return undefined;
 }
 
+function isDoctorRecommendation(
+  value: unknown
+): value is DoctorRecommendation {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const doctor = value as Record<string, unknown>;
+
+  return (
+    typeof doctor.id === "string" &&
+    typeof doctor.name === "string" &&
+    typeof doctor.department === "string" &&
+    Array.isArray(doctor.specialties) &&
+    doctor.specialties.every(
+      (specialty) => typeof specialty === "string"
+    ) &&
+    typeof doctor.location === "string" &&
+    typeof doctor.isAssignedDoctor === "boolean" &&
+    typeof doctor.dataSource === "string" &&
+    typeof doctor.dataNotice === "string"
+  );
+}
+
+function isAppointmentSlotOption(
+  value: unknown
+): value is AppointmentSlotOption {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const slot = value as Record<string, unknown>;
+
+  return (
+    typeof slot.doctorId === "string" &&
+    typeof slot.doctorName === "string" &&
+    typeof slot.department === "string" &&
+    typeof slot.location === "string" &&
+    typeof slot.date === "string" &&
+    typeof slot.time === "string" &&
+    typeof slot.slotRemainingCapacity === "number" &&
+    typeof slot.dailyRemainingCapacity === "number" &&
+    typeof slot.dataSource === "string"
+  );
+}
+
 function isChatResponse(data: unknown): data is ChatResponse {
   if (typeof data !== "object" || data === null) {
     return false;
   }
 
+  const response = data as Record<string, unknown>;
+
   if (
-    !("message" in data) ||
-    typeof data.message !== "string" ||
-    !("conversationId" in data) ||
-    typeof data.conversationId !== "string" ||
-    !("language" in data) ||
-    (data.language !== "en" && data.language !== "am") ||
-    !("detail" in data) ||
+    typeof response.message !== "string" ||
+    typeof response.conversationId !== "string" ||
+    (response.language !== "en" && response.language !== "am") ||
     !["short", "normal", "detailed"].includes(
-      data.detail as string
+      response.detail as string
     ) ||
-    !("toolsUsed" in data) ||
-    !Array.isArray(data.toolsUsed) ||
-    !data.toolsUsed.every((tool) => typeof tool === "string") ||
-    !("safetyFlag" in data) ||
-    typeof data.safetyFlag !== "boolean" ||
-    !("safety" in data) ||
-    typeof data.safety !== "object" ||
-    data.safety === null ||
-    !("requiresAttention" in data.safety) ||
-    typeof data.safety.requiresAttention !== "boolean"
+    !Array.isArray(response.toolsUsed) ||
+    !response.toolsUsed.every(
+      (tool) => typeof tool === "string"
+    ) ||
+    typeof response.safetyFlag !== "boolean" ||
+    typeof response.safety !== "object" ||
+    response.safety === null ||
+    !("requiresAttention" in response.safety) ||
+    typeof response.safety.requiresAttention !== "boolean" ||
+    !Array.isArray(response.doctorRecommendations) ||
+    !response.doctorRecommendations.every(
+      isDoctorRecommendation
+    ) ||
+    !Array.isArray(response.appointmentSlots) ||
+    !response.appointmentSlots.every(
+      isAppointmentSlotOption
+    )
   ) {
     return false;
   }

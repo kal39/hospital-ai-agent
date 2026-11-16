@@ -1,4 +1,5 @@
-﻿from app.services.agent import (
+﻿import pytest
+from app.services.agent import (
     _assistant_asked_for_appointment_consent,
     _consent_cancelled_message,
     _consent_clarification_message,
@@ -66,3 +67,40 @@ def test_english_consent_question_is_detected():
 
 def test_unrelated_message_is_not_a_consent_question():
     assert not _assistant_asked_for_appointment_consent("Your test result is ready.")
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Would you like me to check available doctors?",
+        "Would you like me to search for available appointments?",
+        "May I look for doctors in the appropriate department?",
+        "Should I check appointment availability for you?",
+        "Would you like help finding an available doctor?",
+        "Would you like me to help explore appointment options?",
+        "Would you like help arranging an appointment?",
+        "Would you like help checking available appointment options?",
+        "Would you like help exploring appointment options with a doctor "
+        "to discuss these symptoms?",
+        "If you are not experiencing an emergency and would like help "
+        "exploring appointment options with a clinician to discuss "
+        "these symptoms, please let me know.",
+    ],
+)
+def test_alternative_english_appointment_consent_questions_are_detected(message):
+    assert _assistant_asked_for_appointment_consent(message)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Your appointment is scheduled for Monday.",
+        "Would you like to know what your appointment includes?",
+        "I can explain how the appointment system works.",
+        "Your doctor can discuss available treatment options.",
+        "Would you like me to book an appointment for you?",
+        "Your test result is ready.",
+    ],
+)
+def test_non_search_questions_are_not_mistaken_for_search_consent(message):
+    assert not _assistant_asked_for_appointment_consent(message)

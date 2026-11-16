@@ -1,0 +1,1656 @@
+/* HOSPITAL AI UI POLISH — 2026-10-25 */
+
+.hospital-app {
+  background: radial-gradient(ellipse at 50% 0%, rgba(219,234,254,.32), transparent 55%), #f5f8fc;
+}
+
+.hospital-app-nav {
+  min-height: 74px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom-color: #e2eaf4;
+  box-shadow: 0 4px 20px rgba(23,42,72,.045);
+}
+
+.hospital-brand-mark {
+  border-radius: 12px;
+  background: linear-gradient(145deg,#2874e8,#174db5);
+}
+
+.hospital-nav-button {
+  transition: background 160ms ease,color 160ms ease,border-color 160ms ease;
+}
+
+.hospital-nav-button:hover:not(.is-active) {
+  background: #f2f6fc;
+  color: #1e4f91;
+}
+
+.hospital-nav-button.is-active {
+  border-color: #dbe8fb;
+  background: #edf4ff;
+  color: #1d5fd1;
+}
+
+.hospital-demo-pill { white-space: nowrap; }
+
+.chat-page {
+  min-height: calc(100vh - 140px);
+  padding: 26px clamp(16px,3.5vw,48px);
+  background: transparent;
+}
+
+.chat-container {
+  width: 100%;
+  max-width: 1220px;
+  height: min(790px,calc(100vh - 190px));
+  min-height: 590px;
+  border: 1px solid #e0e8f2;
+  border-radius: 20px;
+  box-shadow: 0 18px 55px rgba(26,49,83,.075),0 2px 8px rgba(26,49,83,.025);
+}
+
+.chat-header {
+  min-height: 78px;
+  padding: 15px 24px;
+  gap: 18px;
+  background: linear-gradient(180deg,#fff,#fbfdff);
+  border-bottom: 1px solid #e8eef6;
+}
+
+.assistant-identity { gap: 13px; }
+
+.assistant-icon {
+  width: 46px;
+  height: 46px;
+  border: 1px solid #dbe8ff;
+  border-radius: 15px;
+  background: linear-gradient(145deg,#edf4ff,#e3edff);
+  color: #1b5bc4;
+}
+
+.assistant-identity h1 {
+  color: #172a46;
+  font-size: 16px;
+  letter-spacing: -.3px;
+}
+
+.assistant-status { color: #718096; font-size: 12px; }
+.status-dot { box-shadow: 0 0 0 3px rgba(38,162,105,.1); }
+.chat-controls { gap: 14px; }
+
+.chat-controls label {
+  gap: 8px;
+  color: #718096;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chat-controls select {
+  min-height: 36px;
+  padding: 7px 30px 7px 10px;
+  border-color: #dce5f0;
+  border-radius: 9px;
+  background-color: #fff;
+  color: #263b59;
+  font-size: 12px;
+}
+
+.chat-controls select:focus-visible {
+  border-color: #4f86dc;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79,134,220,.13);
+}
+
+.chat-body {
+  background: radial-gradient(ellipse at 50% 0%,rgba(238,244,253,.45),transparent 70%),#fff;
+}
+
+.conversation {
+  padding: 28px clamp(18px,4vw,46px) 20px;
+  scrollbar-color: #cbd7e7 transparent;
+  scrollbar-width: thin;
+}
+
+.message-row { margin-bottom: 20px; }
+
+.message-bubble {
+  max-width: min(760px,86%);
+  padding: 15px 18px;
+  border-radius: 16px;
+}
+
+.message-user {
+  border: 1px solid #1d5fd1;
+  border-bottom-right-radius: 5px;
+  background: linear-gradient(145deg,#2874e8,#1d5fd1);
+  box-shadow: 0 5px 14px rgba(29,95,209,.12);
+}
+
+.message-assistant {
+  border: 1px solid #e2eaf4;
+  border-bottom-left-radius: 5px;
+  background: #f7f9fc;
+  box-shadow: 0 2px 5px rgba(23,42,72,.025);
+}
+
+.message-role { margin-bottom: 8px; font-size: 11px; }
+.message-content { font-size: 14px; line-height: 1.75; }
+.message-time { color: #738198; }
+
+.message-speech-button {
+  border-color: #dce5f0;
+  border-radius: 8px;
+  color: #47617f;
+}
+
+.message-speech-button:hover { background: #eaf1fb; }
+
+.suggestions { padding: 0 clamp(18px,4vw,46px) 18px; }
+
+.suggestions-title {
+  margin-bottom: 10px;
+  color: #52657f;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .3px;
+}
+
+.suggestion-list { gap: 9px; padding: 1px 1px 5px; }
+
+.suggestion-list button {
+  min-height: 38px;
+  padding: 9px 13px;
+  border-color: #dbe5f2;
+  border-radius: 11px;
+  background: #fff;
+  color: #355071;
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 2px 5px rgba(24,47,83,.025);
+  transition: background 160ms ease,border-color 160ms ease,color 160ms ease,transform 160ms ease;
+}
+
+.suggestion-list button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: #a9c6ef;
+  background: #f2f7ff;
+  color: #174fa9;
+}
+
+.suggestion-list button:focus-visible,
+.secondary-input-button:focus-visible,
+.send-button:focus-visible,
+.hospital-nav-button:focus-visible {
+  outline: 3px solid rgba(55,117,218,.25);
+  outline-offset: 2px;
+}
+
+.chat-input-area {
+  padding: 15px clamp(16px,3vw,30px) 17px;
+  border-top: 1px solid #e7edf5;
+  background: #fff;
+}
+
+.input-wrapper {
+  gap: 10px;
+  padding: 10px;
+  border-color: #d6e1ef;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(24,47,83,.035);
+}
+
+.input-wrapper:focus-within {
+  border-color: #83a9e4;
+  box-shadow: 0 0 0 4px rgba(72,129,215,.1);
+}
+
+.input-wrapper textarea {
+  min-height: 42px;
+  padding: 11px 8px;
+  color: #233954;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.input-wrapper textarea::placeholder { color: #8b9bb0; }
+.input-actions { gap: 7px; }
+
+.secondary-input-button,.send-button {
+  min-height: 38px;
+  height: auto;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: 12px;
+  transition: background 160ms ease,border-color 160ms ease,transform 160ms ease;
+}
+
+.secondary-input-button {
+  border-color: #dce5f0;
+  background: #f8fafd;
+  color: #4d627e;
+}
+
+.secondary-input-button:hover:not(:disabled) {
+  border-color: #bfd1e8;
+  background: #edf4fc;
+}
+
+.send-button {
+  border-color: #1d5fd1;
+  background: linear-gradient(145deg,#2874e8,#1d5fd1);
+  box-shadow: 0 3px 8px rgba(29,95,209,.16);
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: linear-gradient(145deg,#1f66d4,#174fae);
+}
+
+.input-hint { margin-top: 8px; color: #8391a5; font-size: 10px; line-height: 1.5; }
+.error-message { border-radius: 10px; }
+
+.hospital-app-footer {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: rgba(255,255,255,.88);
+}
+
+@media (max-width: 900px) {
+  .hospital-app-nav { gap: 14px; padding-right: 20px; padding-left: 20px; }
+  .hospital-demo-pill { font-size: 10px; }
+  .chat-header { align-items: flex-start; }
+  .chat-controls { gap: 8px; }
+  .chat-controls label { align-items: flex-start; flex-direction: column; gap: 5px; }
+}
+
+@media (max-width: 700px) {
+  .hospital-app-nav { position: relative; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 12px 14px; }
+  .hospital-brand-mark { width: 38px; height: 38px; font-size: 26px; }
+  .hospital-nav-links { order: 3; width: 100%; justify-content: stretch; }
+  .hospital-nav-button { flex: 1; min-width: 0; min-height: 40px; padding: 0 8px; font-size: 12px; }
+  .hospital-app-footer { align-items: flex-start; flex-direction: column; gap: 6px; padding: 13px 16px; line-height: 1.5; }
+  .chat-page { min-height: 0; padding: 12px; }
+  .chat-container { height: auto; min-height: calc(100dvh - 190px); border-radius: 16px; }
+  .chat-header { align-items: stretch; flex-direction: column; gap: 14px; padding: 16px; }
+  .assistant-identity h1 { font-size: 15px; }
+  .chat-controls { width: 100%; align-items: stretch; }
+  .chat-controls label { flex: 1; min-width: 0; }
+  .chat-controls select { width: 100%; min-width: 0; }
+  .conversation { min-height: 250px; max-height: 48dvh; padding: 18px 13px; }
+  .message-bubble { max-width: 94%; padding: 12px 13px; }
+  .message-content { font-size: 13px; }
+  .suggestions { padding: 0 13px 13px; }
+  .suggestion-list button { white-space: normal; text-align: left; }
+  .chat-input-area { padding: 12px; }
+  .input-wrapper { align-items: stretch; flex-direction: column; padding: 9px; }
+  .input-wrapper textarea { width: 100%; min-height: 64px; }
+  .input-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+}
+
+@media (max-width: 400px) {
+  .hospital-nav-button { gap: 5px; font-size: 11px; }
+  .chat-controls { flex-direction: column; }
+  .chat-controls label { flex-direction: row; align-items: center; }
+  .chat-controls select { width: auto; flex: 1; }
+  .input-actions > button { flex: 1; padding-right: 8px; padding-left: 8px; }
+}
+
+/* INTEGRATED CHAT WORKSPACE REFINEMENTS — 2026-10-25 */
+
+/* Use the page as a unified workspace rather than a floating card. */
+.hospital-app-content {
+  min-width: 0;
+}
+
+.chat-page {
+  min-height: 0;
+  padding: 12px clamp(12px, 1.8vw, 28px) 16px;
+}
+
+.chat-container {
+  width: 100%;
+  max-width: none;
+  height: calc(100vh - 164px);
+  min-height: 520px;
+  border: 1px solid #e5ebf3;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(26, 49, 83, 0.035);
+  overflow: hidden;
+}
+
+/* Keep the assistant identity and controls, but reduce the separate-card effect. */
+.chat-header {
+  flex-shrink: 0;
+  background: #fff;
+  border-bottom: 1px solid #e8eef6;
+}
+
+/* Let the conversation take the available height. */
+.chat-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.conversation {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.suggestions {
+  flex: 0 0 auto;
+  background: #fff;
+}
+
+/* A more spacious writing area while preserving existing controls and handlers. */
+.chat-input-area {
+  flex-shrink: 0;
+  padding: 14px clamp(14px, 2vw, 28px) 16px;
+  background: #fff;
+}
+
+.input-wrapper {
+  align-items: stretch;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.input-wrapper textarea {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 100px;
+  padding: 12px 10px;
+  align-self: stretch;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.input-actions {
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+/* Keep the larger composer usable on tablets and phones. */
+@media (max-width: 700px) {
+  .chat-page {
+    padding: 8px;
+  }
+
+  .chat-container {
+    height: auto;
+    min-height: calc(100dvh - 160px);
+    border-radius: 12px;
+  }
+
+  .chat-body {
+    overflow: visible;
+  }
+
+  .conversation {
+    flex: 1 1 auto;
+    min-height: 220px;
+    max-height: none;
+    overflow-y: visible;
+    padding: 18px 13px;
+  }
+
+  .input-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .input-wrapper textarea {
+    min-height: 96px;
+    resize: vertical;
+  }
+
+  .input-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 400px) {
+  .chat-container {
+    min-height: calc(100dvh - 150px);
+  }
+
+  .input-wrapper textarea {
+    min-height: 88px;
+  }
+}
+
+/* FINAL CHAT WORKSPACE REFINEMENT */
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-color: #edf1f7;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(26, 49, 83, 0.025);
+}
+
+.chat-header {
+  flex: 0 0 auto;
+}
+
+.chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.conversation {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.input-wrapper textarea {
+  resize: none;
+}
+
+@media (max-width: 700px) {
+  .chat-container {
+    min-height: calc(100dvh - 160px);
+  }
+
+  .conversation {
+    min-height: 220px;
+  }
+
+  .input-wrapper textarea {
+    min-height: 96px;
+  }
+}
+
+/* RESULTS-FIRST CHAT LAYOUT */
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-header {
+  flex: 0 0 auto;
+}
+
+.chat-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.conversation {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.suggestions {
+  flex: 0 0 auto;
+  padding-bottom: 12px;
+}
+
+.chat-input-area {
+  flex: 0 0 auto;
+  padding-top: 10px;
+  padding-bottom: 12px;
+}
+
+.input-wrapper {
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.input-wrapper textarea {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 160px;
+  padding: 10px 8px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.input-actions {
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+@media (max-width: 700px) {
+  .chat-body {
+    overflow: visible;
+  }
+
+  .conversation {
+    min-height: 220px;
+    overflow-y: visible;
+  }
+
+  .input-wrapper {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .input-wrapper textarea {
+    min-height: 64px;
+  }
+
+  .input-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+/* ICON-BASED CHAT COMPOSER CONTROLS */
+.input-actions {
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-input-button {
+  display: inline-flex;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 12px;
+}
+
+.icon-input-button svg,
+.send-button svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.icon-input-button.is-listening {
+  color: #b42318;
+  border-color: #f2b8b5;
+  background: #fff1f0;
+}
+
+.icon-input-button.is-listening:hover:not(:disabled) {
+  border-color: #e99a95;
+  background: #ffe5e3;
+}
+
+.icon-input-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 92px;
+}
+
+@media (max-width: 700px) {
+  .icon-input-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .send-button {
+    min-height: 44px;
+  }
+}
+
+/* Automatic chat scrolling and scroll-to-latest control */
+.conversation {
+  scroll-behavior: smooth;
+  overflow-anchor: auto;
+}
+
+.scroll-to-latest {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: fit-content;
+  margin: 12px auto;
+  padding: 9px 14px;
+  border: 1px solid #d8dee8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.12);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scroll-to-latest:hover {
+  background: #f8fafc;
+}
+
+.scroll-to-latest:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation {
+    scroll-behavior: auto;
+  }
+}
+/* ==========================================================
+   SOFT SAGE THEME
+   Visual-only overrides; preserve existing application logic.
+   Primary accent: #E3F0E8
+   ========================================================== */
+
+:root {
+  --sage-primary: #E3F0E8;
+  --sage-soft: #F2F7F3;
+  --sage-surface: #FFFFFF;
+  --sage-teal: #31866F;
+  --sage-teal-hover: #26745F;
+  --sage-border: #D5E5DA;
+  --sage-text: #243B32;
+  --sage-muted: #718078;
+  --sage-shadow: 0 8px 28px rgba(44, 82, 65, 0.08);
+}
+
+/* Keep the interface calm and bright */
+body {
+  background-color: #F7F8F4;
+  color: var(--sage-text);
+}
+
+/* Conversation area */
+.conversation {
+  background-color: #FBFCFA;
+  scrollbar-color: #C4D9CC transparent;
+  scrollbar-width: thin;
+}
+
+/* Message composer and text fields */
+input,
+textarea,
+select {
+  accent-color: var(--sage-teal);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-color: var(--sage-teal);
+}
+
+/* Buttons: soften corners and transitions without changing behavior */
+button {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+/* Primary action buttons */
+button[type="submit"] {
+  border-color: var(--sage-teal);
+}
+
+/* Existing scroll-to-latest control */
+.scroll-to-latest {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--sage-teal);
+  border-color: #BFD8C9;
+  box-shadow: 0 5px 18px rgba(49, 134, 111, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.scroll-to-latest:hover {
+  background: var(--sage-primary);
+  border-color: var(--sage-teal);
+}
+
+/* Accessible keyboard focus */
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--sage-teal);
+  outline-offset: 3px;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   SOFT SAGE PREMIUM REDESIGN
+   Visual-only override. Existing React behavior is preserved.
+   ============================================================ */
+
+:root {
+  --sage-primary: #E3F0E8;
+  --sage-primary-deep: #CDE4D7;
+  --sage-wash: #F2F7F3;
+  --sage-cream: #F7F5ED;
+  --sage-white: #FFFFFF;
+  --sage-teal: #31866F;
+  --sage-teal-dark: #246A58;
+  --sage-teal-light: #E9F4EE;
+  --sage-ink: #20372F;
+  --sage-muted: #718078;
+  --sage-line: #DCE7DF;
+  --sage-shadow: 0 12px 36px rgba(39, 76, 58, 0.075);
+}
+
+/* ---------- Global atmosphere ---------- */
+
+html {
+  background: var(--sage-cream);
+}
+
+body {
+  background: var(--sage-cream);
+  color: var(--sage-ink);
+}
+
+.hospital-app {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      ellipse at 8% 12%,
+      rgba(227, 240, 232, 0.78),
+      transparent 35%
+    ),
+    linear-gradient(180deg, #F7F8F3 0%, #F4F6F0 100%);
+  color: var(--sage-ink);
+}
+
+.hospital-app-content {
+  min-width: 0;
+  background: transparent;
+}
+
+/* ---------- Premium navigation ---------- */
+
+.hospital-app-nav {
+  min-height: 82px;
+  padding: 13px clamp(18px, 4vw, 64px);
+  gap: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(210, 226, 215, 0.9);
+  box-shadow: 0 5px 22px rgba(41, 72, 54, 0.045);
+  backdrop-filter: blur(18px);
+}
+
+.hospital-brand {
+  gap: 12px;
+}
+
+.hospital-brand-mark {
+  width: 45px;
+  height: 45px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 15px;
+  background: linear-gradient(145deg, #4A9A7F, #28745F);
+  color: white;
+  box-shadow: 0 7px 16px rgba(49, 134, 111, 0.22);
+  font-size: 30px;
+}
+
+.hospital-brand-text strong {
+  color: #20372F;
+  font-size: 17px;
+  font-weight: 780;
+  letter-spacing: -0.55px;
+}
+
+.hospital-brand-text > span {
+  color: #78877D;
+  font-size: 11px;
+  letter-spacing: 0.25px;
+}
+
+.hospital-nav-links {
+  gap: 7px;
+  padding: 5px;
+  border: 1px solid #E8EEE8;
+  border-radius: 15px;
+  background: #F7F9F6;
+}
+
+.hospital-nav-button {
+  min-height: 42px;
+  padding: 0 17px;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: #68786F;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hospital-nav-button > span {
+  font-size: 17px;
+}
+
+.hospital-nav-button:hover:not(.is-active) {
+  border-color: #DDE9E0;
+  background: #EEF5EF;
+  color: var(--sage-teal-dark);
+}
+
+.hospital-nav-button.is-active {
+  border-color: #D2E6D9;
+  background: var(--sage-primary);
+  color: #246A58;
+  box-shadow: 0 2px 5px rgba(42, 93, 67, 0.045);
+}
+
+.hospital-demo-pill {
+  padding: 9px 13px;
+  border-color: #E5DCC2;
+  background: #FBF6E9;
+  color: #80683B;
+  font-size: 10px;
+  letter-spacing: 0.15px;
+}
+
+.hospital-demo-dot {
+  background: #C39B43;
+  box-shadow: 0 0 0 3px rgba(195, 155, 67, 0.12);
+}
+
+.hospital-app-footer {
+  border-top-color: #E2E9E0;
+  background: rgba(255, 255, 255, 0.78);
+  color: #77857B;
+}
+
+/* ---------- Assistant workspace ---------- */
+
+.chat-page {
+  min-height: 0;
+  padding: 22px clamp(14px, 3vw, 42px) 24px;
+  background: transparent;
+}
+
+.chat-container {
+  width: 100%;
+  max-width: 1440px;
+  height: min(820px, calc(100vh - 174px));
+  min-height: 540px;
+  overflow: hidden;
+  border: 1px solid #DDE8DF;
+  border-radius: 22px;
+  background: var(--sage-white);
+  box-shadow:
+    0 22px 60px rgba(39, 76, 58, 0.075),
+    0 3px 10px rgba(39, 76, 58, 0.025);
+}
+
+.chat-header {
+  min-height: 88px;
+  padding: 17px clamp(18px, 2.5vw, 32px);
+  gap: 20px;
+  border-bottom: 1px solid #E6EDE7;
+  background:
+    linear-gradient(110deg, #FFFFFF 0%, #F8FBF8 72%, #EFF6F0 100%);
+}
+
+.assistant-identity {
+  gap: 14px;
+}
+
+.assistant-icon {
+  width: 49px;
+  height: 49px;
+  border: 1px solid #D4E7D9;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #EAF5ED, #D8EBDD);
+  color: #28745F;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.assistant-identity h1 {
+  color: #20372F;
+  font-size: 16px;
+  font-weight: 760;
+  letter-spacing: -0.4px;
+}
+
+.assistant-status {
+  color: #78877D;
+  font-size: 11px;
+}
+
+.status-dot {
+  background: #3D9A71;
+  box-shadow: 0 0 0 4px rgba(61, 154, 113, 0.11);
+}
+
+.chat-controls {
+  gap: 12px;
+}
+
+.chat-controls label {
+  color: #718078;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chat-controls select {
+  min-height: 38px;
+  padding: 8px 30px 8px 11px;
+  border: 1px solid #DCE7DF;
+  border-radius: 10px;
+  background-color: white;
+  color: #30473B;
+  font-size: 12px;
+}
+
+.chat-controls select:focus,
+.chat-controls select:focus-visible {
+  border-color: #6CA88B;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(49, 134, 111, 0.12);
+}
+
+/* ---------- Conversation canvas ---------- */
+
+.chat-body {
+  background:
+    radial-gradient(
+      ellipse at 0% 0%,
+      rgba(227, 240, 232, 0.32),
+      transparent 48%
+    ),
+    #FFFFFF;
+}
+
+.conversation {
+  padding: 27px clamp(18px, 4vw, 52px) 20px;
+  background: transparent;
+  scrollbar-color: #C3D9CA transparent;
+  scrollbar-width: thin;
+}
+
+.message-row {
+  margin-bottom: 21px;
+}
+
+.message-bubble {
+  max-width: min(780px, 86%);
+  padding: 16px 19px;
+  border-radius: 18px;
+  overflow-wrap: anywhere;
+}
+
+.message-assistant {
+  border: 1px solid #E0E9E1;
+  border-bottom-left-radius: 5px;
+  background: #F5F8F4;
+  color: #2B4035;
+  box-shadow: 0 4px 13px rgba(44, 77, 53, 0.035);
+}
+
+.message-user {
+  border: 1px solid #2D7B65;
+  border-bottom-right-radius: 5px;
+  background: linear-gradient(145deg, #41977B, #2E7D66);
+  color: #FFFFFF;
+  box-shadow: 0 7px 17px rgba(49, 134, 111, 0.16);
+}
+
+.message-role {
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.35px;
+}
+
+.message-content {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.message-time {
+  color: #87958B;
+}
+
+.message-speech-button {
+  border-color: #D7E5DA;
+  border-radius: 9px;
+  color: #47715C;
+}
+
+.message-speech-button:hover {
+  background: #E8F2E9;
+}
+
+.message-content-assistant blockquote {
+  border-left-color: #70A88A;
+  background: #EAF3EC;
+}
+
+.message-content-assistant code,
+.message-content-assistant pre {
+  background: #E9EFE8;
+}
+
+.message-content-assistant a {
+  color: #26745F;
+}
+
+/* ---------- Suggested prompts ---------- */
+
+.suggestions {
+  padding: 2px clamp(18px, 4vw, 52px) 17px;
+  background: #FFFFFF;
+}
+
+.suggestions-title {
+  margin-bottom: 11px;
+  color: #708176;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.05px;
+  text-transform: uppercase;
+}
+
+.suggestion-list {
+  gap: 9px;
+  padding: 2px 2px 5px;
+}
+
+.suggestion-list button {
+  min-height: 39px;
+  padding: 9px 14px;
+  border: 1px solid #DCE8DE;
+  border-radius: 12px;
+  background: #F8FAF7;
+  color: #466253;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  box-shadow: 0 2px 5px rgba(39, 76, 58, 0.025);
+}
+
+.suggestion-list button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: #A9CDB5;
+  background: #EAF4EC;
+  color: #246A58;
+}
+
+.suggestion-list button:disabled {
+  opacity: 0.55;
+}
+
+/* ---------- Composer ---------- */
+
+.chat-input-area {
+  padding: 13px clamp(16px, 3vw, 34px) 17px;
+  border-top: 1px solid #E5ECE5;
+  background: linear-gradient(180deg, #FFFFFF, #FBFCF9);
+}
+
+.input-wrapper {
+  align-items: center;
+  gap: 11px;
+  padding: 9px 10px 9px 15px;
+  border: 1px solid #D4E3D7;
+  border-radius: 17px;
+  background: #FFFFFF;
+  box-shadow: 0 4px 15px rgba(39, 76, 58, 0.045);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.input-wrapper:focus-within {
+  border-color: #7CB596;
+  box-shadow:
+    0 0 0 4px rgba(49, 134, 111, 0.09),
+    0 5px 18px rgba(39, 76, 58, 0.04);
+}
+
+.input-wrapper textarea {
+  min-height: 44px;
+  padding: 11px 7px;
+  color: #2B4035;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.input-wrapper textarea::placeholder {
+  color: #98A59A;
+}
+
+.input-actions {
+  gap: 8px;
+}
+
+.icon-input-button {
+  width: 41px;
+  min-width: 41px;
+  height: 41px;
+  min-height: 41px;
+  border: 1px solid #DFE8DF;
+  border-radius: 12px;
+  background: #F5F8F4;
+  color: #4B6D58;
+}
+
+.icon-input-button:hover:not(:disabled) {
+  border-color: #B8D4BF;
+  background: #EAF3EB;
+  color: #246A58;
+}
+
+.icon-input-button.is-listening {
+  border-color: #E6B6B1;
+  background: #FFF1EF;
+  color: #B42318;
+}
+
+.send-button {
+  min-width: 94px;
+  min-height: 41px;
+  padding: 0 15px;
+  border: 1px solid #2E7D66;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #41977B, #2E7D66);
+  color: white;
+  font-size: 12px;
+  font-weight: 750;
+  box-shadow: 0 4px 10px rgba(49, 134, 111, 0.16);
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: linear-gradient(145deg, #37896F, #246A58);
+}
+
+.send-button:disabled {
+  box-shadow: none;
+}
+
+.input-hint {
+  color: #829186;
+  font-size: 10px;
+}
+
+.error-message {
+  border-color: #EECFCB;
+  border-radius: 11px;
+  background: #FFF5F3;
+  color: #A43C32;
+}
+
+/* ---------- Scroll-to-latest control ---------- */
+
+.scroll-to-latest {
+  border-color: #C5DCCB;
+  background: rgba(255, 255, 255, 0.97);
+  color: #28745F;
+  box-shadow: 0 6px 20px rgba(39, 76, 58, 0.13);
+  backdrop-filter: blur(12px);
+}
+
+.scroll-to-latest:hover {
+  border-color: #8FBE9F;
+  background: #E3F0E8;
+}
+
+/* ---------- Appointment booking page ---------- */
+
+.booking-page {
+  width: min(1240px, 100%);
+  padding: 38px clamp(16px, 3vw, 36px) 50px;
+  color: #20372F;
+}
+
+.booking-hero {
+  margin-bottom: 26px;
+}
+
+.booking-eyebrow {
+  color: #31866F;
+  letter-spacing: 1.7px;
+}
+
+.booking-hero h1 {
+  color: #20372F;
+  font-weight: 780;
+  letter-spacing: -1.2px;
+}
+
+.booking-hero p,
+.booking-panel-heading p {
+  color: #718078;
+}
+
+.booking-hero-icon {
+  border-color: #D4E7D9;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #EAF5ED, #D8EBDD);
+  color: #28745F;
+}
+
+.booking-demo-warning {
+  border-color: #E9DEC4;
+  border-radius: 14px;
+  background: #FBF7EC;
+  color: #75613C;
+}
+
+.booking-warning-mark {
+  border-color: #D7C38E;
+}
+
+.booking-notice-success {
+  border-color: #CFE3D3;
+  background: #EEF6EF;
+  color: #286348;
+}
+
+.booking-layout {
+  gap: 22px;
+}
+
+.booking-panel {
+  border-color: #DEE8DF;
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--sage-shadow);
+}
+
+.booking-panel-heading h2 {
+  color: #20372F;
+  letter-spacing: -0.5px;
+}
+
+.booking-step {
+  border-radius: 12px;
+  background: #E3F0E8;
+  color: #28745F;
+}
+
+.booking-field {
+  color: #354B3E;
+}
+
+.booking-field select,
+.booking-field input,
+.booking-field textarea {
+  border-color: #DCE7DF;
+  border-radius: 11px;
+  background: #FFFFFF;
+  color: #2B4035;
+}
+
+.booking-field select:focus,
+.booking-field input:focus,
+.booking-field textarea:focus {
+  border-color: #73AA8B;
+  box-shadow: 0 0 0 3px rgba(49, 134, 111, 0.11);
+}
+
+.booking-doctor-card {
+  border-color: #D7E8DA;
+  border-radius: 13px;
+  background: #F3F8F3;
+}
+
+.booking-doctor-avatar {
+  border-radius: 13px;
+  background: #DCEDE0;
+  color: #28745F;
+}
+
+.booking-slot {
+  border-color: #DCE7DF;
+  border-radius: 12px;
+  background: #FFFFFF;
+  color: #30473B;
+}
+
+.booking-slot:hover {
+  border-color: #73AA8B;
+  background: #F6FAF6;
+}
+
+.booking-slot.is-selected {
+  border-color: #31866F;
+  background: #E3F0E8;
+  box-shadow: inset 0 0 0 1px #31866F;
+  color: #246A58;
+}
+
+.booking-primary-button {
+  border-color: #2E7D66;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #41977B, #2E7D66);
+  box-shadow: 0 5px 12px rgba(49, 134, 111, 0.12);
+}
+
+.booking-primary-button:hover:not(:disabled) {
+  background: linear-gradient(145deg, #37896F, #246A58);
+}
+
+.booking-secondary-button,
+.booking-refresh-button {
+  border-color: #DCE7DF;
+  border-radius: 10px;
+  color: #466253;
+}
+
+.booking-secondary-button:hover:not(:disabled),
+.booking-refresh-button:hover:not(:disabled) {
+  border-color: #B8D4BF;
+  background: #EEF6EF;
+  color: #246A58;
+}
+
+.booking-empty {
+  border-color: #D7E5D9;
+  border-radius: 14px;
+  background: #FBFCF9;
+}
+
+.booking-empty-icon {
+  background: #E3F0E8;
+  color: #28745F;
+}
+
+.booking-appointment-card {
+  border-color: #DFE8DF;
+  border-radius: 14px;
+  background: #FFFFFF;
+}
+
+.booking-status-active {
+  background: #E3F0E8;
+  color: #246A58;
+}
+
+.booking-appointment-details {
+  border-color: #E3EBE3;
+}
+
+.booking-history {
+  border-top-color: #E3EBE3;
+}
+
+/* ---------- Legacy appointment request page compatibility ---------- */
+
+.appointment-page {
+  padding-top: 36px;
+}
+
+.appointment-eyebrow,
+.appointment-section-label {
+  color: #31866F;
+}
+
+.appointment-intro h1,
+.appointment-panel-heading h2,
+.appointment-detail-heading h3 {
+  color: #20372F;
+}
+
+.appointment-intro p,
+.appointment-panel-description {
+  color: #718078;
+}
+
+.appointment-intro-icon,
+.appointment-heading-icon {
+  background: #E3F0E8;
+  color: #28745F;
+}
+
+.appointment-panel {
+  border-color: #DEE8DF;
+  border-radius: 17px;
+  box-shadow: var(--sage-shadow);
+}
+
+.appointment-form input,
+.appointment-form select,
+.appointment-form textarea {
+  border-color: #DCE7DF;
+  border-radius: 10px;
+  color: #2B4035;
+}
+
+.appointment-form input:focus,
+.appointment-form select:focus,
+.appointment-form textarea:focus {
+  border-color: #73AA8B;
+  box-shadow: 0 0 0 3px rgba(49, 134, 111, 0.11);
+}
+
+.appointment-primary-button {
+  border-color: #2E7D66;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #41977B, #2E7D66);
+}
+
+.appointment-primary-button:hover:not(:disabled) {
+  background: #246A58;
+}
+
+.appointment-refresh-button {
+  border-color: #DCE7DF;
+  color: #466253;
+}
+
+.appointment-refresh-button:hover:not(:disabled) {
+  border-color: #B8D4BF;
+  color: #246A58;
+}
+
+.appointment-request-card {
+  border-color: #DFE8DF;
+  border-radius: 12px;
+}
+
+.appointment-request-card:hover {
+  border-color: #B8D4BF;
+  background: #FAFCF9;
+}
+
+.appointment-request-card--selected {
+  border-color: #8FBE9F;
+  background: #F0F7F1;
+  box-shadow: inset 3px 0 #31866F;
+}
+
+.appointment-request-id {
+  color: #28745F;
+}
+
+.appointment-status--submitted,
+.appointment-status--appointment_confirmed {
+  border-color: #CFE3D3;
+  background: #EAF4EC;
+  color: #286348;
+}
+
+.appointment-detail {
+  border-top-color: #E3EBE3;
+}
+
+.appointment-detail-reason {
+  border-color: #E3EBE3;
+  background: #F8FAF6;
+}
+
+.appointment-timeline-dot {
+  border-color: #79AF8C;
+}
+
+.appointment-timeline li:not(:last-child)::before {
+  background: #D7E5D9;
+}
+
+/* ---------- Accessible focus and motion ---------- */
+
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid rgba(49, 134, 111, 0.3);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Responsive refinement ---------- */
+
+@media (max-width: 1050px) {
+  .hospital-app-nav {
+    gap: 12px;
+  }
+
+  .hospital-nav-links {
+    border-radius: 12px;
+  }
+}
+
+@media (max-width: 700px) {
+  .hospital-app-nav {
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .hospital-nav-links {
+    padding: 4px;
+    border-radius: 12px;
+  }
+
+  .hospital-nav-button {
+    min-height: 40px;
+    padding: 0 9px;
+    border-radius: 9px;
+  }
+
+  .chat-page {
+    padding: 10px;
+  }
+
+  .chat-container {
+    height: auto;
+    min-height: calc(100dvh - 180px);
+    border-radius: 17px;
+  }
+
+  .chat-header {
+    padding: 17px;
+    gap: 15px;
+  }
+
+  .assistant-icon {
+    width: 43px;
+    height: 43px;
+    border-radius: 13px;
+  }
+
+  .chat-controls {
+    gap: 9px;
+  }
+
+  .conversation {
+    padding: 19px 13px;
+  }
+
+  .message-bubble {
+    max-width: 94%;
+    padding: 13px 14px;
+    border-radius: 15px;
+  }
+
+  .suggestions {
+    padding: 0 13px 14px;
+  }
+
+  .suggestion-list {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .suggestion-list button {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .chat-input-area {
+    padding: 12px;
+  }
+
+  .input-wrapper {
+    border-radius: 14px;
+  }
+
+  .booking-page {
+    padding: 26px 14px 36px;
+  }
+
+  .booking-panel {
+    border-radius: 15px;
+  }
+}
+
+@media (max-width: 400px) {
+  .hospital-demo-pill {
+    max-width: 145px;
+    padding: 7px 9px;
+    white-space: normal;
+  }
+
+  .hospital-brand-text strong {
+    font-size: 15px;
+  }
+
+  .hospital-brand-text > span {
+    font-size: 10px;
+  }
+
+  .hospital-nav-button {
+    gap: 5px;
+    font-size: 10px;
+  }
+}

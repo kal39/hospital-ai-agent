@@ -11,6 +11,7 @@ interface EthiopianDatePickerProps {
   language: Language;
   value: string;
   minDate: string;
+  maxDate: string;
   onChange: (gregorianIsoDate: string) => void;
 }
 
@@ -50,6 +51,7 @@ export default function EthiopianDatePicker({
   language,
   value,
   minDate,
+  maxDate,
   onChange,
 }: EthiopianDatePickerProps) {
   const am = language === "am";
@@ -64,9 +66,18 @@ export default function EthiopianDatePicker({
     [minDate],
   );
 
+  const maximum = useMemo(
+    () => gregorianToEthiopian(maxDate),
+    [maxDate],
+  );
+
   const ethiopianYears = useMemo(
-    () => Array.from({ length: 4 }, (_, index) => minimum.year + index),
-    [minimum.year],
+    () =>
+      Array.from(
+        { length: maximum.year - minimum.year + 1 },
+        (_, index) => minimum.year + index,
+      ),
+    [minimum.year, maximum.year],
   );
 
   const ethiopianMonthDays = daysInEthiopianMonth(
@@ -84,13 +95,21 @@ export default function EthiopianDatePicker({
     [minDate],
   );
 
+  const maximumGregorian = useMemo(
+    () => getGregorianParts(maxDate),
+    [maxDate],
+  );
+
   const gregorianYears = useMemo(
     () =>
       Array.from(
-        { length: 4 },
+        {
+          length:
+            maximumGregorian.year - minimumGregorian.year + 1,
+        },
         (_, index) => minimumGregorian.year + index,
       ),
-    [minimumGregorian.year],
+    [minimumGregorian.year, maximumGregorian.year],
   );
 
   const gregorianMonthDays = getGregorianMonthDays(
@@ -111,7 +130,7 @@ export default function EthiopianDatePicker({
         day: safeDay,
       });
 
-      if (isoDate >= minDate) {
+      if (isoDate >= minDate && isoDate <= maxDate) {
         onChange(isoDate);
       }
     } catch {
@@ -126,7 +145,7 @@ export default function EthiopianDatePicker({
     );
     const isoDate = toIsoDate(year, month, safeDay);
 
-    if (isoDate >= minDate) {
+    if (isoDate >= minDate && isoDate <= maxDate) {
       onChange(isoDate);
     }
   }
@@ -185,7 +204,7 @@ export default function EthiopianDatePicker({
                   <option
                     key={day}
                     value={day}
-                    disabled={isoDate < minDate}
+                    disabled={isoDate < minDate || isoDate > maxDate}
                   >
                     {day}
                   </option>
@@ -297,13 +316,12 @@ export default function EthiopianDatePicker({
                 value={day}
                 disabled={(() => {
                   try {
-                    return (
-                      ethiopianToGregorian({
-                        year: selected.year,
-                        month: selected.month,
-                        day,
-                      }) < minDate
-                    );
+                    const isoDate = ethiopianToGregorian({
+                      year: selected.year,
+                      month: selected.month,
+                      day,
+                    });
+                    return isoDate < minDate || isoDate > maxDate;
                   } catch {
                     return true;
                   }

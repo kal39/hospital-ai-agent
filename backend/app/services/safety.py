@@ -23,6 +23,61 @@ def _matches(patterns: list[re.Pattern[str]], message: str) -> bool:
     return any(pattern.search(message) for pattern in patterns)
 
 
+def _matches_urgent(message: str) -> bool:
+    """Match urgent symptoms unless explicitly negated in the same clause.
+
+    Contrast words start a new clause, so a positive symptom after
+    "but" or "however" is still detected.
+    """
+    contrast_pattern = re.compile(
+        r"\b(?:but|however|although|though|yet|except)\b",
+        re.IGNORECASE,
+    )
+    negation_pattern = re.compile(
+        r"\b(?:no|without|denies|denied|"
+        r"don't\s+have|do\s+not\s+have|"
+        r"doesn't\s+have|does\s+not\s+have|"
+        r"haven't\s+had|have\s+not\s+had|"
+        r"never\s+had)\b",
+        re.IGNORECASE,
+    )
+
+    for pattern in URGENT_PATTERNS:
+        for match in pattern.finditer(message):
+            # Limit negation to the current clause.
+            clause_start = 0
+            for boundary in contrast_pattern.finditer(
+                message[:match.start()]
+            ):
+                clause_start = boundary.end()
+
+            # Also avoid carrying negation across sentence boundaries.
+            punctuation = max(
+                message.rfind(".", clause_start, match.start()),
+                message.rfind("!", clause_start, match.start()),
+                message.rfind("?", clause_start, match.start()),
+                message.rfind(";", clause_start, match.start()),
+            )
+            if punctuation >= clause_start:
+                clause_start = punctuation + 1
+
+            prefix = message[clause_start:match.start()]
+
+            # "Not only chest pain" is not a negation.
+            if re.search(r"\bnot\s+only\b", prefix, re.IGNORECASE):
+                prefix = re.sub(
+                    r"\bnot\s+only\b",
+                    "",
+                    prefix,
+                    flags=re.IGNORECASE,
+                )
+
+            if not negation_pattern.search(prefix):
+                return True
+
+    return False
+
+
 UNSAFE_PATTERNS = _compile_patterns(
     [
         r"\bshould\s+i\s+stop\s+taking\b",
@@ -118,14 +173,13 @@ DIZZINESS_PATTERNS = _compile_patterns(
 )
 
 DIZZINESS_MESSAGE_EN = (
-    "I'm sorry you're feeling dizzy. Dizziness after taking medication "
-    "can have several causes and should be assessed by a healthcare "
-    "professional. Please contact your care team promptly for advice, "
+    "Dizziness can have several causes and should be assessed by a "
+    "healthcare professional. Please contact your care team promptly, "
     "especially if this is new or recurring. Do not drive while dizzy; "
-    "sit or lie down to reduce the risk of falling. Do not independently "
-    "change your medication based on this chat. If you faint, have chest "
-    "pain, difficulty breathing, new weakness, trouble speaking, or severe "
-    "or rapidly worsening symptoms, seek emergency medical care now."
+    "sit or lie down to reduce the risk of falling. If you develop "
+    "fainting, chest pain, difficulty breathing, new weakness, trouble "
+    "speaking, or severe or rapidly worsening symptoms, seek emergency "
+    "medical care now."
 )
 
 DIZZINESS_MESSAGE_AM = (
@@ -172,10 +226,10 @@ KIDNEY_URINARY_MESSAGE_AM = (
 
 
 def evaluate_safety(message: str, language: str = "en") -> SafetyResult:
-    """Check urgent, kidney/urinary, then restricted medication requests."""
+    """Check urgent symptoms and restricted requests, then offer advisories."""
     selected_language = "am" if language == "am" else "en"
 
-    if _matches(URGENT_PATTERNS, message):
+    if _matches_urgent(message):
         return {
             "blocked": True,
             "urgent": True,
@@ -186,16 +240,6 @@ def evaluate_safety(message: str, language: str = "en") -> SafetyResult:
             ),
         }
 
-    if _matches(DIZZINESS_PATTERNS, message):
-        return {
-            "blocked": True,
-            "urgent": False,
-            "message": (
-                DIZZINESS_MESSAGE_AM
-                if selected_language == "am"
-                else DIZZINESS_MESSAGE_EN
-            ),
-        }
     kidney_or_back_pain = (
         _matches(KIDNEY_OR_BACK_PATTERNS, message)
         and _matches(PAIN_PATTERNS, message)
@@ -221,6 +265,17 @@ def evaluate_safety(message: str, language: str = "en") -> SafetyResult:
                 UNSAFE_MESSAGE_AM
                 if selected_language == "am"
                 else UNSAFE_MESSAGE_EN
+            ),
+        }
+
+    if _matches(DIZZINESS_PATTERNS, message):
+        return {
+            "blocked": False,
+            "urgent": False,
+            "message": (
+                DIZZINESS_MESSAGE_AM
+                if selected_language == "am"
+                else DIZZINESS_MESSAGE_EN
             ),
         }
 

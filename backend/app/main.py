@@ -4,6 +4,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.appointments import router as appointments_router
+from app.api.analytics import router as analytics_router
 from app.api.chat import router as chat_router
 from app.api.appointment_requests import router as appointment_requests_router
 from app.api.appointment_requests import staff_router as staff_appointment_requests_router
@@ -102,6 +103,7 @@ app.include_router(patients_router)
 app.include_router(appointment_requests_router)
 app.include_router(staff_appointment_requests_router)
 app.include_router(appointments_router)
+app.include_router(analytics_router)
 app.include_router(chat_router)
 
 
@@ -113,3 +115,4 @@ async def health_check() -> dict[str, str]:
         "service": "hospital-ai-agent",
         "environment": settings.environment,
     }
+

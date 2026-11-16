@@ -1,4 +1,4 @@
-﻿"""Integration tests for safety checks in the hospital agent workflow."""
+"""Integration tests for safety checks in the hospital agent workflow."""
 
 import asyncio
 
@@ -13,8 +13,10 @@ def isolate_agent_state(monkeypatch):
     """Isolate conversation state without mocking the real safety checker."""
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
+    agent_module._pending_appointment_suggested_departments.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
     monkeypatch.setattr(
         agent_module,
@@ -26,8 +28,10 @@ def isolate_agent_state(monkeypatch):
 
     agent_module._conversations.clear()
     agent_module._pending_appointment_requests.clear()
+    agent_module._pending_appointment_suggested_departments.clear()
     agent_module._pending_appointment_selections.clear()
-    agent_module._completed_demo_bookings.clear()
+    agent_module._completed_appointment_requests.clear()
+    agent_module._pending_appointment_cancellations.clear()
 
 
 def run_agent(service, message, language="en"):
@@ -74,8 +78,9 @@ def test_dizziness_is_blocked_before_llm(monkeypatch):
 
     assert result["safetyFlag"] is True
     assert result["toolsUsed"] == []
-    assert "healthcare professional" in result["message"].lower()
-    assert "Do not drive" in result["message"]
+    assert "independently" in result["message"].lower()
+    assert "care team" in result["message"].lower()
+    assert "Do not drive" not in result["message"]
     assert calls == []
 
 
