@@ -15,11 +15,19 @@ from app.services.symptom_matching import (
         ("I have a fever.", "General Medicine"),
         ("I have several symptoms.", "General Medicine"),
         ("I have a cough and ear pain.", "General Medicine"),
+        ("I have stomach discomfort.", "General Medicine"),
         ("I have palpitations and persistent anxiety.", "General Medicine"),
-        ("I have no cough.", "General Medicine"),
-        ("I do not have ear pain.", "General Medicine"),
+        ("I have no cough.", None),
+        ("I do not have ear pain.", None),
         ("I have a persistent cough.", "Respiratory Clinic"),
         ("My heartbeat feels irregular.", "Cardiology"),
+        ("My heartbeat sometimes feels irregular and unusually fast.", "Cardiology"),
+        ("I have recurring migraines.", "Neurology"),
+        ("I have persistent acid reflux and stomach discomfort.", "Gastroenterology"),
+        ("I have unusual thirst and frequent urination.", "Endocrinology"),
+        ("I have frequent urination.", "Urology"),
+        ("I have blurred vision.", "Ophthalmology"),
+        ("I have ankle swelling.", "General Medicine"),
         ("I have a skin rash.", "Dermatology"),
     ],
 )
@@ -28,9 +36,12 @@ def test_appointment_guidance_uses_specialist_or_general_medicine(
 ):
     result = suggest_department_or_general_medicine(message)
 
-    assert result is not None
-    assert result["department"] == expected
-    assert result["reason"]
+    if expected is None:
+        assert result is None
+    else:
+        assert result is not None
+        assert result["department"] == expected
+        assert result["reason"]
 
 
 @pytest.mark.parametrize(

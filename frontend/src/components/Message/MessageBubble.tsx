@@ -126,10 +126,10 @@ export default function MessageBubble({
         <div className="message-role">
           {isUser
             ? language === "am"
-              ? "áŠ¥áˆ­áˆµá‹Ž"
+              ? "እርስዎ"
               : "You"
             : language === "am"
-              ? "á‹¨áˆ†áˆµá’á‰³áˆ AI áˆ¨á‹³á‰µ"
+              ? "የሆስፒታል AI ረዳት"
               : "Hospital AI Assistant"}
         </div>
 
@@ -477,23 +477,23 @@ export default function MessageBubble({
               aria-label={
                 speaking
                   ? language === "am"
-                    ? "áŠ•áŒáŒáˆ©áŠ• áŠ á‰áˆ"
+                    ? "ንግግሩን አቁም"
                     : "Stop speaking"
                   : language === "am"
-                    ? "áˆ˜áˆáˆ±áŠ• áŠ á‹³áˆáŒ¥"
+                    ? "ምላሹን ጮክ ብለው ያዳምጡ"
                     : "Read response aloud"
               }
               title={
                 speaking
                   ? language === "am"
-                    ? "áŠ•áŒáŒáˆ©áŠ• áŠ á‰áˆ"
+                    ? "ንግግሩን አቁም"
                     : "Stop speaking"
                   : language === "am"
-                    ? "áˆ˜áˆáˆ±áŠ• áŠ á‹³áˆáŒ¥"
+                    ? "ምላሹን ጮክ ብለው ያዳምጡ"
                     : "Read response aloud"
               }
             >
-              {speaking ? "â–  Stop" : "â–¶ Listen"}
+              {speaking ? "■ Stop" : "▶ Listen"}
             </button>
           )}
         </div>

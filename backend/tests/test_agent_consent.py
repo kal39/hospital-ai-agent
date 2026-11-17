@@ -46,6 +46,20 @@ def isolate_agent_state(monkeypatch):
     agent_module._pending_appointment_cancellations.clear()
 
 
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "I want to see Obstetrics and Gynecology.",
+        "I want to see Obstetrics & Gynecology.",
+        "I want to see OB-GYN.",
+        "I want to see OBGYN.",
+    ],
+)
+def test_gynecology_aliases_resolve_to_canonical_department(message):
+    assert agent_module._extract_requested_department(message) == "Gynecology"
+
+
 def run_agent(
     service: HospitalAgentService,
     message: str,
@@ -1212,16 +1226,19 @@ def test_model_generated_consent_uses_general_medicine_fallback_for_explicit_dep
 
 
 @pytest.mark.parametrize(
-    "symptom",
+    ("symptom", "expected_department"),
     [
-        "I have a headache.",
-        "I have chest pain and an irregular heartbeat.",
-        "I feel dizzy and my heart is beating fast.",
+        ("I have a headache.", "General Medicine"),
+        (
+            "I feel dizzy and my heart is beating fast.",
+            "General Medicine",
+        ),
     ],
 )
-def test_model_generated_consent_does_not_create_unsafe_or_ambiguous_filter(
+def test_model_generated_consent_uses_general_medicine_fallback_for_unclear_symptoms(
     monkeypatch,
     symptom,
+    expected_department,
 ):
     service = HospitalAgentService()
     calls = mock_llm(
@@ -1241,6 +1258,39 @@ def test_model_generated_consent_does_not_create_unsafe_or_ambiguous_filter(
     assert result["toolsUsed"] == []
     assert len(calls) == 1
     assert key in agent_module._pending_appointment_requests
+    assert (
+        agent_module._pending_appointment_suggested_departments[key]
+        == expected_department
+    )
+    assert key not in agent_module._pending_appointment_departments
+
+
+def test_model_generated_consent_does_not_offer_routine_search_for_urgent_symptoms(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Would you like help checking available appointment options?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    result = run_agent(
+        service,
+        "I have chest pain and an irregular heartbeat.",
+    )
+
+    key = "patient-001:consent-test"
+
+    assert result["toolsUsed"] == []
+    assert "immediate medical care" in result["message"].casefold()
+    assert "routine doctor directory" in result["message"].casefold()
+    assert len(calls) == 1
+    assert key not in agent_module._pending_appointment_requests
     assert key not in agent_module._pending_appointment_suggested_departments
     assert key not in agent_module._pending_appointment_departments
 
@@ -1304,4 +1354,168 @@ def test_model_generated_consent_preserves_explicit_department_filter(
     assert all(
         doctor["department"] == department
         for doctor in selection["doctors"]
+    )
+
+def test_indirect_appointment_offer_after_medical_question_keeps_symptom_department_filter(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    actual_response = (
+        "To help me provide more relevant information from your medical "
+        "records, would you like to share how long your headache has lasted "
+        "or if you have other symptoms? Also, if you would like to explore "
+        "appointment options with a doctor to discuss this, please let me "
+        "know and I can help you check available times."
+    )
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": actual_response,
+            "toolsUsed": [],
+        },
+    )
+
+    symptom = "I have a headache."
+    key = "patient-001:consent-test"
+
+    first = run_agent(service, symptom)
+
+    assert first["toolsUsed"] == []
+    assert len(calls) == 1
+    assert key in agent_module._pending_appointment_requests
+    assert agent_module._pending_appointment_requests[key] == symptom
+    assert (
+        agent_module._pending_appointment_suggested_departments[key]
+        == "General Medicine"
+    )
+    assert "general medicine" in first["message"].lower()
+    assert "separately" in first["message"].lower()
+
+    # First yes accepts the suggested department only.
+    second = run_agent(service, "Yes")
+
+    assert second["toolsUsed"] == []
+    assert "general medicine" in second["message"].lower()
+    assert "read-only" in second["message"].lower()
+    assert agent_module._pending_appointment_departments[key] == (
+        "General Medicine"
+    )
+
+    # Second yes grants directory-search consent.
+    third = run_agent(service, "Yes")
+
+    assert third["toolsUsed"] == ["findAppropriateDoctors"]
+    assert third.get("doctorRecommendations")
+    assert all(
+        doctor["department"] == "General Medicine"
+        for doctor in third["doctorRecommendations"]
+    )
+    assert len(calls) == 2
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_departments
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert "bookAppointment" not in third["toolsUsed"]
+    assert "createAppointmentRequest" not in third["toolsUsed"]
+
+def test_routine_general_medical_checkup_uses_general_medicine_workflow(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": "Would you like help exploring appointment options?",
+            "toolsUsed": [],
+        },
+    )
+
+    prompt = (
+        "I would like a general medical check-up. "
+        "Can you help me find the appropriate department and its doctors?"
+    )
+    key = "patient-001:consent-test"
+
+    first = run_agent(service, prompt)
+
+    assert first["toolsUsed"] == []
+    assert "general medicine" in first["message"].lower()
+    assert "routine general medical check-up" in first["message"].lower()
+    assert "preferred directory filter" in first["message"].lower()
+    assert "separately" in first["message"].lower()
+    assert calls == []
+
+    assert agent_module._pending_appointment_requests[key] == prompt
+    assert (
+        agent_module._pending_appointment_suggested_departments[key]
+        == "General Medicine"
+    )
+
+    # First yes accepts the suggested filter only.
+    second = run_agent(service, "Yes")
+
+    assert second["toolsUsed"] == []
+    assert "general medicine" in second["message"].lower()
+    assert "read-only" in second["message"].lower()
+    assert "reply yes or no" in second["message"].lower()
+    assert calls == []
+
+    assert (
+        agent_module._pending_appointment_departments[key]
+        == "General Medicine"
+    )
+    assert key in agent_module._pending_appointment_requests
+
+    # Second yes permits read-only directory discovery.
+    third = run_agent(service, "Yes")
+
+    assert third["toolsUsed"] == ["findAppropriateDoctors"]
+    doctors = third.get("doctorRecommendations")
+    assert doctors
+    assert len(doctors) == 2
+    assert all(
+        doctor["department"] == "General Medicine"
+        for doctor in doctors
+    )
+    assert {
+        doctor["name"] for doctor in doctors
+    } == {
+        "Dr. Hana Tesfaye",
+        "Dr. Samuel Bekele",
+    }
+
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_departments
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert "bookAppointment" not in third["toolsUsed"]
+    assert "createAppointmentRequest" not in third["toolsUsed"]
+
+def test_short_routine_checkup_prompt_enters_general_medicine_workflow(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": "Would you like help exploring appointment options?",
+            "toolsUsed": [],
+        },
+    )
+
+    prompt = "I'd like a routine check-up."
+    key = "patient-001:consent-test"
+
+    assert agent_module._is_appointment_workflow_request(prompt)
+
+    result = run_agent(service, prompt)
+
+    assert result["toolsUsed"] == []
+    assert "general medicine" in result["message"].lower()
+    assert "preferred directory filter" in result["message"].lower()
+    assert "separately" in result["message"].lower()
+    assert calls == []
+
+    assert agent_module._pending_appointment_requests[key] == prompt
+    assert (
+        agent_module._pending_appointment_suggested_departments[key]
+        == "General Medicine"
     )

@@ -45,8 +45,12 @@ _SYMPTOM_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     (
         "Cardiology",
         re.compile(
-            r"\b(?:heart palpitations|palpitations|irregular heartbeat|"
-            r"heartbeat feels irregular|racing heartbeat|"
+            r"\b(?:heartbeat(?: sometimes)? feels irregular(?: and (?:is )?(?:unusually )?fast)?|"
+            r"heart palpitations|palpitations|irregular heartbeat|"
+            r"heartbeat feels irregular|racing heartbeat|fast heartbeat|"
+            r"rapid heartbeat|high heart rate|fast heart rate|"
+            r"rapid heart rate|heart rate is (?:higher|high|elevated)|"
+            r"my heart beats faster than usual|heart beats faster than usual|"
             r"heart beating irregularly|heart keeps racing|"
             r"heart is racing|fluttering heartbeat|heart fluttering|"
             r"skipped heartbeats|irregular heart rhythm|"
@@ -71,7 +75,8 @@ _SYMPTOM_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     (
         "Neurology",
         re.compile(
-            r"\b(?:recurrent migraine|migraine attacks|migraine follow[- ]?up|"
+            r"\b(?:recurring migraines?|recurrent migraines?|"
+            r"recurrent migraine|migraine attacks|migraine follow[- ]?up|"
             r"recurrent headaches|recurring headaches|"
             r"recurrent numbness|numbness in (?:my )?(?:hands?|feet|arms?|legs?)|"
             r"tingling in (?:my )?(?:hands?|feet|arms?|legs?)|"
@@ -168,12 +173,17 @@ _SYMPTOM_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     (
         "Gastroenterology",
         re.compile(
-            r"\b(?:persistent heartburn|acid reflux|recurrent acid reflux|"
+            r"\b(?:(?:persistent )?acid reflux and (?:persistent )?stomach discomfort|"
+            r"persistent heartburn|acid reflux|recurrent acid reflux|"
             r"persistent bloating|recurrent bloating|"
             r"gastroenterology follow[- ]?up|digestive health follow[- ]?up|"
             r"persistent constipation|recurring constipation|"
             r"persistent diarrhea|recurring diarrhea|"
             r"digestive discomfort|recurring abdominal bloating|"
+            r"recurring stomach discomfort|persistent stomach discomfort|"
+            r"ongoing stomach discomfort|recurring digestive problems|"
+            r"persistent digestive problems|ongoing digestive problems|"
+            r"recurring digestive issues|persistent digestive issues|ongoing digestive issues|"
             r"nausea follow[- ]?up|persistent indigestion|"
             r"gastrointestinal follow[- ]?up)\b",
             re.I,
@@ -212,7 +222,9 @@ _SYMPTOM_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     (
         "Endocrinology",
         re.compile(
-            r"\b(?:thyroid follow[- ]?up|thyroid condition review|"
+            r"\b(?:unusual thirst and frequent urination|"
+            r"increased thirst and frequent urination|"
+            r"thyroid follow[- ]?up|thyroid condition review|"
             r"diabetes follow[- ]?up|blood sugar management|"
             r"endocrinology follow[- ]?up|hormone condition follow[- ]?up|"
             r"thyroid review|hormone imbalance follow[- ]?up|"
@@ -298,7 +310,18 @@ def suggest_department(message: str) -> DepartmentSuggestion | None:
     matches: list[tuple[str, str]] = []
     recognized_spans: list[tuple[int, int]] = []
 
+    combined_endocrine_pattern = re.compile(
+        r"\b(?:unusual|increased) thirst and frequent urination\b",
+        re.I,
+    )
+    has_combined_endocrine_phrase = bool(
+        combined_endocrine_pattern.search(message)
+    )
+
     for department, pattern, reason in _SYMPTOM_PATTERNS:
+        if department == "Urology" and has_combined_endocrine_phrase:
+            continue
+
         department_matches = [
             match for match in pattern.finditer(message)
             if not _is_negated(message, match.start())
@@ -353,10 +376,14 @@ def suggest_department_or_general_medicine(
         return None
 
     has_symptom_mention = (
-        bool(_OTHER_SYMPTOM_MENTIONS.search(message))
+        any(
+            not _is_negated(message, match.start())
+            for match in _OTHER_SYMPTOM_MENTIONS.finditer(message)
+        )
         or any(
-            pattern.search(message)
+            not _is_negated(message, match.start())
             for _, pattern, _ in _SYMPTOM_PATTERNS
+            for match in pattern.finditer(message)
         )
         or "several symptoms" in message.lower()
         or "multiple symptoms" in message.lower()
@@ -377,3 +404,18 @@ def suggest_department_or_general_medicine(
             "starting point for discussing your concern with a clinician."
         ),
     }
+
+
+
+def has_potentially_urgent_symptom(message: str) -> bool:
+    """Return whether text contains a non-negated potentially urgent phrase.
+
+    This is a conservative navigation safeguard, not a clinical triage tool.
+    """
+    if not isinstance(message, str) or not message.strip():
+        return False
+
+    return any(
+        not _is_negated(message, match.start())
+        for match in _POTENTIALLY_URGENT_MENTIONS.finditer(message)
+    )

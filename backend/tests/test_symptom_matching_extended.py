@@ -2,7 +2,10 @@
 
 import pytest
 
-from app.services.symptom_matching import suggest_department
+from app.services.symptom_matching import (
+    suggest_department,
+    suggest_department_or_general_medicine,
+)
 
 
 @pytest.mark.parametrize(
@@ -67,6 +70,10 @@ from app.services.symptom_matching import suggest_department
         ("I have recurring diarrhea.", "Gastroenterology"),
         ("I need a nausea follow-up.", "Gastroenterology"),
         ("I have persistent indigestion.", "Gastroenterology"),
+        ("I've been having recurring stomach discomfort.", "Gastroenterology"),
+        ("I have persistent stomach discomfort.", "Gastroenterology"),
+        ("I have recurring digestive problems.", "Gastroenterology"),
+        ("I have ongoing digestive issues.", "Gastroenterology"),
 
         ("I have urinary urgency.", "Urology"),
         ("I have difficulty urinating.", "Urology"),
@@ -166,3 +173,33 @@ def test_non_string_and_empty_inputs_return_none():
     assert suggest_department("") is None
     assert suggest_department("   ") is None
     assert suggest_department(None) is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "I don't have blurred vision.",
+        "I have no palpitations.",
+        "I do not have a persistent cough.",
+    ],
+)
+def test_negated_symptoms_do_not_trigger_general_medicine_fallback(message):
+    assert suggest_department_or_general_medicine(message) is None
+
+
+@pytest.mark.parametrize(
+    ("message", "department"),
+    [
+        ("I have tooth pain.", "Dental"),
+        ("I have a persistent cough.", "Respiratory Clinic"),
+        ("My heartbeat feels irregular.", "Cardiology"),
+        ("I have a headache.", "General Medicine"),
+        ("I have fever and tooth pain.", "General Medicine"),
+    ],
+)
+def test_positive_symptoms_keep_expected_fallback_department(
+    message, department
+):
+    result = suggest_department_or_general_medicine(message)
+    assert result is not None
+    assert result["department"] == department

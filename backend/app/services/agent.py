@@ -19,7 +19,11 @@ from app.services.appointment_requests import (
 )
 from app.services.privacy import requests_another_patient_data
 from app.services.safety import evaluate_safety
-from app.services.symptom_matching import suggest_department, suggest_department_or_general_medicine
+from app.services.symptom_matching import (
+    suggest_department,
+    suggest_department_or_general_medicine,
+    has_potentially_urgent_symptom,
+)
 
 MAX_HISTORY_MESSAGES = 20
 HISTORY_MESSAGES_SENT_TO_LLM = 8
@@ -362,6 +366,19 @@ def _extract_requested_department(message: str) -> str | None:
         if re.search(pattern, text):
             return department
 
+    if "Gynecology" in departments:
+        gynecology_aliases = (
+            r"obstetrics\s+and\s+gynecology",
+            r"obstetrics\s*&\s*gynecology",
+            r"ob\s*[- ]?gyn",
+            r"obgyn",
+        )
+        if any(
+            re.search(rf"(?<!\w){alias}(?!\w)", text)
+            for alias in gynecology_aliases
+        ):
+            return "Gynecology"
+
     return None
 
 
@@ -510,9 +527,45 @@ def _format_demo_slots(slots: list[dict[str, Any]]) -> str:
         "submitting a request for staff review."
     )
 
+def _is_routine_general_checkup_request(message: str) -> bool:
+    """Recognize explicit routine/general medical check-up requests."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+    pattern = (
+        r"\b(?:general\s+medical|general|routine|medical|health|"
+        r"annual|regular)\s+check[\s-]?ups?\b"
+    )
+    return bool(re.search(pattern, text))
+
+
+def _suggest_appointment_department(
+    message: str,
+    language: str,
+    requested_department: str | None,
+) -> dict[str, str] | None:
+    """Choose a safe directory starting point for appointment exploration."""
+    if language != "en" or requested_department:
+        return None
+
+    if _is_routine_general_checkup_request(message):
+        return {
+            "department": "General Medicine",
+            "reason": (
+                "For a routine general medical check-up, General Medicine "
+                "is an appropriate starting point for a broad initial "
+                "assessment and can direct you to another department "
+                "if needed."
+            ),
+        }
+
+    return suggest_department_or_general_medicine(message)
+
+
 def _is_appointment_workflow_request(message: str) -> bool:
     """Identify requests to search for or manage appointment options."""
     text = message.casefold()
+
+    if _is_routine_general_checkup_request(message):
+        return True
 
     patterns = (
         r"\b(?:i\s+)?(?:need|want|would like)\s+(?:an?\s+)?"
@@ -591,15 +644,26 @@ def _extract_appointment_request_id(message: str) -> str | None:
 def _appointment_action_unavailable_message(language: str) -> str:
     if language == "am":
         return (
-            "Ã¡â€°Â Ã¡â€¹Å¡Ã¡Ë†â€¦ Ã¡Ë†â„¢Ã¡Å Â¨Ã¡Ë†Â«Ã¡â€¹Å  Ã¡Ë†ÂµÃ¡Ë†Â­Ã¡â€¹â€œÃ¡â€°Âµ Ã¡â€°â‚¬Ã¡Å’Â Ã¡Ë†Â® Ã¡Ë†ËœÃ¡â€¹Â«Ã¡â€¹ÂÃ¡ÂÂ£ Ã¡Ë†ËœÃ¡â€°â‚¬Ã¡â€¹Â¨Ã¡Ë†Â­ "
-            "Ã¡â€¹Ë†Ã¡â€¹Â­Ã¡Ë†Â Ã¡Ë†ËœÃ¡Ë†Â°Ã¡Ë†Â¨Ã¡â€¹Â Ã¡Å Â Ã¡â€¹Â­Ã¡â€°Â»Ã¡Ë†ÂÃ¡Ë†ÂÃ¡ÂÂ¢ Ã¡Å Â¥Ã¡â€°Â£Ã¡Å Â­Ã¡â€¹Å½ Ã¡Å Â¨Ã¡Ë†â€ Ã¡Ë†ÂµÃ¡Ââ€™Ã¡â€°Â³Ã¡Ë†â€° "
-            "Ã¡Å’â€¹Ã¡Ë†Â­ Ã¡â€°Â Ã¡â€°â‚¬Ã¡Å’Â¥Ã¡â€°Â³ Ã¡â€¹Â«Ã¡Ë†Â¨Ã¡Å’â€¹Ã¡Å’ÂÃ¡Å’Â¡Ã¡ÂÂ¢"
+            "\u12ed\u1205 \u12e8\u1219\u12a8\u122b "
+            "\u1235\u122d\u12d3\u1275 "
+            "\u12a5\u12cd\u1290\u1270\u129b "
+            "\u1240\u1320\u122e \u121b\u1235\u12eb\u12dd\u1363 "
+            "\u1218\u1240\u12e8\u122d \u12c8\u12ed\u121d "
+            "\u1218\u1230\u1228\u12dd "
+            "\u12a0\u12ed\u127d\u120d\u121d\u1362 "
+            "\u1208\u12a5\u1290\u12da\u1205 "
+            "\u12a0\u1308\u120d\u130d\u120e\u1276\u127d "
+            "\u12a5\u1263\u12ad\u12ce "
+            "\u1260\u1240\u1325\u1273 "
+            "\u1206\u1235\u1352\u1273\u1209\u1295 "
+            "\u12eb\u1290\u130b\u130d\u1229\u1362"
         )
 
     return (
         "This prototype cannot book, change, or cancel a real appointment. "
         "Please contact the hospital directly for those actions."
     )
+
 
 def _consent_decision(message: str) -> str:
     """Recognize explicit English and Amharic consent replies."""
@@ -729,11 +793,8 @@ def _is_consent_information_question(message: str) -> bool:
 
 
 def _assistant_asked_for_appointment_consent(message: str) -> bool:
-    """Detect permission questions for read-only appointment discovery."""
+    """Detect permission questions or offers for read-only appointment discovery."""
     text = re.sub(r"\s+", " ", message.casefold()).strip()
-
-    # Inspect only the question, not a later safety disclaimer.
-    question = text.split("?", 1)[0]
 
     permission_pattern = (
         r"\b(?:would you like(?: me to)?|would like|may i|can i|should i|shall i)\b"
@@ -755,15 +816,22 @@ def _assistant_asked_for_appointment_consent(message: str) -> bool:
         r"|\bappropriate department\b"
     )
 
-    english_consent_question = (
-        re.search(permission_pattern, question)
-        and re.search(search_action_pattern, question)
-        and re.search(appointment_target_pattern, question)
-    )
+    # Evaluate each sentence independently. An earlier medical follow-up
+    # question must not hide an appointment offer later in the response.
+    sentences = re.split(r"(?<=[.!?])\s+", text)
 
-    return bool(
-        english_consent_question
-        or ("የቀጠሮ አማራጮችን" in text and "አዎ" in text and "አይ" in text)
+    for sentence in sentences:
+        if (
+            re.search(permission_pattern, sentence)
+            and re.search(search_action_pattern, sentence)
+            and re.search(appointment_target_pattern, sentence)
+        ):
+            return True
+
+    return (
+        "\u12e8\u1240\u1320\u122e\u0020\u12a0\u121b\u122b\u132e\u127d\u1295" in text
+        and "\u12a0\u12ce" in text
+        and "\u12a0\u12ed" in text
     )
 
 
@@ -800,18 +868,29 @@ def _add_synthetic_data_disclosure(
     """Add one synthetic-data notice without deleting clinical content."""
     text = (response or "").strip()
 
-    # Some callers/tests may provide literal backslash-n sequences.
-    # Normalize paragraph breaks before processing the response.
     text = text.replace("\\r\\n", "\n").replace("\\n", "\n")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
 
     if language == "am":
         notice = (
-            "Ã¡Ë†â€ºÃ¡Ë†Â³Ã¡Ë†Â°Ã¡â€°Â¢Ã¡â€¹Â«Ã¡ÂÂ¦ Ã¡â€¹Â­Ã¡Ë†â€¦ Ã¡Ë†ËœÃ¡Ë†Â¨Ã¡Å’Æ’ Ã¡Å Â¨Ã¡Ë†Â°Ã¡â€¹Â Ã¡Ë†Â°Ã¡Ë†Â«Ã¡Ë†Â½ Ã¡â€¹Â¨Ã¡Ë†â„¢Ã¡Å Â¨Ã¡Ë†Â« "
-            "Ã¡Ë†ËœÃ¡â€¹ÂÃ¡Å’Ë†Ã¡â€°Â¦Ã¡â€°Â½ Ã¡â€¹Â¨Ã¡â€°Â°Ã¡Å’Ë†Ã¡Å Ëœ Ã¡Å ÂÃ¡â€¹ÂÃ¡ÂÂ¤ Ã¡Å Â¨Ã¡â€°â‚¬Ã¡Å’Â¥Ã¡â€°Â³ Ã¡â€¹Â¨Ã¡Ë†â€ Ã¡Ë†ÂµÃ¡Ââ€™Ã¡â€°Â³Ã¡Ë†Â "
-            "Ã¡Ë†ÂµÃ¡Ë†Â­Ã¡â€¹â€œÃ¡â€°Âµ Ã¡â€¹Â¨Ã¡â€°Â°Ã¡Ë†Â¨Ã¡Å’â€¹Ã¡Å’Ë†Ã¡Å’Â  Ã¡Ë†ËœÃ¡Ë†Â¨Ã¡Å’Æ’ Ã¡Å Â Ã¡â€¹Â­Ã¡â€¹Â°Ã¡Ë†Ë†Ã¡Ë†ÂÃ¡ÂÂ¢ "
-            "Ã¡Ë†Ë†Ã¡Ë†â€¢Ã¡Å Â­Ã¡Ë†ÂÃ¡Å â€œ Ã¡â€¹ÂÃ¡Ë†Â³Ã¡Å â€ Ã¡Å Â¨Ã¡Ë†ËœÃ¡Å’Â Ã¡â€°â‚¬Ã¡Ë†ÂÃ¡â€¹Å½ Ã¡â€°Â Ã¡ÂÅ Ã¡â€°Âµ "
-            "Ã¡Å Â¨Ã¡Å’Â¤Ã¡Å â€œ Ã¡â€°Â£Ã¡Ë†Ë†Ã¡Ë†â„¢Ã¡â€¹Â«Ã¡â€¹Å½ Ã¡Å’â€¹Ã¡Ë†Â­ Ã¡â€¹Â«Ã¡Ë†Â¨Ã¡Å’â€¹Ã¡Å’ÂÃ¡Å’Â¡Ã¡ÂÂ¢"
+            "\u12e8\u121b\u1235\u1273\u12c8\u123b "
+            "\u121b\u1233\u1230\u1262\u12eb\u1366 "
+            "\u12e8\u121a\u12a8\u1270\u1208\u12cd "
+            "\u1218\u1228\u1303 \u1208\u1219\u12a8\u122b "
+            "\u12a8\u1270\u1348\u1320\u1229 "
+            "\u12e8\u121b\u1233\u12eb \u1218\u12dd\u1308\u1266\u127d "
+            "\u12e8\u1270\u1308\u1298 \u1290\u12cd\u1364 "
+            "\u12a8\u1240\u1325\u1273 "
+            "\u12e8\u1206\u1235\u1352\u1273\u120d "
+            "\u1235\u122d\u12d3\u1275 "
+            "\u12e8\u1270\u1228\u130b\u1308\u1320 "
+            "\u1218\u1228\u1303 \u12a0\u12ed\u12f0\u1208\u121d\u1362 "
+            "\u1260\u1215\u12ad\u121d\u1293 "
+            "\u12cd\u1233\u1294\u12ce\u127d \u120b\u12ed "
+            "\u12a8\u1218\u1218\u122d\u12ae\u12dd\u12ce "
+            "\u1260\u134a\u1275 \u12a5\u1263\u12ad\u12ce "
+            "\u12a8\u1324\u1293 \u1263\u1208\u1219\u12eb\u12ce "
+            "\u130b\u122d \u12eb\u1228\u130b\u130d\u1321\u1362"
         )
     else:
         notice = (
@@ -828,32 +907,22 @@ def _add_synthetic_data_disclosure(
     ]
 
     def is_disclaimer_only(paragraph: str) -> bool:
-        """Identify disclaimer paragraphs, not paragraphs with clinical results."""
         lower = paragraph.casefold()
 
-        # Never delete a paragraph that appears to contain a clinical result.
         clinical_indicators = (
-            "glucose",
-            "hemoglobin",
-            "haemoglobin",
-            "result",
-            "results",
-            "mg/dl",
-            "g/dl",
-            "mmol/l",
-            "reference range",
-            "blood pressure",
-            "pulse",
+            "glucose", "hemoglobin", "haemoglobin",
+            "result", "results", "mg/dl", "g/dl", "mmol/l",
+            "reference range", "blood pressure", "pulse",
             "temperature",
-            "Ã¡Ë†â€žÃ¡Ë†Å¾Ã¡Å’ÂÃ¡Ë†Å½Ã¡â€°Â¢Ã¡Å â€¢",
-            "Ã¡â€¹ÂÃ¡Å’Â¤Ã¡â€°Âµ",
-            "Ã¡â€¹ÂÃ¡Å’Â¤Ã¡â€°Â¶Ã¡â€°Â½",
-        )
-        has_clinical_content = any(
-            indicator in lower for indicator in clinical_indicators
+            "??????????????????????????????????????",
+            "???????????????????",
+            "??????????????????????????",
         )
 
-        if has_clinical_content:
+        if any(indicator in lower for indicator in clinical_indicators):
+            return False
+
+        if re.search(r"(?m)^\s*\d+\.\s+", paragraph):
             return False
 
         english_notice_markers = (
@@ -864,37 +933,30 @@ def _add_synthetic_data_disclosure(
             "disclaimer:",
         )
 
-        # Appointment options may contain "Synthetic Demo" in their
-        # clinic names. Never delete a paragraph containing numbered options.
-        if re.search(r"(?m)^\s*\d+\.\s+", paragraph):
-            return False
-
         if any(marker in lower for marker in english_notice_markers):
             return True
 
-        # Remove malformed Amharic notices that are clearly standalone
-        # disclaimers or contain the synthetic-demo marker.
         if "synthetic demo" in lower:
             return True
 
-        if paragraph.startswith("Ã¡Ë†â€ºÃ¡Ë†Â³Ã¡Ë†Â°Ã¡â€°Â¢Ã¡â€¹Â«Ã¡ÂÂ¦"):
+        if paragraph.startswith(
+            "\u12e8\u121b\u1235\u1273\u12c8\u123b "
+            "\u121b\u1233\u1230\u1262\u12eb"
+        ):
+            return True
+
+        if paragraph.startswith("???????????????????"):
             return True
 
         return False
 
-    # Remove only recognized disclaimer paragraphs. Keep the other response
-    # paragraphs, including clinical explanations and results.
     content_paragraphs = [
-        paragraph
-        for paragraph in paragraphs
+        paragraph for paragraph in paragraphs
         if not is_disclaimer_only(paragraph)
     ]
 
     content = "\n\n".join(content_paragraphs).strip()
-
-    # Always emit exactly one canonical notice before the remaining content.
     return f"{notice}\n\n{content}" if content else notice
-
 
 def _format_upcoming_appointments(
     appointments: list[dict[str, Any]],
@@ -1851,11 +1913,17 @@ class HospitalAgentService:
                 if suggestion_decision == "no":
                     _pending_appointment_suggested_departments.pop(key, None)
                     _pending_appointment_departments.pop(key, None)
+                    # Do not leave a symptom request available for an
+                    # unfiltered directory search after the patient rejects
+                    # its suggested department.
+                    _pending_appointment_requests.pop(key, None)
                     response_message = (
                         f"Okay. I won't use {suggested_department} as a "
-                        "suggested directory filter. Would you like me to "
-                        "explore appointment options without that filter? "
-                        "Please reply yes or no."
+                        "directory filter, and I won't search without one. "
+                        "If you'd like to continue, please start a new "
+                        "request and tell me which department you prefer, "
+                        "such as General Medicine. I'll ask separately "
+                        "before searching that department's doctors."
                         if language == "en"
                         else _consent_clarification_message(language)
                     )
@@ -2150,10 +2218,10 @@ class HospitalAgentService:
 
             _pending_appointment_requests[key] = message
 
-            suggestion = (
-                suggest_department_or_general_medicine(message)
-                if language == "en" and not requested_department
-                else None
+            suggestion = _suggest_appointment_department(
+                message,
+                language,
+                requested_department,
             )
 
             if suggestion:
@@ -2297,18 +2365,34 @@ class HospitalAgentService:
         doctor_recommendations = None
 
         if allow_appointment_discovery and pending_request is not None:
-            try:
-                doctors = _get_demo_doctors(
-                    patient_id,
-                    department=appointment_department,
-                )
-            except Exception:
+            missing_symptom_filter = (
+                not appointment_department.strip()
+                and suggest_department_or_general_medicine(pending_request)
+                is not None
+            )
+
+            if missing_symptom_filter:
                 doctors = None
                 response_message = (
-                    "I couldn't retrieve the demonstration doctor directory "
-                    "because of a temporary system problem. No appointment "
-                    "request has been submitted. Please try again later."
+                    "I could not confirm the department filter for this "
+                    "symptom-related request. Please start the request again "
+                    "so we can confirm the appropriate department before "
+                    "searching the demonstration doctor directory. "
+                    "No appointment has been booked or submitted."
                 )
+            else:
+                try:
+                    doctors = _get_demo_doctors(
+                        patient_id,
+                        department=appointment_department,
+                    )
+                except Exception:
+                    doctors = None
+                    response_message = (
+                        "I couldn't retrieve the demonstration doctor directory "
+                        "because of a temporary system problem. No appointment "
+                        "request has been submitted. Please try again later."
+                    )
 
             if doctors:
                 doctor_recommendations = doctors
@@ -2346,6 +2430,26 @@ class HospitalAgentService:
         if (
             not allow_appointment_discovery
             and _assistant_asked_for_appointment_consent(response_message)
+            and has_potentially_urgent_symptom(message)
+        ):
+            # Urgent symptoms must never enter routine appointment discovery.
+            _pending_appointment_requests.pop(key, None)
+            _pending_appointment_departments.pop(key, None)
+            _pending_appointment_suggested_departments.pop(key, None)
+
+            urgent_notice = (
+                "Your message may describe a symptom that needs urgent "
+                "medical assessment. Please seek immediate medical care "
+                "or contact local emergency services. I won't search the "
+                "routine doctor directory for this concern."
+            )
+            # Do not retain the model's routine appointment-consent
+            # question for a potentially urgent symptom.
+            response_message = urgent_notice
+
+        elif (
+            not allow_appointment_discovery
+            and _assistant_asked_for_appointment_consent(response_message)
         ):
             _pending_appointment_requests[key] = message
 
@@ -2359,33 +2463,15 @@ class HospitalAgentService:
                     requested_department
                 )
 
-            # Keep the conservative matcher for ordinary symptom messages.
-            # Use the General Medicine fallback only when the patient
-            # explicitly asks which department they should visit.
-            message_lower = message.casefold()
-            asks_department_guidance = any(
-                phrase in message_lower
-                for phrase in (
-                    "which department should i visit",
-                    "which department should i see",
-                    "which department should i go to",
-                    "what department should i visit",
-                    "what department should i see",
-                    "what department should i go to",
-                    "which department is appropriate",
-                    "what department is appropriate",
-                )
+            # Use conservative symptom matching with a General Medicine
+            # fallback when symptoms are recognized but no safe specialist
+            # filter is clear. Urgent symptoms deliberately receive no
+            # routine directory suggestion.
+            suggestion = _suggest_appointment_department(
+                message,
+                language,
+                requested_department,
             )
-
-            if language == "en" and not requested_department:
-                if asks_department_guidance:
-                    suggestion = suggest_department_or_general_medicine(
-                        message
-                    )
-                else:
-                    suggestion = suggest_department(message)
-            else:
-                suggestion = None
 
             if suggestion:
                 suggested_department = suggestion["department"]
