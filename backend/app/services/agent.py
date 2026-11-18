@@ -2463,8 +2463,10 @@ class HospitalAgentService:
                 explicitly_named_doctor = (
                     bool(
                         re.search(
-                            r"\b(?:with|see|visit|book|schedule|need)"
+                            r"\b(?:with|see|visit|book|schedule)"
                             r"\s+(?:doctor\s+|dr\.?\s+)?[a-z][a-z'-]*\b"
+                            r"|\bneed\s+(?!a\b|an\b|the\b|appointment\b)"
+                            r"(?:doctor\s+|dr\.?\s+)?[a-z][a-z'-]*\b"
                             r"|\b(?:doctor|dr)\.?\s+[a-z]",
                             pending_request,
                             flags=re.IGNORECASE,
@@ -2475,6 +2477,8 @@ class HospitalAgentService:
 
                 requested_name_match = re.search(
                     r"\b(?:with|see|visit|book|schedule)\s+"
+                    r"(?:doctor\s+|dr\.?\s+)?([a-z][a-z'-]*)"
+                    r"|\bneed\s+(?!a\b|an\b|the\b|appointment\b)"
                     r"(?:doctor\s+|dr\.?\s+)?([a-z][a-z'-]*)"
                     r"|\b(?:doctor|dr)\.?\s+([a-z][a-z'-]*)",
                     pending_request,
