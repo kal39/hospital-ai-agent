@@ -418,6 +418,65 @@ def _get_demo_doctors(
     return results
 
 
+def _match_requested_doctors(
+    request: str,
+    doctors: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Match explicitly requested doctors using full names or first names.
+
+    Full names match as complete phrases. First names match when used
+    in a doctor-selection context. Surname-only requests are not used
+    to select doctors because they may be ambiguous.
+    """
+    normalized_request = re.sub(
+        r"[^a-z0-9]+",
+        " ",
+        request.casefold(),
+    ).strip()
+
+    padded_request = f" {normalized_request} "
+    matches = []
+
+    for doctor in doctors:
+        normalized_name = re.sub(
+            r"[^a-z0-9]+",
+            " ",
+            doctor.get("name", "").casefold(),
+        ).strip()
+
+        name_tokens = [
+            token
+            for token in normalized_name.split()
+            if token not in {"dr", "doctor"}
+        ]
+
+        if not name_tokens:
+            continue
+
+        full_name = " ".join(name_tokens)
+
+        if f" {full_name} " in padded_request:
+            matches.append(doctor)
+            continue
+
+        first_name = name_tokens[0]
+
+        first_name_patterns = (
+            rf"\b(?:with|see|visit|book|schedule|need)"
+            rf"\s+(?:dr\s+)?{re.escape(first_name)}\b",
+            rf"\b(?:doctor|dr)\s+{re.escape(first_name)}\b",
+        )
+
+        if any(
+            re.search(pattern, normalized_request)
+            for pattern in first_name_patterns
+        ):
+            matches.append(doctor)
+
+    return matches
+
+
 def _get_available_slots_for_doctor(
     patient_id: str,
     doctor_id: str,
@@ -2394,26 +2453,90 @@ class HospitalAgentService:
                         "request has been submitted. Please try again later."
                     )
 
-            if doctors:
-                doctor_recommendations = doctors
-
-                _pending_appointment_selections[key] = {
-                    "status": "awaiting_doctor_selection",
-                    "doctors": doctors,
-                    "reason": pending_request,
-                    "idempotency_key": uuid4().hex,
-                }
-
-                response_message = _format_demo_doctors(doctors)
+            if doctors is not None:
                 tools_used = ["findAppropriateDoctors"]
 
-            elif doctors == []:
-                response_message = (
-                    "I couldn't find any doctors in the fictional "
-                    "demonstration directory. No appointment request has "
-                    "been submitted. Please try again later."
+                requested_doctor_matches = (
+                    _match_requested_doctors(pending_request, doctors)
                 )
-                tools_used = ["findAppropriateDoctors"]
+
+                explicitly_named_doctor = (
+                    bool(
+                        re.search(
+                            r"\b(?:with|see|visit|book|schedule|need)"
+                            r"\s+(?:doctor\s+|dr\.?\s+)?[a-z][a-z'-]*\b"
+                            r"|\b(?:doctor|dr)\.?\s+[a-z]",
+                            pending_request,
+                            flags=re.IGNORECASE,
+                        )
+                    )
+                    or bool(requested_doctor_matches)
+                )
+
+                requested_name_match = re.search(
+                    r"\b(?:with|see|visit|book|schedule)\s+"
+                    r"(?:doctor\s+|dr\.?\s+)?([a-z][a-z'-]*)"
+                    r"|\b(?:doctor|dr)\.?\s+([a-z][a-z'-]*)",
+                    pending_request,
+                    flags=re.IGNORECASE,
+                )
+                requested_doctor_name = (
+                    next(
+                        (
+                            group
+                            for group in requested_name_match.groups()
+                            if group
+                        ),
+                        "the requested name",
+                    )
+                    if requested_name_match
+                    else "the requested name"
+                )
+
+                if explicitly_named_doctor:
+                    if requested_doctor_matches:
+                        doctors = requested_doctor_matches
+                    else:
+                        doctors = []
+                        response_message = (
+                            f"I couldn't find a doctor named "
+                            f"{requested_doctor_name} in the fictional "
+                            "demonstration directory. Please check the "
+                            "spelling or try another doctor's name. "
+                            "No appointment has been booked or submitted."
+                        )
+
+                if doctors:
+                    doctor_recommendations = doctors
+
+                    _pending_appointment_selections[key] = {
+                        "status": "awaiting_doctor_selection",
+                        "doctors": doctors,
+                        "reason": pending_request,
+                        "idempotency_key": uuid4().hex,
+                    }
+
+                    response_message = _format_demo_doctors(doctors)
+
+                    if explicitly_named_doctor and len(doctors) > 1:
+                        matching_names = ", ".join(
+                            doctor["name"] for doctor in doctors
+                        )
+                        response_message = (
+                            f"I found multiple doctors matching that name: "
+                            f"{matching_names}. Please choose the correct "
+                            "doctor by selecting a card or replying with "
+                            "its option number. I won't select one "
+                            "automatically. No appointment has been booked "
+                            "or submitted."
+                        )
+
+                elif not explicitly_named_doctor:
+                    response_message = (
+                        "I couldn't find any doctors in the fictional "
+                        "demonstration directory. No appointment request "
+                        "has been submitted. Please try again later."
+                    )
 
         if (
             safety_advisory

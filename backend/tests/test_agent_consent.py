@@ -1519,3 +1519,318 @@ def test_short_routine_checkup_prompt_enters_general_medicine_workflow(
         agent_module._pending_appointment_suggested_departments[key]
         == "General Medicine"
     )
+
+
+
+def test_named_doctor_matching_supports_first_names_not_surnames():
+    doctors = [
+        {"id": "1", "name": "Dr. Kalkidan Mulu"},
+        {"id": "2", "name": "Dr. Dawit Bekele"},
+        {"id": "3", "name": "Dr. Dawit Hailu"},
+        {"id": "4", "name": "Dr. Henok Assefa"},
+        {"id": "5", "name": "Dr. Henok Alemu"},
+    ]
+
+    assert [
+        doctor["name"]
+        for doctor in agent_module._match_requested_doctors(
+            "I need an appointment with Dr. Kalkidan Mulu",
+            doctors,
+        )
+    ] == ["Dr. Kalkidan Mulu"]
+
+    assert [
+        doctor["name"]
+        for doctor in agent_module._match_requested_doctors(
+            "I need an appointment with Kalkidan",
+            doctors,
+        )
+    ] == ["Dr. Kalkidan Mulu"]
+
+    assert agent_module._match_requested_doctors(
+        "I need an appointment with Bekele",
+        doctors,
+    ) == []
+
+    assert [
+        doctor["name"]
+        for doctor in agent_module._match_requested_doctors(
+            "I need an appointment with Dawit",
+            doctors,
+        )
+    ] == ["Dr. Dawit Bekele", "Dr. Dawit Hailu"]
+
+    assert [
+        doctor["name"]
+        for doctor in agent_module._match_requested_doctors(
+            "I need an appointment with Henok",
+            doctors,
+        )
+    ] == ["Dr. Henok Assefa", "Dr. Henok Alemu"]
+
+
+def test_named_doctor_matching_is_case_and_punctuation_insensitive():
+    doctors = [
+        {"id": "1", "name": "Dr. Kalkidan Mulu"},
+    ]
+
+    matches = agent_module._match_requested_doctors(
+        "appointment with DR KALKIDAN-MULU",
+        doctors,
+    )
+
+    assert [doctor["id"] for doctor in matches] == ["1"]
+
+
+def test_named_doctor_matching_returns_empty_for_unknown_name():
+    doctors = [
+        {"id": "1", "name": "Dr. Kalkidan Mulu"},
+        {"id": "2", "name": "Dr. Dawit Bekele"},
+    ]
+
+    assert agent_module._match_requested_doctors(
+        "I need an appointment with Dr. Unknown Person",
+        doctors,
+    ) == []
+
+
+def test_named_doctor_search_returns_only_requested_doctor(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    doctors = [
+        {
+            "id": "doctor-kalkidan",
+            "name": "Dr. Kalkidan Mulu",
+            "department": "Ophthalmology",
+            "specialties": [],
+            "location": "Synthetic Demo Clinic B",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+        {
+            "id": "doctor-dawit",
+            "name": "Dr. Dawit Bekele",
+            "department": "Respiratory Clinic",
+            "specialties": [],
+            "location": "Synthetic Demo Clinic A",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+    ]
+
+    monkeypatch.setattr(
+        agent_module,
+        "_get_demo_doctors",
+        lambda patient_id, department="": doctors,
+    )
+
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": "Would you like to explore appointment options?",
+            "toolsUsed": [],
+        },
+    )
+
+    first = run_agent(
+        service,
+        "I need an appointment with Dr. Kalkidan Mulu.",
+    )
+
+    assert first["toolsUsed"] == []
+    assert "yes or no" in first["message"].lower()
+
+    result = run_agent(service, "Yes")
+
+    assert result["toolsUsed"] == ["findAppropriateDoctors"]
+    assert [
+        doctor["name"]
+        for doctor in result["doctorRecommendations"]
+    ] == ["Dr. Kalkidan Mulu"]
+
+    selection = agent_module._pending_appointment_selections[
+        "patient-001:consent-test"
+    ]
+    assert selection["status"] == "awaiting_doctor_selection"
+    assert [
+        doctor["name"] for doctor in selection["doctors"]
+    ] == ["Dr. Kalkidan Mulu"]
+
+    assert "getAvailableAppointmentSlots" not in result["toolsUsed"]
+    assert "bookAppointment" not in result["toolsUsed"]
+    assert "createAppointmentRequest" not in result["toolsUsed"]
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("requested_name", ["Mulu", "Bekele"])
+def test_unmatched_standalone_doctor_name_is_not_matched_as_surname(
+    monkeypatch,
+    requested_name,
+):
+    service = HospitalAgentService()
+    doctors = [
+        {
+            "id": "kalkidan-mulu",
+            "name": "Dr. Kalkidan Mulu",
+            "department": "Ophthalmology",
+            "specialties": [],
+            "location": "Demo Clinic A",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+        {
+            "id": "dawit-bekele",
+            "name": "Dr. Dawit Bekele",
+            "department": "Respiratory Clinic",
+            "specialties": [],
+            "location": "Demo Clinic B",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+    ]
+
+    monkeypatch.setattr(
+        agent_module,
+        "_get_demo_doctors",
+        lambda patient_id, department="": doctors,
+    )
+    mock_llm(monkeypatch)
+
+    request = f"I need an appointment with {requested_name}."
+    first = run_agent(service, request)
+
+    assert first["toolsUsed"] == []
+    assert "yes or no" in first["message"].lower()
+
+    result = run_agent(service, "Yes")
+    key = "patient-001:consent-test"
+
+    assert result["toolsUsed"] == ["findAppropriateDoctors"]
+    assert result.get("doctorRecommendations") in (None, [])
+    assert "couldn't find a doctor" in result["message"].lower()
+    assert requested_name.lower() in result["message"].lower()
+    assert "first name" not in result["message"].lower()
+    assert "full name" not in result["message"].lower()
+    assert "no appointment" in result["message"].lower()
+
+    assert key not in agent_module._pending_appointment_selections
+    assert "getAvailableAppointmentSlots" not in result["toolsUsed"]
+    assert "bookAppointment" not in result["toolsUsed"]
+    assert "createAppointmentRequest" not in result["toolsUsed"]
+
+
+def test_ambiguous_named_doctor_search_preserves_all_matches(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    doctors = [
+        {
+            "id": "dawit-bekele",
+            "name": "Dr. Dawit Bekele",
+            "department": "Respiratory Clinic",
+            "specialties": [],
+            "location": "Demo Clinic A",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+        {
+            "id": "dawit-hailu",
+            "name": "Dr. Dawit Hailu",
+            "department": "Endocrinology",
+            "specialties": [],
+            "location": "Demo Clinic B",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+        {
+            "id": "kalkidan-mulu",
+            "name": "Dr. Kalkidan Mulu",
+            "department": "Ophthalmology",
+            "specialties": [],
+            "location": "Demo Clinic C",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+    ]
+
+    monkeypatch.setattr(
+        agent_module,
+        "_get_demo_doctors",
+        lambda patient_id, department="": doctors,
+    )
+
+    mock_llm(monkeypatch)
+
+    first = run_agent(
+        service,
+        "I need an appointment with Dr. Dawit.",
+    )
+    assert "yes or no" in first["message"].lower()
+
+    result = run_agent(service, "Yes")
+
+    assert [
+        doctor["name"]
+        for doctor in result["doctorRecommendations"]
+    ] == ["Dr. Dawit Bekele", "Dr. Dawit Hailu"]
+
+    assert "multiple doctors" in result["message"].lower()
+    assert "choose" in result["message"].lower()
+
+    selection = agent_module._pending_appointment_selections[
+        "patient-001:consent-test"
+    ]
+    assert selection["status"] == "awaiting_doctor_selection"
+    assert len(selection["doctors"]) == 2
+    assert "getAvailableAppointmentSlots" not in result["toolsUsed"]
+    assert "bookAppointment" not in result["toolsUsed"]
+
+
+def test_unknown_explicit_doctor_name_does_not_show_unrelated_doctors(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    doctors = [
+        {
+            "id": "kalkidan-mulu",
+            "name": "Dr. Kalkidan Mulu",
+            "department": "Ophthalmology",
+            "specialties": [],
+            "location": "Demo Clinic",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+    ]
+
+    monkeypatch.setattr(
+        agent_module,
+        "_get_demo_doctors",
+        lambda patient_id, department="": doctors,
+    )
+
+    mock_llm(monkeypatch)
+
+    first = run_agent(
+        service,
+        "I need an appointment with Dr. Unknown Person.",
+    )
+    assert "yes or no" in first["message"].lower()
+
+    result = run_agent(service, "Yes")
+
+    assert "couldn't find a doctor named unknown" in result["message"].lower()
+    assert "doctorRecommendations" not in result
+    assert (
+        "patient-001:consent-test"
+        not in agent_module._pending_appointment_selections
+    )
+    assert "bookAppointment" not in result["toolsUsed"]
