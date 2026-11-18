@@ -1,4 +1,4 @@
-﻿"""Tests for chat-based patient appointment request management."""
+"""Tests for chat-based patient appointment request management."""
 
 import asyncio
 from datetime import date, timedelta
@@ -486,3 +486,58 @@ def test_cancellation_start_handles_request_lookup_failure(
     assert "eligible appointment request" not in result["message"].lower()
     assert result["toolsUsed"] == []
     assert result["safetyFlag"] is False
+
+@pytest.mark.parametrize(
+    "new_message",
+    [
+        "I want to reschedule my appointment.",
+        "Book an appointment.",
+    ],
+)
+def test_new_appointment_action_exits_pending_cancellation_selection(
+    request_service,
+    new_message,
+):
+    request = create_request(request_service)
+
+    run_agent("Cancel my appointment requests")
+
+    key = "patient-001:request-management-test"
+    assert key in agent_module._pending_appointment_cancellations
+
+    result = run_agent(new_message)
+
+    assert key not in agent_module._pending_appointment_cancellations
+    assert "cannot" in result["message"].lower() or (
+        "unavailable" in result["message"].lower()
+    )
+
+    stored = request_service.get_patient_request(
+        patient_id="patient-001",
+        request_id=request["requestId"],
+    )
+    assert stored["status"] == "submitted"
+
+
+def test_repeated_cancellation_intent_preserves_pending_selection(
+    request_service,
+):
+    request = create_request(request_service)
+
+    run_agent("Cancel my appointment requests")
+
+    key = "patient-001:request-management-test"
+    assert key in agent_module._pending_appointment_cancellations
+
+    result = run_agent("Cancel my appointment requests again")
+
+    assert key in agent_module._pending_appointment_cancellations
+    assert "select" in result["message"].lower()
+    assert "nothing has been cancelled" in result["message"].lower()
+
+    stored = request_service.get_patient_request(
+        patient_id="patient-001",
+        request_id=request["requestId"],
+    )
+    assert stored["status"] == "submitted"
+

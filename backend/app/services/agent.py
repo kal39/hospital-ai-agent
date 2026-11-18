@@ -534,75 +534,239 @@ def _get_available_slots_for_doctor(
     return slots
 
 
-def _edit_distance(first: str, second: str) -> int:
-    """Calculate Levenshtein edit distance using standard-library Python."""
-    previous = list(range(len(second) + 1))
+def _damerau_levenshtein_distance(first: str, second: str) -> int:
+    """
+    Calculate unrestricted Damerau-Levenshtein distance.
 
-    for row, first_char in enumerate(first, start=1):
-        current = [row]
+    Supports insertion, deletion, substitution, and adjacent
+    transposition of characters.
+    """
+    first_length = len(first)
+    second_length = len(second)
 
-        for column, second_char in enumerate(second, start=1):
-            insertion = current[column - 1] + 1
-            deletion = previous[column] + 1
-            substitution = previous[column - 1] + (
-                first_char != second_char
+    maximum = first_length + second_length
+    matrix = [
+        [0] * (second_length + 2)
+        for _ in range(first_length + 2)
+    ]
+
+    matrix[0][0] = maximum
+
+    for i in range(first_length + 1):
+        matrix[i + 1][0] = maximum
+        matrix[i + 1][1] = i
+
+    for j in range(second_length + 1):
+        matrix[0][j + 1] = maximum
+        matrix[1][j + 1] = j
+
+    last_seen = {}
+
+    for i in range(1, first_length + 1):
+        last_match_column = 0
+
+        for j in range(1, second_length + 1):
+            previous_row = last_seen.get(second[j - 1], 0)
+            previous_column = last_match_column
+
+            substitution_cost = 1
+
+            if first[i - 1] == second[j - 1]:
+                substitution_cost = 0
+                last_match_column = j
+
+            matrix[i + 1][j + 1] = min(
+                matrix[i][j] + substitution_cost,
+                matrix[i + 1][j] + 1,
+                matrix[i][j + 1] + 1,
+                matrix[previous_row][previous_column]
+                + (i - previous_row - 1)
+                + 1
+                + (j - previous_column - 1),
             )
-            current.append(min(insertion, deletion, substitution))
 
-        previous = current
+        last_seen[first[i - 1]] = i
 
-    return previous[-1]
+    return matrix[first_length + 1][second_length + 1]
+
+
+def _edit_distance(first: str, second: str) -> int:
+    """Backward-compatible alias for Damerau-Levenshtein distance."""
+    return _damerau_levenshtein_distance(first, second)
+
+
+def _normalize_doctor_name_tokens(value: str) -> list[str]:
+    """Normalize a requested or directory doctor name into name tokens."""
+    tokens = re.sub(
+        r"[^a-z]+",
+        " ",
+        value.casefold(),
+    ).split()
+
+    return [
+        token
+        for token in tokens
+        if token not in {"dr", "doctor"}
+    ]
+
+
+def _doctor_name_token_distance(first: str, second: str) -> int | None:
+    """
+    Return a conservative fuzzy distance for two name tokens.
+
+    Very short tokens are not fuzzy-matched because they are too
+    ambiguous. Exact matching is handled separately.
+    """
+    if min(len(first), len(second)) < 3:
+        return None
+
+    distance = _damerau_levenshtein_distance(first, second)
+    longest_length = max(len(first), len(second))
+
+    if longest_length <= 5:
+        maximum_distance = 1
+    else:
+        maximum_distance = 2
+
+    similarity_distance = distance / max(len(first), len(second))
+
+    if distance > maximum_distance or similarity_distance > 0.35:
+        return None
+
+    return distance
 
 
 def _suggest_similar_doctors(
     requested_name: str,
     doctors: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Suggest close first-name spellings without selecting a doctor."""
-    requested = re.sub(
-        r"[^a-z]+",
-        "",
-        requested_name.casefold(),
-    )
+    """
+    Suggest doctors using conservative Damerau-Levenshtein matching.
 
-    # Avoid unreliable fuzzy guesses for short names.
-    if len(requested) < 4:
+    A single requested name part can match a first name or surname.
+    Multiple requested name parts are compared in their original order
+    against contiguous parts of the doctor's name.
+
+    Suggestions never select a doctor automatically.
+    """
+    requested_tokens = _normalize_doctor_name_tokens(requested_name)
+
+    if not requested_tokens:
         return []
 
-    max_distance = 1 if len(requested) <= 5 else 2
+    # Ignore common appointment words if they accidentally enter the
+    # extracted name phrase.
+    stop_words = {
+        "appointment",
+        "today",
+        "tomorrow",
+        "tonight",
+        "please",
+        "available",
+        "availability",
+        "next",
+        "this",
+        "week",
+        "month",
+        "morning",
+        "afternoon",
+        "evening",
+    }
+
+    for index, token in enumerate(requested_tokens):
+        if token in stop_words:
+            requested_tokens = requested_tokens[:index]
+            break
+
+    if not requested_tokens:
+        return []
+
     candidates = []
 
     for doctor in doctors:
-        name_tokens = [
-            token
-            for token in re.sub(
-                r"[^a-z0-9]+",
-                " ",
+        doctor_tokens = _normalize_doctor_name_tokens(
+            doctor.get("name", "")
+        )
+
+        if not doctor_tokens:
+            continue
+
+        best_score = None
+
+        if len(requested_tokens) == 1:
+            # A single requested name can refer to a first name or surname.
+            requested_token = requested_tokens[0]
+
+            for doctor_token in doctor_tokens:
+                distance = _doctor_name_token_distance(
+                    requested_token,
+                    doctor_token,
+                )
+
+                if distance is None:
+                    continue
+
+                # Exact surname-only requests are deliberately not treated
+                # as doctor identification. Misspelled surnames can still
+                # produce suggestions. Exact first names remain supported.
+                if distance == 0 and doctor_token != doctor_tokens[0]:
+                    continue
+
+                score = (
+                    distance,
+                    abs(len(requested_token) - len(doctor_token)),
+                )
+
+                if best_score is None or score < best_score:
+                    best_score = score
+
+        elif len(requested_tokens) <= len(doctor_tokens):
+            # Compare multiple requested name parts in order.
+            for start in range(
+                len(doctor_tokens) - len(requested_tokens) + 1
+            ):
+                doctor_window = doctor_tokens[
+                    start:start + len(requested_tokens)
+                ]
+
+                distances = []
+                valid_window = True
+
+                for requested_token, doctor_token in zip(
+                    requested_tokens,
+                    doctor_window,
+                ):
+                    distance = _doctor_name_token_distance(
+                        requested_token,
+                        doctor_token,
+                    )
+
+                    if distance is None:
+                        valid_window = False
+                        break
+
+                    distances.append(distance)
+
+                if valid_window:
+                    score = (
+                        sum(distances),
+                        max(distances),
+                    )
+
+                    if best_score is None or score < best_score:
+                        best_score = score
+
+        if best_score is not None:
+            candidates.append((
+                best_score,
                 doctor.get("name", "").casefold(),
-            ).split()
-            if token not in {"dr", "doctor"}
-        ]
-
-        if not name_tokens:
-            continue
-
-        first_name = name_tokens[0]
-        distance = _edit_distance(requested, first_name)
-        similarity_distance = distance / max(len(requested), len(first_name))
-
-        if (
-            distance > max_distance
-            or similarity_distance > 0.35
-        ):
-            continue
-
-        candidates.append((distance, similarity_distance, doctor))
+                doctor,
+            ))
 
     candidates.sort(
         key=lambda item: (
             item[0],
             item[1],
-            item[2].get("name", "").casefold(),
         )
     )
 
@@ -707,6 +871,21 @@ def _is_appointment_workflow_request(message: str) -> bool:
     patterns = (
         r"\b(?:i\s+)?(?:need|want|would like)\s+(?:an?\s+)?"
         r"(?:appointment|visit)\b",
+        # Direct requests for a named doctor.
+        # Keep general requests to explore departments in the LLM flow.
+        r"\b(?:i\s+)?(?:need|want)\s+"
+        r"(?:(?:to\s+)?(?:see|visit|speak\s+to|talk\s+to)\s+)?"
+        r"(?:doctor\s+|dr\.?\s+)?"
+        r"(?!help\b|assistance\b|information\b|advice\b|"
+        r"support\b|appointment\b|medicine\b|medication\b|"
+        r"prescription\b|results\b|records?\b|"
+        r"a\b|an\b|the\b|someone\b|anyone\b|"
+        r"to\b|explore\b|find\b|search\b|look\b)"
+        r"[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2}\b",
+        r"\b(?:i\s+)?would like to "
+        r"(?:see|visit|speak\s+to|talk\s+to)\s+"
+        r"(?:doctor\s+|dr\.?\s+)?"
+        r"[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2}\b",
         r"\b(?:book|booking|schedule|scheduling|reschedule|"
         r"cancel|change|arrange|find|search for|look for)\b"
         r".{0,100}\b(?:appointment|appointments|visit|visits|"
@@ -1352,6 +1531,21 @@ class HospitalAgentService:
             }
 
         pending_cancellation = _pending_appointment_cancellations.get(key)
+
+        # Allow a new appointment action to replace a pending cancellation
+        # selection. Do not let the old cancellation state consume it.
+        if (
+            pending_cancellation is not None
+            and pending_cancellation.get("status") == "awaiting_selection"
+            and _is_appointment_action_request(message)
+            and not re.search(
+                r"\b(?:cancel|cancellation)\b",
+                message,
+                flags=re.IGNORECASE,
+            )
+        ):
+            _pending_appointment_cancellations.pop(key, None)
+            pending_cancellation = None
 
         if pending_cancellation is not None:
             cancellation_status = pending_cancellation.get("status")
@@ -2538,34 +2732,51 @@ class HospitalAgentService:
                     _match_requested_doctors(pending_request, doctors)
                 )
 
+                requested_department_in_request = (
+                    _extract_requested_department(pending_request)
+                )
+
                 explicitly_named_doctor = (
-                    bool(
+                    bool(requested_doctor_matches)
+                    or bool(
                         re.search(
-                            r"\b(?:with|see|visit|book|schedule)"
-                            r"\s+(?:doctor\s+|dr\.?\s+)?[a-z][a-z'-]*\b"
-                            r"|\bneed\s+(?!a\b|an\b|the\b|appointment\b)"
-                            r"(?:doctor\s+|dr\.?\s+)?[a-z][a-z'-]*\b"
-                            r"|\b(?:doctor|dr)\.?\s+[a-z]",
+                            r"\b(?:doctor|dr)\.?\s+[a-z]",
                             pending_request,
                             flags=re.IGNORECASE,
                         )
                     )
-                    or bool(requested_doctor_matches)
+                    or (
+                        not requested_department_in_request
+                        and bool(
+                            re.search(
+                                r"\b(?:with|see|visit|book|schedule)"
+                                r"\s+[a-z][a-z'-]*\b"
+                                r"|\bneed\s+(?!a\b|an\b|the\b|appointment\b)"
+                                r"[a-z][a-z'-]*\b",
+                                pending_request,
+                                flags=re.IGNORECASE,
+                            )
+                        )
+                    )
                 )
 
                 requested_name_match = re.search(
                     r"\b(?:with|see|visit|book|schedule)\s+"
-                    r"(?:doctor\s+|dr\.?\s+)?([a-z][a-z'-]*)"
+                    r"(?:doctor\s+|dr\.?\s+)?"
+                    r"([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2})"
                     r"|\bneed\s+(?!a\b|an\b|the\b|appointment\b)"
-                    r"(?:doctor\s+|dr\.?\s+)?([a-z][a-z'-]*)"
-                    r"|\b(?:doctor|dr)\.?\s+([a-z][a-z'-]*)",
+                    r"(?:doctor\s+|dr\.?\s+)?"
+                    r"([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2})"
+                    r"|\b(?:doctor|dr)\.?\s+"
+                    r"([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2})",
                     pending_request,
                     flags=re.IGNORECASE,
                 )
+
                 requested_doctor_name = (
                     next(
                         (
-                            group
+                            group.strip()
                             for group in requested_name_match.groups()
                             if group
                         ),

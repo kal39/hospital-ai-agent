@@ -1885,3 +1885,242 @@ def test_similar_doctor_name_suggestions_do_not_match_surnames():
         doctors,
     ) == []
 
+@pytest.mark.parametrize(
+    ("first", "second", "expected"),
+    [
+        ("lyia", "liya", 1),
+        ("liya", "liya", 0),
+        ("hanaa", "hana", 1),
+        ("liyu", "liya", 1),
+        ("liya", "liyaa", 1),
+        ("liya", "laya", 1),
+    ],
+)
+def test_damerau_levenshtein_distance(first, second, expected):
+    assert (
+        agent_module._damerau_levenshtein_distance(first, second)
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "misspelling",
+    ["liy", "liyu", "lyia", "liyaa"],
+)
+def test_similar_doctor_suggestions_find_liya(misspelling):
+    doctors = [
+        {
+            "id": "doctor-liya",
+            "name": "Dr. Liya Mekonnen",
+            "department": "Dental",
+        }
+    ]
+
+    suggestions = agent_module._suggest_similar_doctors(
+        misspelling,
+        doctors,
+    )
+
+    assert [doctor["id"] for doctor in suggestions] == ["doctor-liya"]
+
+
+@pytest.mark.parametrize(
+    "misspelling",
+    ["Mekonen"],
+)
+def test_similar_doctor_suggestions_can_match_surnames(misspelling):
+    doctors = [
+        {
+            "id": "doctor-liya",
+            "name": "Dr. Liya Mekonnen",
+            "department": "Dental",
+        }
+    ]
+
+    suggestions = agent_module._suggest_similar_doctors(
+        misspelling,
+        doctors,
+    )
+
+    assert [doctor["id"] for doctor in suggestions] == ["doctor-liya"]
+
+
+def test_similar_doctor_suggestions_can_match_misspelled_full_name():
+    doctors = [
+        {
+            "id": "doctor-liya",
+            "name": "Dr. Liya Mekonnen",
+            "department": "Dental",
+        }
+    ]
+
+    suggestions = agent_module._suggest_similar_doctors(
+        "Liya Mekonen",
+        doctors,
+    )
+
+    assert [doctor["id"] for doctor in suggestions] == ["doctor-liya"]
+
+
+def test_similar_doctor_suggestions_do_not_match_unrelated_names():
+    doctors = [
+        {
+            "id": "doctor-liya",
+            "name": "Dr. Liya Mekonnen",
+            "department": "Dental",
+        }
+    ]
+
+    assert agent_module._suggest_similar_doctors(
+        "Ibrahim",
+        doctors,
+    ) == []
+
+
+def test_similar_doctor_suggestions_keep_multiple_matches_as_choices():
+    doctors = [
+        {
+            "id": "doctor-liya",
+            "name": "Dr. Liya Mekonnen",
+            "department": "Dental",
+        },
+        {
+            "id": "doctor-liyam",
+            "name": "Dr. Liya Mulu",
+            "department": "General Medicine",
+        },
+    ]
+
+    suggestions = agent_module._suggest_similar_doctors(
+        "Liya",
+        doctors,
+    )
+
+    assert {doctor["id"] for doctor in suggestions} == {
+        "doctor-liya",
+        "doctor-liyam",
+    }
+
+
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "I need Henok",
+        "I need Dr. Henok",
+        "I want to see Henok",
+        "I need to speak to Ibrahim",
+    ],
+)
+def test_workflow_detector_recognizes_direct_named_doctor_requests(message):
+    assert agent_module._is_appointment_workflow_request(message)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "I need help",
+        "I need assistance",
+        "I want information",
+        "I would like advice",
+        "I need medicine",
+    ],
+)
+def test_workflow_detector_does_not_treat_general_needs_as_doctor_requests(
+    message,
+):
+    assert not agent_module._is_appointment_workflow_request(message)
+
+
+def test_direct_named_doctor_request_uses_one_consent_then_filters_directory(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(monkeypatch)
+
+    key = "patient-001:consent-test"
+    original_request = "i need henok"
+
+    first = run_agent(service, original_request)
+
+    assert first["toolsUsed"] == []
+    assert "reply yes or no" in first["message"].lower()
+    assert calls == []
+    assert agent_module._pending_appointment_requests[key] == original_request
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert key not in agent_module._pending_appointment_departments
+
+    # One explicit yes grants read-only discovery.
+    second = run_agent(service, "yes")
+
+    assert second["toolsUsed"] == ["findAppropriateDoctors"]
+    assert calls
+    assert key not in agent_module._pending_appointment_requests
+
+    recommendations = second.get("doctorRecommendations") or []
+    recommended_names = {
+        doctor.get("name") for doctor in recommendations
+    }
+
+    assert recommended_names == {
+        "Dr. Henok Alemu",
+        "Dr. Henok Assefa",
+    }
+
+    assert "choose" in second["message"].lower()
+    assert "no appointment has been booked or submitted" in (
+        second["message"].lower()
+    )
+
+    selection = agent_module._pending_appointment_selections[key]
+    assert selection["status"] == "awaiting_doctor_selection"
+    assert {
+        doctor.get("name") for doctor in selection["doctors"]
+    } == {
+        "Dr. Henok Alemu",
+        "Dr. Henok Assefa",
+    }
+
+
+
+def test_explicit_department_request_filters_directory_without_doctor_name(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(monkeypatch)
+
+    key = "patient-001:consent-test"
+    original_request = "i need appointment with neurology department"
+
+    first = run_agent(service, original_request)
+
+    assert first["toolsUsed"] == []
+    assert "yes or no" in first["message"].lower()
+    assert calls == []
+    assert agent_module._pending_appointment_departments[key] == "Neurology"
+
+    # Explicit permission allows the read-only directory search.
+    second = run_agent(service, "yes")
+
+    assert second["toolsUsed"] == ["findAppropriateDoctors"]
+    assert calls
+
+    recommendations = second.get("doctorRecommendations") or []
+
+    assert {
+        doctor.get("name") for doctor in recommendations
+    } == {
+        "Dr. Yared Solomon",
+        "Dr. Rahel Tadesse",
+    }
+
+    assert all(
+        doctor.get("department") == "Neurology"
+        for doctor in recommendations
+    )
+
+    assert "couldn't find a doctor named" not in second["message"].lower()
+    assert "no appointment request has been submitted" in (
+        second["message"].lower()
+    )
