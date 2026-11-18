@@ -534,6 +534,84 @@ def _get_available_slots_for_doctor(
     return slots
 
 
+def _edit_distance(first: str, second: str) -> int:
+    """Calculate Levenshtein edit distance using standard-library Python."""
+    previous = list(range(len(second) + 1))
+
+    for row, first_char in enumerate(first, start=1):
+        current = [row]
+
+        for column, second_char in enumerate(second, start=1):
+            insertion = current[column - 1] + 1
+            deletion = previous[column] + 1
+            substitution = previous[column - 1] + (
+                first_char != second_char
+            )
+            current.append(min(insertion, deletion, substitution))
+
+        previous = current
+
+    return previous[-1]
+
+
+def _suggest_similar_doctors(
+    requested_name: str,
+    doctors: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Suggest close first-name spellings without selecting a doctor."""
+    requested = re.sub(
+        r"[^a-z]+",
+        "",
+        requested_name.casefold(),
+    )
+
+    # Avoid unreliable fuzzy guesses for short names.
+    if len(requested) < 4:
+        return []
+
+    max_distance = 1 if len(requested) <= 5 else 2
+    candidates = []
+
+    for doctor in doctors:
+        name_tokens = [
+            token
+            for token in re.sub(
+                r"[^a-z0-9]+",
+                " ",
+                doctor.get("name", "").casefold(),
+            ).split()
+            if token not in {"dr", "doctor"}
+        ]
+
+        if not name_tokens:
+            continue
+
+        first_name = name_tokens[0]
+        distance = _edit_distance(requested, first_name)
+        similarity_distance = distance / max(len(requested), len(first_name))
+
+        if (
+            distance > max_distance
+            or similarity_distance > 0.35
+        ):
+            continue
+
+        candidates.append((distance, similarity_distance, doctor))
+
+    candidates.sort(
+        key=lambda item: (
+            item[0],
+            item[1],
+            item[2].get("name", "").casefold(),
+        )
+    )
+
+    return [
+        doctor
+        for _, _, doctor in candidates[:5]
+    ]
+
+
 def _format_demo_doctors(doctors: list[dict[str, Any]]) -> str:
     """Provide concise guidance when interactive doctor cards are displayed."""
     count = len(doctors)
@@ -2497,18 +2575,30 @@ class HospitalAgentService:
                     else "the requested name"
                 )
 
+                fuzzy_doctor_suggestions = False
+
                 if explicitly_named_doctor:
                     if requested_doctor_matches:
+                        # Preserve exact full-name and first-name matches.
                         doctors = requested_doctor_matches
                     else:
-                        doctors = []
-                        response_message = (
-                            f"I couldn't find a doctor named "
-                            f"{requested_doctor_name} in the fictional "
-                            "demonstration directory. Please check the "
-                            "spelling or try another doctor's name. "
-                            "No appointment has been booked or submitted."
+                        similar_doctors = _suggest_similar_doctors(
+                            requested_doctor_name,
+                            doctors,
                         )
+
+                        if similar_doctors:
+                            doctors = similar_doctors
+                            fuzzy_doctor_suggestions = True
+                        else:
+                            doctors = []
+                            response_message = (
+                                f"I couldn't find a doctor named "
+                                f"{requested_doctor_name} in the fictional "
+                                "demonstration directory. Please check the "
+                                "spelling or try another doctor's name. "
+                                "No appointment has been booked or submitted."
+                            )
 
                 if doctors:
                     doctor_recommendations = doctors
@@ -2522,7 +2612,24 @@ class HospitalAgentService:
 
                     response_message = _format_demo_doctors(doctors)
 
-                    if explicitly_named_doctor and len(doctors) > 1:
+                    if fuzzy_doctor_suggestions:
+                        suggestion_lines = "\\n".join(
+                            f"{index}. {doctor['name']}"
+                            for index, doctor in enumerate(doctors, start=1)
+                        )
+                        response_message = (
+                            f"I couldn't find an exact match for "
+                            f"'{requested_doctor_name}'. Did you mean one "
+                            f"of these doctors?\\n"
+                            f"{suggestion_lines}\\n\\n"
+                            "Please choose the correct doctor by selecting "
+                            "a card or replying with its option number. "
+                            "These are suggestions only; I won't select "
+                            "a doctor automatically. No appointment has "
+                            "been booked or submitted."
+                        )
+
+                    elif explicitly_named_doctor and len(doctors) > 1:
                         matching_names = ", ".join(
                             doctor["name"] for doctor in doctors
                         )

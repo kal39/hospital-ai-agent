@@ -1834,3 +1834,54 @@ def test_unknown_explicit_doctor_name_does_not_show_unrelated_doctors(
         not in agent_module._pending_appointment_selections
     )
     assert "bookAppointment" not in result["toolsUsed"]
+
+@pytest.mark.parametrize(
+    "misspelling",
+    ["Hanaa", "Haanaa", "Hanah"],
+)
+def test_similar_doctor_name_suggestions_find_hana(misspelling):
+    doctors = [
+        {
+            "id": "doctor-hana",
+            "name": "Dr. Hana Tesfaye",
+            "department": "General Medicine",
+        }
+    ]
+
+    suggestions = agent_module._suggest_similar_doctors(
+        misspelling,
+        doctors,
+    )
+
+    assert [doctor["id"] for doctor in suggestions] == ["doctor-hana"]
+
+
+def test_similar_doctor_name_suggestions_do_not_match_unrelated_names():
+    doctors = [
+        {
+            "id": "doctor-hana",
+            "name": "Dr. Hana Tesfaye",
+            "department": "General Medicine",
+        }
+    ]
+
+    assert agent_module._suggest_similar_doctors(
+        "Ibrahim",
+        doctors,
+    ) == []
+
+
+def test_similar_doctor_name_suggestions_do_not_match_surnames():
+    doctors = [
+        {
+            "id": "doctor-hana",
+            "name": "Dr. Hana Tesfaye",
+            "department": "General Medicine",
+        }
+    ]
+
+    assert agent_module._suggest_similar_doctors(
+        "Tesfaye",
+        doctors,
+    ) == []
+
