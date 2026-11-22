@@ -160,6 +160,8 @@ _SYMPTOM_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
         "ENT",
         re.compile(
             r"\b(?:ear pain|earache|hearing loss|hearing difficulty|"
+            r"hearing problems?|problem with (?:my )?hearing|"
+            r"trouble hearing|difficulty hearing|reduced hearing|"
             r"ringing in (?:my )?ears|persistent sinus congestion|"
             r"recurrent sinus problems|ent follow[- ]?up|"
             r"sore throat|tonsil concerns|tonsil problems|"
@@ -287,6 +289,8 @@ _POTENTIALLY_URGENT_MENTIONS = re.compile(
     r"\b(?:chest pain|chest pressure|severe difficulty breathing|"
     r"cannot breathe|can't breathe|severe shortness of breath|"
     r"sudden vision loss|sudden blindness|suddenly lost (?:my )?vision|sudden loss of vision|"
+    r"sudden hearing loss|sudden loss of hearing|"
+    r"suddenly lost (?:my )?hearing|sudden deafness|"
     r"sudden weakness on one side|face drooping|"
     r"slurred speech|sudden confusion|"
     r"unconscious|loss of consciousness|"

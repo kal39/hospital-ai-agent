@@ -2124,3 +2124,100 @@ def test_explicit_department_request_filters_directory_without_doctor_name(
     assert "no appointment request has been submitted" in (
         second["message"].lower()
     )
+
+
+def test_hearing_problem_uses_ent_filter_and_returns_only_ent_doctors(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Would you like help checking available appointment options?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    symptom = "I have a hearing problem. I need an appointment."
+    first = run_agent(service, symptom)
+    key = "patient-001:consent-test"
+
+    # The first response suggests ENT but does not search the directory.
+    assert first["toolsUsed"] == []
+    assert "ent" in first["message"].casefold()
+    assert "preferred directory filter" in first["message"].casefold()
+    assert "separately" in first["message"].casefold()
+    assert len(calls) == 0
+    assert agent_module._pending_appointment_requests[key] == symptom
+    assert (
+        agent_module._pending_appointment_suggested_departments[key]
+        == "ENT"
+    )
+
+    # The first yes accepts the ENT filter only.
+    second = run_agent(service, "Yes")
+
+    assert second["toolsUsed"] == []
+    assert "ent" in second["message"].casefold()
+    assert "read-only" in second["message"].casefold()
+    assert "reply yes or no" in second["message"].casefold()
+    assert len(calls) == 0
+    assert key in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert agent_module._pending_appointment_departments[key] == "ENT"
+
+    # The second yes performs read-only discovery, filtered to ENT.
+    third = run_agent(service, "Yes")
+
+    assert third["toolsUsed"] == ["findAppropriateDoctors"]
+    recommendations = third.get("doctorRecommendations")
+    assert recommendations
+
+    assert {
+        doctor["id"] for doctor in recommendations
+    } == {"doctor-021", "doctor-022"}
+
+    assert {
+        doctor["name"] for doctor in recommendations
+    } == {"Dr. Ermias Tola", "Dr. Hiwot Demissie"}
+
+    assert all(
+        doctor["department"] == "ENT"
+        for doctor in recommendations
+    )
+
+    assert len(calls) == 1
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_departments
+
+
+def test_sudden_hearing_loss_does_not_offer_routine_doctor_search(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Would you like help checking available appointment options?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    result = run_agent(
+        service,
+        "I suddenly lost my hearing in one ear.",
+    )
+
+    key = "patient-001:consent-test"
+
+    assert result["toolsUsed"] == []
+    assert "immediate medical care" in result["message"].casefold()
+    assert "routine doctor directory" in result["message"].casefold()
+    assert len(calls) == 1
+    assert key not in agent_module._pending_appointment_requests
+    assert key not in agent_module._pending_appointment_suggested_departments
+    assert key not in agent_module._pending_appointment_departments
