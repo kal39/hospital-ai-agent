@@ -2,7 +2,7 @@
 """Patient-isolated hospital AI agent with consent-first appointment support."""
 
 import re
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -18,7 +18,14 @@ from app.services.appointment_requests import (
     get_appointment_request_service,
 )
 from app.services.privacy import requests_another_patient_data
-from app.services.safety import evaluate_safety
+from app.services.care_cases import get_care_case_service
+from app.services.safety import (
+    DIZZINESS_MESSAGE_AM,
+    DIZZINESS_MESSAGE_EN,
+    KIDNEY_URINARY_MESSAGE_AM,
+    KIDNEY_URINARY_MESSAGE_EN,
+    evaluate_safety,
+)
 from app.services.symptom_matching import (
     suggest_department,
     suggest_department_or_general_medicine,
@@ -39,6 +46,10 @@ _pending_appointment_suggested_departments: dict[str, str] = {}
 _pending_appointment_selections: dict[str, dict[str, Any]] = {}
 _completed_appointment_requests: dict[str, dict[str, Any]] = {}
 _pending_appointment_cancellations: dict[str, dict[str, Any]] = {}
+_pending_emergency_confirmations: dict[str, dict[str, Any]] = {}
+_completed_emergency_confirmations: dict[str, dict[str, Any]] = {}
+_pending_urgent_confirmations: dict[str, dict[str, Any]] = {}
+_completed_urgent_confirmations: dict[str, dict[str, Any]] = {}
 
 SYNTHETIC_RECORD_TOOL_NAMES = {
     "getpatientprofile",
@@ -1230,9 +1241,6 @@ def _add_synthetic_data_disclosure(
             "result", "results", "mg/dl", "g/dl", "mmol/l",
             "reference range", "blood pressure", "pulse",
             "temperature",
-            "??????????????????????????????????????",
-            "???????????????????",
-            "??????????????????????????",
         )
 
         if any(indicator in lower for indicator in clinical_indicators):
@@ -1259,9 +1267,6 @@ def _add_synthetic_data_disclosure(
             "\u12e8\u121b\u1235\u1273\u12c8\u123b "
             "\u121b\u1233\u1230\u1262\u12eb"
         ):
-            return True
-
-        if paragraph.startswith("???????????????????"):
             return True
 
         return False
@@ -1372,6 +1377,249 @@ def _store_turn(
     _conversations[key] = history[-MAX_HISTORY_MESSAGES:]
 
 
+
+def _confirmation_text(
+    language: str,
+    english: str,
+    amharic: str,
+) -> str:
+    """Return the confirmation message in the selected language."""
+    return amharic if language == "am" else english
+
+
+def _emergency_response_metadata() -> dict:
+    """Return emergency guidance, verified contacts, and demo directory data."""
+    from app.services.emergency_contacts import get_emergency_contacts
+    from app.services.emergency_directory import get_emergency_directory
+
+    try:
+        metadata = get_emergency_contacts()
+    except Exception:
+        # Contact configuration must never suppress emergency guidance.
+        metadata = {
+            "active": True,
+            "contactAvailability": "not_configured",
+            "hospitalName": None,
+            "hospitalEmergencyPhone": None,
+            "ambulanceDispatchPhone": None,
+            "alternativeEmergencyPhone": None,
+            "hospitalAddress": None,
+            "emergencyDirections": None,
+        }
+
+    try:
+        metadata["directory"] = get_emergency_directory()
+    except Exception:
+        # Directory failures must never suppress emergency guidance.
+        metadata["directory"] = None
+
+    return metadata
+
+
+def _emergency_confirmation_decision(message: str) -> str | None:
+    """Recognize clear emergency confirmation, refusal, and cancellation."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+    text = re.sub(r"[\s.!?,;:]+$", "", text).strip()
+
+    yes_values = {
+        "yes",
+        "y",
+        "yeah",
+        "yep",
+        "sure",
+        "okay",
+        "ok",
+        "i agree",
+        "i consent",
+        "yes please",
+        "\u12a0\u12ce",
+        "\u12a0\u12ce\u1295",
+    }
+    no_values = {
+        "no",
+        "n",
+        "nope",
+        "not now",
+        "no thanks",
+        "i do not",
+        "i don't",
+        "i refuse",
+        "i do not consent",
+        "i don't consent",
+        "\u12a0\u12ed",
+        "\u12a0\u12ed\u12f0\u1208\u121d",
+    }
+    cancel_values = {
+        "cancel",
+        "stop",
+        "never mind",
+        "nevermind",
+        "\u1230\u122d\u12dd",
+        "\u12a0\u1241\u121d",
+    }
+
+    if text in yes_values:
+        return "yes"
+    if text in no_values or re.match(r"^(?:no|nope)\b", text):
+        return "no"
+    if text in cancel_values:
+        return "cancel"
+
+    # A natural-language refusal to create the demonstration case must
+    # never be mistaken for an unclear answer or affirmative consent.
+    registration_refusal = re.search(
+        r"\b(?:"
+        r"i\s+(?:do\s+not|don't|dont|will\s+not|won't)\s+"
+        r"(?:want|wish|agree|consent|authorize|allow)|"
+        r"i\s+refuse|"
+        r"do\s+not\s+(?:register|create|save|open)|"
+        r"don't\s+(?:register|create|save|open)|"
+        r"no\s+to"
+        r")\b",
+        text,
+    )
+    registration_context = re.search(
+        r"\b(?:register|registration|case|record|demonstration)\b",
+        text,
+    )
+    if registration_refusal and registration_context:
+        return "no"
+
+    if re.match(r"^(?:cancel|stop)\b", text):
+        return "cancel"
+
+    return None
+
+
+def _is_new_substantive_request(message: str) -> bool:
+    """Identify a new request that should interrupt emergency confirmation."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+
+    # These are ambiguous replies to the confirmation, not new requests.
+    ambiguous_replies = {
+        "maybe",
+        "perhaps",
+        "not sure",
+        "i'm not sure",
+        "i am not sure",
+        "i don't know",
+        "i do not know",
+        "unsure",
+    }
+    if text in ambiguous_replies:
+        return False
+
+    # Emergency-contact and dispatch-status questions are independent
+    # requests, not answers to a registration-consent prompt.
+    emergency_information_request = re.search(
+        r"\b(?:"
+        r"emergency\s+services?|emergency\s+number|"
+        r"ambulance|ambulance\s+service|"
+        r"emergency\s+department|"
+        r"called\s+(?:an?\s+)?ambulance|"
+        r"notified\s+(?:the\s+)?hospital|"
+        r"contact\s+(?:the\s+)?(?:hospital|emergency|ambulance)|"
+        r"phone\s+number"
+        r")\b",
+        text,
+    )
+    if emergency_information_request and re.search(
+        r"\b(?:how|where|what|which|who|can|could|have|did|is|are|"
+        r"number|contact|call|called|notify|notified)\b",
+        text,
+    ):
+        return True
+
+    if (
+        _is_appointment_workflow_request(message)
+        or _is_appointment_request_status_query(message)
+        or _is_appointment_request_cancellation(message)
+        or _is_consent_information_question(message)
+    ):
+        return True
+
+    health_context = re.search(
+        r"\b(?:health|medical|symptom|pain|dizzy|dizziness|"
+        r"rash|fever|cough|breathing|blood pressure|"
+        r"lab|laboratory|glucose|result|test|medication|"
+        r"medicine|prescription|record|history|doctor|"
+        r"appointment|clinic|treatment)\b",
+        text,
+    )
+
+    if not health_context:
+        return False
+
+    request_language = re.search(
+        r"\b(?:can you|could you|would you|please|"
+        r"explain|clarify|describe|summarize|show me|"
+        r"tell me|check|review|compare|what|how|why)\b",
+        text,
+    )
+
+    if request_language:
+        return True
+
+    current_symptom_report = re.search(
+        r"\b(?:i\s+(?:feel|have|am having|am experiencing)|"
+        r"i'm\s+(?:feeling|having|experiencing)|"
+        r"my\s+[a-z -]+\s+(?:hurts|hurt|is painful|"
+        r"feels|is getting))\b",
+        text,
+    )
+
+    return bool(current_symptom_report)
+
+
+def _emergency_information_response(message: str) -> str | None:
+    """Answer emergency dispatch/contact questions without relying on Gemini."""
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+
+    dispatch_status = re.search(
+        r"\b(?:"
+        r"have you|did you|has anyone|"
+        r"you (?:have|did)|"
+        r"was an ambulance"
+        r")\b",
+        text,
+    ) and re.search(
+        r"\b(?:called|call|contacted|contact|notified|alerted|dispatched|sent)\b",
+        text,
+    ) and re.search(
+        r"\b(?:ambulance|emergency services?|hospital|staff|help)\b",
+        text,
+    )
+
+    if dispatch_status:
+        return (
+            "No. I have not called an ambulance, contacted emergency services, "
+            "or notified hospital staff. This assistant cannot place calls, "
+            "dispatch help, or send hospital notifications. If this may be an "
+            "emergency, call your local emergency number directly or go to the "
+            "nearest emergency department now. Do not wait for this assistant."
+        )
+
+    asks_how_to_contact = re.search(
+        r"\b(?:how|where|what|which|can|could)\b",
+        text,
+    ) and re.search(
+        r"\b(?:contact|call|reach|phone|number|ambulance|"
+        r"emergency services?|emergency department)\b",
+        text,
+    )
+
+    if asks_how_to_contact:
+        return (
+            "If this may be an emergency, call your local emergency number "
+            "directly or go to the nearest emergency department. I cannot place "
+            "calls or dispatch an ambulance. Any phone numbers displayed in "
+            "this demonstration are fictional and must not be used as real "
+            "emergency contacts. Do not wait for this assistant."
+        )
+
+    return None
+
+
 class HospitalAgentService:
     """Manage patient conversations, safety checks, and consent."""
 
@@ -1419,7 +1667,391 @@ class HospitalAgentService:
                 "safetyFlag": False,
             }
 
+        # Evaluate safety before confirmation handling so a new urgent
+        # symptom report replaces any older pending confirmation.
         safety = evaluate_safety(message, language)
+        if safety.get("urgent"):
+            _pending_urgent_confirmations.pop(key, None)
+            _completed_urgent_confirmations.pop(key, None)
+
+        # These answers are deterministic and must work even when Gemini
+        # is unreachable. A new emergency-services question interrupts
+        # either pending synthetic registration prompt.
+        if not safety.get("urgent"):
+            emergency_answer = _emergency_information_response(message)
+            if emergency_answer is not None:
+                _pending_emergency_confirmations.pop(key, None)
+                _pending_urgent_confirmations.pop(key, None)
+                _store_turn(key, message, emergency_answer)
+                return {
+                    "message": emergency_answer,
+                    "toolsUsed": [],
+                    "safetyFlag": False,
+                }
+
+        # Emergency confirmations are handled before appointment workflows
+        # or the LLM. State is patient/conversation scoped.
+        now = datetime.now(UTC)
+        completed = (
+            None if safety.get("urgent")
+            else _completed_emergency_confirmations.get(key)
+        )
+
+        if completed is not None:
+            decision = _emergency_confirmation_decision(message)
+            if decision == "yes":
+                response_message = (
+                    "This emergency concern has already been registered in "
+                    "the synthetic demonstration. No second case was created."
+                    if language == "en"
+                    else "This emergency concern has already been registered in "
+                    "the synthetic demonstration. No second case was created."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                    "careCase": completed["care_case"],
+                }
+            _completed_emergency_confirmations.pop(key, None)
+
+        pending = (
+            None if safety.get("urgent")
+            else _pending_emergency_confirmations.get(key)
+        )
+        if pending is not None:
+            if now >= pending["expires_at"]:
+                _pending_emergency_confirmations.pop(key, None)
+                pending = None
+
+        if pending is not None:
+            decision = _emergency_confirmation_decision(message)
+
+            # A clearly new request interrupts the pending confirmation.
+            # Re-enter the normal flow so safety checks still apply.
+            if (
+                decision is None
+                and _is_new_substantive_request(message)
+            ):
+                _pending_emergency_confirmations.pop(key, None)
+                return await self.run(
+                    user_message=message,
+                    patient_id=patient_id,
+                    conversation_id=conversation_id,
+                    language=language,
+                    detail=detail,
+                    image=image,
+                )
+
+            if decision == "cancel":
+                _pending_emergency_confirmations.pop(key, None)
+                response_message = (
+                    "Okay. I cancelled the synthetic case-registration process. "
+                    "No case was registered. If these symptoms are happening "
+                    "now or develop, seek immediate medical attention."
+                    if language == "en"
+                    else "Okay. I cancelled the synthetic case-registration process. "
+                    "No case was registered. If these symptoms are happening "
+                    "now or develop, seek immediate medical attention."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            if pending["stage"] == "confirm_current":
+                if decision == "yes":
+                    pending["stage"] = "confirm_registration"
+                    response_message = (
+                        "Please seek immediate medical attention. Separately, "
+                        "do you explicitly consent to registering this concern "
+                        "as a synthetic demonstration care case? This will not "
+                        "notify hospital staff or create an appointment. Reply "
+                        "YES or NO."
+                        if language == "en"
+                        else "Please seek immediate medical attention. Separately, "
+                        "do you explicitly consent to registering this concern "
+                        "as a synthetic demonstration care case? This will not "
+                        "notify hospital staff or create an appointment. Reply "
+                        "YES or NO."
+                    )
+                elif decision == "no":
+                    _pending_emergency_confirmations.pop(key, None)
+                    response_message = (
+                        "Understood. No case was registered. If these symptoms "
+                        "are happening now or develop, please seek immediate "
+                        "medical attention."
+                        if language == "en"
+                        else "Understood. No case was registered. If these symptoms "
+                        "are happening now or develop, please seek immediate "
+                        "medical attention."
+                    )
+                else:
+                    response_message = (
+                        "Please answer YES if these symptoms are happening "
+                        "to you right now, or NO if they are not. You can say "
+                        "CANCEL to stop this registration process. Seek "
+                        "immediate medical attention if this may be an emergency."
+                        if language == "en"
+                        else "Please answer YES if these symptoms are happening "
+                        "to you right now, or NO if they are not. You can say "
+                        "CANCEL to stop this registration process. Seek "
+                        "immediate medical attention if this may be an emergency."
+                    )
+
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            # The patient has confirmed current symptoms and is now being
+            # asked separately for synthetic registration consent.
+            if decision == "no":
+                _pending_emergency_confirmations.pop(key, None)
+                response_message = (
+                    "No synthetic case was registered. Please seek immediate "
+                    "medical attention for the symptoms you described."
+                    if language == "en"
+                    else "No synthetic case was registered. Please seek immediate "
+                    "medical attention for the symptoms you described."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            if decision != "yes":
+                response_message = (
+                    "Please reply YES to consent to a synthetic demonstration "
+                    "case, NO to decline, or CANCEL to stop. Please seek "
+                    "immediate medical attention; registration does not provide "
+                    "clinical assessment or notify hospital staff."
+                    if language == "en"
+                    else "Please reply YES to consent to a synthetic demonstration "
+                    "case, NO to decline, or CANCEL to stop. Please seek "
+                    "immediate medical attention; registration does not provide "
+                    "clinical assessment or notify hospital staff."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            try:
+                care_case = get_care_case_service(demo_scheduler).create_case(
+                    patient_id=patient_id,
+                    conversation_id=conversation_id,
+                    reported_concern=pending["reported_concern"],
+                    language=language,
+                    idempotency_key=pending["idempotency_key"],
+                )
+            except Exception:
+                response_message = (
+                    "I could not save the synthetic demonstration case because "
+                    "the registration service is unavailable. No successful "
+                    "registration can be confirmed. Your emergency guidance "
+                    "still applies. You may reply YES to retry registration."
+                    if language == "en"
+                    else "I could not save the synthetic demonstration case because "
+                    "the registration service is unavailable. No successful "
+                    "registration can be confirmed. Your emergency guidance "
+                    "still applies. You may reply YES to retry registration."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            _pending_emergency_confirmations.pop(key, None)
+            response_message = (
+                "Your concern has been registered as a synthetic demonstration "
+                "care case only. It has not been sent to hospital staff, "
+                "clinically triaged, or used to book an appointment. Please "
+                "seek immediate medical attention; do not wait for this record."
+                if language == "en"
+                else "Your concern has been registered as a synthetic demonstration "
+                "care case only. It has not been sent to hospital staff, "
+                "clinically triaged, or used to book an appointment. Please "
+                "seek immediate medical attention; do not wait for this record."
+            )
+            _completed_emergency_confirmations[key] = {
+                "care_case": care_case,
+                "response_message": response_message,
+            }
+            _store_turn(key, message, response_message)
+            return {
+                "message": response_message,
+                "toolsUsed": [],
+                "safetyFlag": True,
+                "careCase": care_case,
+            }
+
+        # Urgent follow-up is separate from emergency confirmation.
+        # Only the two exact safety advisories below can start this workflow.
+        urgent_advisory_messages = {
+            DIZZINESS_MESSAGE_EN,
+            DIZZINESS_MESSAGE_AM,
+            KIDNEY_URINARY_MESSAGE_EN,
+            KIDNEY_URINARY_MESSAGE_AM,
+        }
+        is_urgent_followup_advisory = (
+            not safety.get("urgent")
+            and safety.get("message") in urgent_advisory_messages
+        )
+
+        urgent_completed = (
+            None if safety.get("urgent")
+            else _completed_urgent_confirmations.get(key)
+        )
+        if urgent_completed is not None:
+            decision = _emergency_confirmation_decision(message)
+            if decision == "yes":
+                response_message = (
+                    "This urgent concern has already been registered in the "
+                    "synthetic demonstration. No second case was created."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                    "careCase": urgent_completed["care_case"],
+                }
+            _completed_urgent_confirmations.pop(key, None)
+
+        urgent_pending = (
+            None if safety.get("urgent")
+            else _pending_urgent_confirmations.get(key)
+        )
+        if urgent_pending is not None and now >= urgent_pending["expires_at"]:
+            _pending_urgent_confirmations.pop(key, None)
+            urgent_pending = None
+
+        if urgent_pending is not None:
+            decision = _emergency_confirmation_decision(message)
+
+            # A new substantive request interrupts this confirmation.
+            if (
+                decision is None
+                and _is_new_substantive_request(message)
+            ):
+                _pending_urgent_confirmations.pop(key, None)
+                return await self.run(
+                    user_message=message,
+                    patient_id=patient_id,
+                    conversation_id=conversation_id,
+                    language=language,
+                    detail=detail,
+                    image=image,
+                )
+
+            if decision in {"no", "cancel"}:
+                _pending_urgent_confirmations.pop(key, None)
+                response_message = (
+                    "No urgent follow-up case was registered. Please still "
+                    "follow the health guidance above and contact your care "
+                    "team promptly. Seek emergency care if severe or rapidly "
+                    "worsening symptoms develop."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            if decision != "yes":
+                response_message = (
+                    "Would you like to register this concern as a synthetic "
+                    "urgent follow-up case? Reply YES to consent, NO to decline, "
+                    "or CANCEL to stop. This will not notify hospital staff "
+                    "or book an appointment. Please do not delay seeking care."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            try:
+                care_case = get_care_case_service(demo_scheduler).create_case(
+                    patient_id=patient_id,
+                    conversation_id=conversation_id,
+                    reported_concern=urgent_pending["reported_concern"],
+                    language=language,
+                    idempotency_key=urgent_pending["idempotency_key"],
+                    case_type="urgent_concern",
+                )
+            except Exception:
+                response_message = (
+                    "I could not save the synthetic urgent follow-up case "
+                    "because the registration service is unavailable. No "
+                    "successful registration can be confirmed. Your health "
+                    "guidance still applies. You may reply YES to retry."
+                )
+                _store_turn(key, message, response_message)
+                return {
+                    "message": response_message,
+                    "toolsUsed": [],
+                    "safetyFlag": True,
+                }
+
+            _pending_urgent_confirmations.pop(key, None)
+            response_message = (
+                "Your concern has been registered as a synthetic urgent "
+                "follow-up case only. It has not been sent to hospital staff, "
+                "clinically triaged, or used to book an appointment. Please "
+                "contact your healthcare team promptly; do not wait for this "
+                "demonstration record."
+            )
+            _completed_urgent_confirmations[key] = {
+                "care_case": care_case,
+                "response_message": response_message,
+            }
+            _store_turn(key, message, response_message)
+            return {
+                "message": response_message,
+                "toolsUsed": [],
+                "safetyFlag": True,
+                "careCase": care_case,
+            }
+
+        if is_urgent_followup_advisory:
+            _completed_urgent_confirmations.pop(key, None)
+            _pending_urgent_confirmations[key] = {
+                "reported_concern": message,
+                "idempotency_key": str(uuid4()),
+                "expires_at": now + timedelta(minutes=10),
+            }
+            safety_message = safety.get("message") or (
+                "Please contact your healthcare team promptly."
+            )
+            response_message = (
+                safety_message
+                + "\n\nWould you like to register this concern as a "
+                "synthetic urgent follow-up case? Reply YES to consent, "
+                "NO to decline, or CANCEL to stop. This will not notify "
+                "hospital staff or book an appointment. Please do not "
+                "delay seeking medical care."
+            )
+            _store_turn(key, message, response_message)
+            return {
+                "message": response_message,
+                "toolsUsed": [],
+                "safetyFlag": True,
+            }
 
         if safety["blocked"]:
             record_audit_event(
@@ -1435,10 +2067,41 @@ class HospitalAgentService:
                 "language. Please contact your hospital care team. If this "
                 "may be an emergency, seek immediate medical attention."
             )
+
+            if safety.get("urgent"):
+                _completed_emergency_confirmations.pop(key, None)
+                _pending_emergency_confirmations[key] = {
+                    "stage": "confirm_current",
+                    "reported_concern": message,
+                    "idempotency_key": str(uuid4()),
+                    "expires_at": datetime.now(UTC) + timedelta(minutes=10),
+                }
+                followup = _confirmation_text(
+                    language,
+                    (
+                        " Is anyone experiencing these symptoms right now? "
+                        "Please reply YES or NO."
+                    ),
+                    (
+                        " \u12a5\u1290\u12da\u12d5 \u121d\u120d\u12ad\u1276\u127d "
+                        "\u12a0\u1201\u1295 \u12a5\u12e8\u1273\u12e9 "
+                        "\u1293\u1278\u12cd? \u12a5\u1263\u12ad\u12ce "
+                        "YES \u12c8\u12ed\u121d NO \u1265\u1208\u12cd "
+                        "\u12ed\u1218\u120d\u1231\u1362"
+                    ),
+                )
+                safety_message = safety_message + followup
+
+            _store_turn(key, message, safety_message)
             return {
                 "message": safety_message,
                 "toolsUsed": [],
                 "safetyFlag": True,
+                "emergency": (
+                    _emergency_response_metadata()
+                    if safety.get("urgent")
+                    else None
+                ),
             }
 
         safety_advisory = safety.get("message")
@@ -2740,7 +3403,9 @@ class HospitalAgentService:
                     bool(requested_doctor_matches)
                     or bool(
                         re.search(
-                            r"\b(?:doctor|dr)\.?\s+[a-z]",
+                            r"\b(?:doctor|dr)\.?\s+"
+                            r"(?!in\b|at\b|for\b|from\b|near\b|"
+                            r"available\b|within\b|of\b)[a-z]",
                             pending_request,
                             flags=re.IGNORECASE,
                         )

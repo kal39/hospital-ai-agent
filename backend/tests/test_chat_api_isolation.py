@@ -125,3 +125,59 @@ def test_chat_rejects_client_supplied_patient_id(agent_calls):
 
     # The invalid request must not reach the AI agent.
     assert agent_calls == []
+
+
+def test_chat_returns_care_case_from_agent(monkeypatch):
+    """A registered synthetic care case must reach the chat API response."""
+    care_case = {
+        "caseId": "demo-case-001",
+        "caseType": "emergency_concern",
+        "status": "registered",
+        "dataSource": "synthetic_demo",
+        "dataNotice": "Synthetic demonstration record only.",
+    }
+
+    async def fake_run(**kwargs):
+        assert kwargs["patient_id"] == "patient-001"
+        return {
+            "message": "Your synthetic demo care case was registered.",
+            "toolsUsed": [],
+            "safetyFlag": True,
+            "careCase": care_case,
+        }
+
+    monkeypatch.setattr(
+        chat_module.hospital_agent_service,
+        "run",
+        fake_run,
+    )
+
+    response = client.post(
+        CHAT_URL,
+        headers={DEMO_HEADER: "patient-001"},
+        json={"message": "Confirm registration."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["careCase"] == care_case
+    assert body["safetyFlag"] is True
+    assert body["safety"] == {"requiresAttention": True}
+    assert body["message"] == "Your synthetic demo care case was registered."
+
+
+def test_ordinary_chat_returns_null_care_case(agent_calls):
+    """Ordinary chat must keep the response shape without inventing a case."""
+    response = client.post(
+        CHAT_URL,
+        headers={DEMO_HEADER: "patient-001"},
+        json={"message": "Hello."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert "careCase" in body
+    assert body["careCase"] is None
+    assert body["message"] == "Synthetic test response."

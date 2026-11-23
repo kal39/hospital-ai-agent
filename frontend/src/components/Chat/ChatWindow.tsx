@@ -276,6 +276,8 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
           : undefined,
         doctorRecommendations: response.doctorRecommendations ?? [],
         appointmentSlots: response.appointmentSlots ?? [],
+        careCase: response.careCase ?? null,
+        emergency: response.emergency ?? null,
       };
 
       setMessages((currentMessages) => [

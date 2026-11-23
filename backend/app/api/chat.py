@@ -187,4 +187,6 @@ async def chat(
         "safety": {"requiresAttention": safety_flag},
         "doctorRecommendations": result.get("doctorRecommendations", []),
         "appointmentSlots": result.get("appointmentSlots", []),
+        "careCase": result.get("careCase"),
+        "emergency": result.get("emergency"),
     }

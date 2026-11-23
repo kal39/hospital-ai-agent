@@ -3,6 +3,8 @@ import type {
   ChatResponse,
   AppointmentSlotOption,
   DoctorRecommendation,
+  CareCase,
+  EmergencyResponse,
 } from "../types/chat";
 
 const API_URL = (
@@ -99,6 +101,118 @@ function isAppointmentSlotOption(
   );
 }
 
+function isCareCase(value: unknown): value is CareCase {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const careCase = value as Record<string, unknown>;
+
+  if (
+    typeof careCase.caseId !== "string" ||
+    !["emergency_concern", "urgent_concern"].includes(
+      String(careCase.caseType),
+    ) ||
+    !["registered", "acknowledged", "in_review", "resolved"].includes(
+      String(careCase.status),
+    ) ||
+    typeof careCase.reportedConcern !== "string" ||
+    typeof careCase.createdAt !== "string" ||
+    typeof careCase.updatedAt !== "string" ||
+    careCase.dataSource !== "synthetic_demo" ||
+    typeof careCase.dataNotice !== "string" ||
+    !Array.isArray(careCase.statusHistory)
+  ) {
+    return false;
+  }
+
+  return careCase.statusHistory.every((entry: unknown) => {
+    if (typeof entry !== "object" || entry === null) {
+      return false;
+    }
+
+    const item = entry as Record<string, unknown>;
+
+    return (
+      typeof item.status === "string" &&
+      typeof item.timestamp === "string" &&
+      typeof item.note === "string"
+    );
+  });
+}
+
+function isEmergencyDirectory(
+  value: unknown
+): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const directory = value as Record<string, unknown>;
+
+  if (
+    directory.dataType !== "fictional_demo" ||
+    typeof directory.facilityName !== "string" ||
+    typeof directory.departmentName !== "string" ||
+    typeof directory.floor !== "string" ||
+    typeof directory.roomNumber !== "string" ||
+    typeof directory.address !== "string" ||
+    typeof directory.directions !== "string" ||
+    !Array.isArray(directory.doctors)
+  ) {
+    return false;
+  }
+
+  return directory.doctors.every((doctor: unknown) => {
+    if (typeof doctor !== "object" || doctor === null) {
+      return false;
+    }
+
+    const item = doctor as Record<string, unknown>;
+
+    return (
+      typeof item.id === "string" &&
+      typeof item.name === "string" &&
+      typeof item.specialty === "string" &&
+      item.profileType === "fictional_demo" &&
+      item.availability === "not_provided"
+    );
+  });
+}
+
+function isEmergencyResponse(
+  value: unknown
+): value is EmergencyResponse {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const emergency = value as Record<string, unknown>;
+
+  const nullableStringFields = [
+    "hospitalName",
+    "hospitalEmergencyPhone",
+    "ambulanceDispatchPhone",
+    "alternativeEmergencyPhone",
+    "hospitalAddress",
+    "emergencyDirections",
+  ];
+
+  return (
+    typeof emergency.active === "boolean" &&
+    ["not_configured", "partially_configured", "configured"].includes(
+      String(emergency.contactAvailability)
+    ) &&
+    nullableStringFields.every(
+      (field) =>
+        emergency[field] === null ||
+        typeof emergency[field] === "string"
+    ) &&
+    (emergency.directory === null ||
+      isEmergencyDirectory(emergency.directory))
+  );
+}
+
 function isChatResponse(data: unknown): data is ChatResponse {
   if (typeof data !== "object" || data === null) {
     return false;
@@ -129,6 +243,16 @@ function isChatResponse(data: unknown): data is ChatResponse {
     !Array.isArray(response.appointmentSlots) ||
     !response.appointmentSlots.every(
       isAppointmentSlotOption
+    ) ||
+    !("careCase" in response) ||
+    !(
+      response.careCase === null ||
+      isCareCase(response.careCase)
+    ) ||
+    !("emergency" in response) ||
+    !(
+      response.emergency === null ||
+      isEmergencyResponse(response.emergency)
     )
   ) {
     return false;

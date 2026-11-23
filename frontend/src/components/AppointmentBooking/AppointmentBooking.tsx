@@ -172,7 +172,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [am]);
 
   useEffect(() => {
     let active = true;
@@ -217,7 +217,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
     return () => {
       active = false;
     };
-  }, []);
+  }, [am]);
 
   useEffect(() => {
     let active = true;
@@ -254,7 +254,7 @@ export default function AppointmentBooking({ language }: AppointmentBookingProps
     return () => {
       active = false;
     };
-  }, [doctorId, date]);
+  }, [doctorId, date, am]);
 
   const availableSlots = slots.filter(
     (slot) =>

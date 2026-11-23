@@ -33,6 +33,66 @@ export interface AppointmentSlotOption {
   dataSource: string;
 }
 
+export type CareCaseWorkflowStatus =
+  | "registered"
+  | "acknowledged"
+  | "in_review"
+  | "resolved";
+
+export interface CareCaseStatusEntry {
+  status: CareCaseWorkflowStatus;
+  timestamp: string;
+  note: string;
+}
+
+export interface CareCase {
+  caseId: string;
+  caseType: "emergency_concern" | "urgent_concern";
+  status: CareCaseWorkflowStatus;
+  reportedConcern: string;
+  createdAt: string;
+  updatedAt: string;
+  dataSource: "synthetic_demo";
+  dataNotice: string;
+  statusHistory: CareCaseStatusEntry[];
+}
+
+export type EmergencyContactAvailability =
+  | "not_configured"
+  | "partially_configured"
+  | "configured";
+
+export interface EmergencyDoctor {
+  id: string;
+  name: string;
+  specialty: string;
+  profileType: "fictional_demo";
+  availability: "not_provided";
+}
+
+export interface EmergencyDepartmentDirectory {
+  dataType: "fictional_demo";
+  facilityName: string;
+  departmentName: string;
+  floor: string;
+  roomNumber: string;
+  address: string;
+  directions: string;
+  doctors: EmergencyDoctor[];
+}
+
+export interface EmergencyResponse {
+  active: boolean;
+  contactAvailability: EmergencyContactAvailability;
+  hospitalName: string | null;
+  hospitalEmergencyPhone: string | null;
+  ambulanceDispatchPhone: string | null;
+  alternativeEmergencyPhone: string | null;
+  hospitalAddress: string | null;
+  emergencyDirections: string | null;
+  directory: EmergencyDepartmentDirectory | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -44,6 +104,8 @@ export interface ChatMessage {
   };
   doctorRecommendations?: DoctorRecommendation[];
   appointmentSlots?: AppointmentSlotOption[];
+  careCase?: CareCase | null;
+  emergency?: EmergencyResponse | null;
 }
 
 export interface ChatRequest {
@@ -66,4 +128,6 @@ export interface ChatResponse {
   };
   doctorRecommendations: DoctorRecommendation[];
   appointmentSlots: AppointmentSlotOption[];
+  careCase: CareCase | null;
+  emergency: EmergencyResponse | null;
 }

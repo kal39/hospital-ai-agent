@@ -2221,3 +2221,69 @@ def test_sudden_hearing_loss_does_not_offer_routine_doctor_search(
     assert key not in agent_module._pending_appointment_requests
     assert key not in agent_module._pending_appointment_suggested_departments
     assert key not in agent_module._pending_appointment_departments
+
+def test_department_only_doctor_request_does_not_require_doctor_name(
+    monkeypatch,
+):
+    service = HospitalAgentService()
+    doctors = [
+        {
+            "id": "doctor-hana",
+            "name": "Dr. Hana Tesfaye",
+            "department": "General Medicine",
+            "specialties": [],
+            "location": "Demo Clinic",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+        {
+            "id": "doctor-samuel",
+            "name": "Dr. Samuel Bekele",
+            "department": "General Medicine",
+            "specialties": [],
+            "location": "Demo Clinic",
+            "isAssignedDoctor": False,
+            "dataSource": "synthetic_demo",
+            "dataNotice": "Synthetic demo data only",
+        },
+    ]
+
+    requested_filters = []
+
+    def fake_get_demo_doctors(patient_id, department=""):
+        requested_filters.append(department)
+        return doctors
+
+    monkeypatch.setattr(
+        agent_module,
+        "_get_demo_doctors",
+        fake_get_demo_doctors,
+    )
+
+    mock_llm(
+        monkeypatch,
+        response={
+            "message": (
+                "Would you like permission to search the doctor directory?"
+            ),
+            "toolsUsed": [],
+        },
+    )
+
+    first = run_agent(
+        service,
+        "Help me find an available doctor in General Medicine.",
+    )
+    assert "yes or no" in first["message"].lower()
+
+    result = run_agent(service, "Yes")
+
+    assert requested_filters == ["General Medicine"]
+    assert result["toolsUsed"] == ["findAppropriateDoctors"]
+    assert {
+        doctor["id"] for doctor in result["doctorRecommendations"]
+    } == {"doctor-hana", "doctor-samuel"}
+    assert "couldn't find a doctor named" not in result["message"].lower()
+    assert "bookAppointment" not in result["toolsUsed"]
+

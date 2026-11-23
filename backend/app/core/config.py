@@ -26,6 +26,15 @@ class Settings(BaseSettings):
     # Separate secret for local demo staff operations.
     demo_staff_token: str = ""
 
+    # Verified emergency contact information. Leave unset until confirmed.
+    hospital_name: str = ""
+    hospital_emergency_phone: str | None = None
+    ambulance_dispatch_phone: str | None = None
+    alternative_emergency_phone: str | None = None
+    hospital_address: str = ""
+    emergency_directions: str = ""
+
+
     # Keep API keys in environment configuration, never in source code.
     llm_api_key: str = ""
     llm_model: str = "gemini-flash-lite-latest"
@@ -78,6 +87,36 @@ class Settings(BaseSettings):
             )
 
         return ",".join(dict.fromkeys(hosts))
+
+    @field_validator(
+        "hospital_emergency_phone",
+        "ambulance_dispatch_phone",
+        "alternative_emergency_phone",
+        mode="before",
+    )
+    @classmethod
+    def validate_emergency_phone(cls, value: object) -> str | None:
+        """Accept only plausible phone-number characters and lengths."""
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            raise ValueError("Emergency phone numbers must be strings.")
+
+        normalized = value.strip()
+
+        if not normalized:
+            return None
+
+        if not re.fullmatch(r"\+?[0-9][0-9 ()-]{5,24}", normalized):
+            raise ValueError("Emergency phone number has an invalid format.")
+
+        digits = re.sub(r"\D", "", normalized)
+
+        if not 7 <= len(digits) <= 15:
+            raise ValueError("Emergency phone number must contain 7 to 15 digits.")
+
+        return normalized
 
     @staticmethod
     def _validate_trusted_host(host: str) -> bool:

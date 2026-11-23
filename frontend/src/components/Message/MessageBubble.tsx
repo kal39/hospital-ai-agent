@@ -27,6 +27,9 @@ function getAppointmentReview(content: string) {
   return { doctor, department, date, time, location };
 }
 
+function toTelephoneHref(phone: string): string {
+  return `tel:${phone.replace(/[^\\d+]/g, "")}`;
+}
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -90,6 +93,8 @@ export default function MessageBubble({
 
   const doctors = message.doctorRecommendations ?? [];
   const appointmentSlots = message.appointmentSlots ?? [];
+  const careCase = message.careCase ?? null;
+  const emergency = message.emergency ?? null;
 
   const availableDates = Array.from(
     new Set(appointmentSlots.map((slot) => slot.date))
@@ -209,6 +214,181 @@ export default function MessageBubble({
             </ReactMarkdown>
           )}
         </div>
+
+        {!isUser && emergency?.active && (
+          <section
+            className="chat-emergency-alert"
+            role="alert"
+            aria-label="Emergency safety instructions"
+          >
+            <div className="chat-emergency-alert-heading">
+              <strong>Possible emergency ? get help now</strong>
+              <span>IMMEDIATE ACTION</span>
+            </div>
+
+            <p>
+              Go to the nearest emergency department or contact local
+              emergency services. Do not wait for this assistant.
+            </p>
+
+            <div className="chat-emergency-contact-details">
+              {emergency.hospitalName && (
+                <div className="chat-emergency-contact-row">
+                  <span>Hospital</span>
+                  <strong>{emergency.hospitalName}</strong>
+                </div>
+              )}
+
+              {emergency.hospitalEmergencyPhone && (
+                <div className="chat-emergency-contact-row">
+                  <span>Hospital emergency</span>
+                  <a href={toTelephoneHref(emergency.hospitalEmergencyPhone)}>
+                    {emergency.hospitalEmergencyPhone}
+                  </a>
+                </div>
+              )}
+
+              {emergency.ambulanceDispatchPhone && (
+                <div className="chat-emergency-contact-row">
+                  <span>Ambulance</span>
+                  <a href={toTelephoneHref(emergency.ambulanceDispatchPhone)}>
+                    {emergency.ambulanceDispatchPhone}
+                  </a>
+                </div>
+              )}
+
+              {emergency.alternativeEmergencyPhone && (
+                <div className="chat-emergency-contact-row">
+                  <span>Alternative contact</span>
+                  <a href={toTelephoneHref(emergency.alternativeEmergencyPhone)}>
+                    {emergency.alternativeEmergencyPhone}
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <p className="chat-emergency-demo-notice">
+              Demo only: verify contacts before use. Phone links do not
+              dispatch an ambulance or notify hospital staff.
+            </p>
+          </section>
+        )}
+
+        {!isUser && emergency?.active && emergency.directory && (
+          <section
+            className="chat-emergency-directory"
+            aria-label="Emergency department demonstration directory"
+          >
+            <div className="chat-emergency-directory-heading">
+              <div>
+                <strong>{emergency.directory.departmentName}</strong>
+                <span>{emergency.directory.facilityName}</span>
+              </div>
+              <span className="chat-emergency-directory-label">
+                FICTIONAL DEMO
+              </span>
+            </div>
+
+            <div className="chat-emergency-directory-location">
+              <strong>Sample department location</strong>
+              <p>{emergency.directory.address}</p>
+              <p>
+                <strong>Floor:</strong> {emergency.directory.floor}
+              </p>
+              <p>
+                <strong>Office:</strong> {emergency.directory.roomNumber}
+              </p>
+              <p>{emergency.directory.directions}</p>
+              <p className="chat-emergency-directory-warning">
+                Fictional example only. These directions, floor and room
+                details are not verified hospital information. Do not use
+                them for navigation.
+              </p>
+            </div>
+
+            <div className="chat-emergency-doctors">
+              <strong>Sample emergency department doctors</strong>
+              {emergency.directory.doctors.map((doctor) => (
+                <div className="chat-emergency-doctor" key={doctor.id}>
+                  <div className="chat-emergency-doctor-initials">
+                    {doctor.name
+                      .split(" ")
+                      .map((part) => part[0] ?? "")
+                      .join("")
+                      .slice(0, 2)}
+                  </div>
+                  <div className="chat-emergency-doctor-info">
+                    <strong>{doctor.name}</strong>
+                    <span>{doctor.specialty}</span>
+                    <small>
+                      Availability has not been provided.
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="chat-emergency-directory-warning">
+              All facility and doctor entries above are fictional
+              demonstration data, not a real hospital directory.
+            </p>
+          </section>
+        )}
+
+        {!isUser && careCase && (
+          <section
+            className="chat-care-case"
+            aria-label="Emergency concern registration"
+          >
+            <div className="chat-care-case-heading">
+              <div>
+                <strong>Emergency concern registered</strong>
+                <span className="chat-care-case-status">
+                  Registration status: {careCase.status}
+                </span>
+              </div>
+              <span className="chat-care-case-demo-label">
+                SYNTHETIC DEMO
+              </span>
+            </div>
+
+            <div className="chat-care-case-reference">
+              <span>Demonstration case reference</span>
+              <strong>{careCase.caseId}</strong>
+            </div>
+
+            <div className="chat-care-case-details">
+              <div>
+                <span>Reported concern</span>
+                <p>{careCase.reportedConcern}</p>
+              </div>
+              <div>
+                <span>Registered</span>
+                <time dateTime={careCase.createdAt}>
+                  {Number.isNaN(Date.parse(careCase.createdAt))
+                    ? careCase.createdAt
+                    : new Date(careCase.createdAt).toLocaleString()}
+                </time>
+              </div>
+            </div>
+
+            <p className="chat-care-case-data-notice">
+              {careCase.dataNotice}
+            </p>
+
+            <div className="chat-care-case-safety-notice" role="note">
+              <strong>Important: this is not a real hospital notification.</strong>
+              <p>
+                This record is stored only in this demonstration. It has not
+                been sent to hospital staff, has not been acknowledged by
+                staff, and has not been clinically triaged. This is not an
+                emergency response service. If this is an emergency, contact
+                local emergency services or go to the nearest emergency
+                department.
+              </p>
+            </div>
+          </section>
+        )}
 
         {!isUser && doctors.length > 0 && (
           <section

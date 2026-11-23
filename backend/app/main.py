@@ -8,7 +8,12 @@ from app.api.analytics import router as analytics_router
 from app.api.chat import router as chat_router
 from app.api.appointment_requests import router as appointment_requests_router
 from app.api.appointment_requests import staff_router as staff_appointment_requests_router
+from app.api.care_cases import (
+    router as care_cases_router,
+    staff_router as staff_care_cases_router,
+)
 from app.api.patients import router as patients_router
+from app.api.emergency_contacts import router as emergency_contacts_router
 from app.core.config import get_settings
 from app.core.rate_limit import RateLimitMiddleware
 
@@ -99,7 +104,10 @@ app.add_middleware(
 )
 
 # Register API routes.
+app.include_router(care_cases_router)
+app.include_router(staff_care_cases_router)
 app.include_router(patients_router)
+app.include_router(emergency_contacts_router)
 app.include_router(appointment_requests_router)
 app.include_router(staff_appointment_requests_router)
 app.include_router(appointments_router)
@@ -115,4 +123,3 @@ async def health_check() -> dict[str, str]:
         "service": "hospital-ai-agent",
         "environment": settings.environment,
     }
-

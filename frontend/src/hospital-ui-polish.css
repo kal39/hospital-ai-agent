@@ -1737,3 +1737,476 @@ button:focus-visible,
     padding: 0 14px 24px;
   }
 }
+
+
+/* ---------- Synthetic emergency care-case result ---------- */
+
+.chat-care-case {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin: 16px 0 4px;
+  padding: 17px;
+  border: 1px solid #E5C9A4;
+  border-left: 4px solid #B87935;
+  border-radius: 13px;
+  background: #FFFBF4;
+  color: #493B2D;
+}
+
+.chat-care-case-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-care-case-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.chat-care-case-heading strong {
+  color: #593C20;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.chat-care-case-status {
+  color: #6F604E;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.chat-care-case-demo-label {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid #E8C99E;
+  border-radius: 6px;
+  background: #FFF1D9;
+  color: #80521F;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+
+.chat-care-case-reference {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid #EFE3D2;
+  border-radius: 9px;
+  background: #FFFFFF;
+}
+
+.chat-care-case-reference span,
+.chat-care-case-details span {
+  color: #82715D;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+}
+
+.chat-care-case-reference strong {
+  overflow-wrap: anywhere;
+  color: #493B2D;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chat-care-case-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 13px;
+}
+
+.chat-care-case-details > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.chat-care-case-details p,
+.chat-care-case-details time {
+  margin: 0;
+  color: #493F34;
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.chat-care-case-data-notice {
+  margin: 0;
+  color: #71614F;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.chat-care-case-safety-notice {
+  padding: 12px;
+  border: 1px solid #E9D3B8;
+  border-radius: 9px;
+  background: #FFF3E5;
+}
+
+.chat-care-case-safety-notice strong {
+  color: #75451F;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chat-care-case-safety-notice p {
+  margin: 6px 0 0;
+  color: #634E3A;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+@media (min-width: 560px) {
+  .chat-care-case-details {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.7fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-care-case {
+    padding: 13px;
+  }
+
+  .chat-care-case-heading {
+    flex-direction: column;
+  }
+}
+
+
+/* ---------- Immediate emergency safety alert ---------- */
+.chat-emergency-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0 4px;
+  padding: 16px;
+  border: 1px solid #E7B7B7;
+  border-left: 5px solid #B42318;
+  border-radius: 12px;
+  background: #FFF6F5;
+  color: #54211E;
+}
+
+.chat-emergency-alert-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chat-emergency-alert-heading strong {
+  display: block;
+  color: #8F1D18;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.chat-emergency-alert-heading span {
+  flex: 0 0 auto;
+  padding: 5px 7px;
+  border: 1px solid #E7B7B7;
+  border-radius: 6px;
+  background: #FCE8E6;
+  color: #8F1D18;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.chat-emergency-alert > p {
+  margin: 0;
+  color: #54211E;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.chat-emergency-contact-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 12px;
+  border: 1px solid #E7D2B5;
+  border-radius: 9px;
+  background: #FFFBF4;
+}
+
+.chat-emergency-contact-status strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #70451C;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chat-emergency-contact-status span {
+  display: block;
+  color: #624E39;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.chat-emergency-alert .chat-emergency-demo-notice {
+  padding-top: 9px;
+  border-top: 1px solid #EBD4D1;
+  color: #76504C;
+  font-size: 10px;
+}
+
+@media (max-width: 480px) {
+  .chat-emergency-alert {
+    padding: 13px;
+  }
+
+  .chat-emergency-alert-heading {
+    flex-direction: column;
+  }
+}
+
+
+/* ---------- Emergency contact details ---------- */
+.chat-emergency-contact-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #E7D2B5;
+  border-radius: 9px;
+  background: #FFFBF4;
+}
+
+.chat-emergency-contact-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.chat-emergency-contact-row > span {
+  color: #765B3E;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.chat-emergency-contact-row > strong,
+.chat-emergency-contact-row > a {
+  overflow-wrap: anywhere;
+  color: #54211E;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.chat-emergency-contact-row > a {
+  width: fit-content;
+  color: #8F1D18;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+
+/* ---------- Emergency directory demo ---------- */
+.chat-emergency-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 13px;
+  border: 1px solid #E7D2B5;
+  border-radius: 10px;
+  background: #FFFBF4;
+}
+
+.chat-emergency-directory-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-emergency-directory-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-emergency-directory-heading strong,
+.chat-emergency-doctors > strong {
+  color: #54211E;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chat-emergency-directory-heading > div > span {
+  color: #624E39;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.chat-emergency-directory-label {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  border: 1px solid #D9C6A7;
+  border-radius: 5px;
+  color: #70451C;
+  background: #F7EEDC;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.chat-emergency-directory-location {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #FFFFFF;
+}
+
+.chat-emergency-directory-location strong {
+  color: #765B3E;
+  font-size: 10px;
+}
+
+.chat-emergency-directory-location p {
+  margin: 0;
+  color: #54211E;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.chat-emergency-directory-location .chat-emergency-directory-warning {
+  color: #8F1D18;
+  font-weight: 700;
+}
+
+.chat-emergency-doctors {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.chat-emergency-doctor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  border: 1px solid #EBDCC8;
+  border-radius: 8px;
+  background: #FFFFFF;
+}
+
+.chat-emergency-doctor-initials {
+  display: flex;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #F1E5D5;
+  color: #70451C;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.chat-emergency-doctor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chat-emergency-doctor-info strong {
+  color: #54211E;
+  font-size: 11px;
+}
+
+.chat-emergency-doctor-info span,
+.chat-emergency-doctor-info small {
+  color: #765B3E;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.chat-emergency-doctor-info small {
+  color: #8F1D18;
+}
+
+@media (max-width: 480px) {
+  .chat-emergency-directory-heading {
+    flex-direction: column;
+  }
+}
+
+
+/* ---------- Emergency alert layout refinement ---------- */
+.chat-emergency-alert .chat-emergency-alert-heading > strong,
+.chat-emergency-alert .chat-emergency-alert-heading > span {
+  display: block;
+  margin: 0;
+}
+
+.chat-emergency-alert .chat-emergency-alert-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.chat-emergency-alert .chat-emergency-contact-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-emergency-alert .chat-emergency-contact-status > strong,
+.chat-emergency-alert .chat-emergency-contact-status > span {
+  display: block;
+  margin: 0;
+}
+
+.chat-emergency-alert .chat-emergency-contact-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.chat-emergency-alert .chat-emergency-contact-row > span,
+.chat-emergency-alert .chat-emergency-contact-row > strong,
+.chat-emergency-alert .chat-emergency-contact-row > a {
+  display: block;
+  margin: 0;
+}
+
+.chat-emergency-alert .chat-emergency-directory-heading > div > strong,
+.chat-emergency-alert .chat-emergency-directory-heading > div > span {
+  display: block;
+  margin: 0;
+}
+
+.chat-emergency-alert .chat-emergency-doctor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-emergency-alert .chat-emergency-doctor-info > strong,
+.chat-emergency-alert .chat-emergency-doctor-info > span,
+.chat-emergency-alert .chat-emergency-doctor-info > small {
+  display: block;
+  margin: 0;
+}

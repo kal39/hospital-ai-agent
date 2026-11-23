@@ -8,6 +8,10 @@ import {
   listStaffDoctors,
   recordStaffAttendance,
   getStaffAnalytics,
+  listStaffCareCases,
+  updateStaffCareCaseStatus,
+  type StaffCareCase,
+  type StaffCareCaseStatus,
   type StaffAnalytics,
   type StaffAppointmentRequest,
   type StaffAttendanceAppointment,
@@ -39,6 +43,30 @@ const copy = {
     noRanking: "No booking records to rank yet.",
     aiActivityUnavailable: "AI assistant activity analytics are not available yet.",
     analyticsNote: "These metrics describe recorded demo appointment data. They do not measure AI recommendations or assistant conversations.",
+    careCasesTitle: "Patient care concerns",
+    careCasesIntro: "Review patient-submitted concerns. These records have not been clinically triaged.",
+    careCasesQueue: "CARE CONCERN QUEUE",
+    careCasesLoading: "Loading care concerns...",
+    careCasesEmpty: "No care concerns have been submitted.",
+    careCasePatient: "Patient reference",
+    careCaseConcern: "Reported concern",
+    careCaseSubmitted: "Submitted",
+    careCaseHistory: "Workflow history",
+    careCaseInternalNote: "Internal staff note (not visible to the patient)",
+    careCaseNotePlaceholder: "Add an internal review note (optional, max 300 characters)",
+    careCaseAcknowledge: "Acknowledge receipt",
+    careCaseStartReview: "Start review",
+    careCaseResolve: "Mark workflow resolved",
+    careCaseResolved: "Workflow resolved",
+    careCaseUntriagedNotice: "Workflow status is not a clinical triage result. A qualified clinician must assess urgency.",
+    careCasePriorityHeading: "Automated priority suggestion",
+    careCasePriorityEmergency: "Emergency",
+    careCasePriorityUrgent: "Urgent",
+    careCasePriorityRoutine: "Routine review",
+    careCasePriorityNotice: "Prototype rule-based suggestion only. This is not a clinical triage decision and must be verified by a qualified clinician.",
+    careCaseConfirm: "Confirm this workflow update?",
+    careCaseUpdated: "Care-case workflow updated.",
+    careCaseCount: "cases in queue",
     demo: "Demo staff workspace â€” synthetic data only",
     demoText:
       "All requests and appointments shown here are fictional demonstration records. This workspace is not connected to a live hospital system. Do not enter real patient information.",
@@ -257,11 +285,49 @@ const copy = {
     noRanking: "No booking records to rank yet.",
     aiActivityUnavailable: "AI assistant activity analytics are not available yet.",
     analyticsNote: "These metrics describe recorded demo appointment data. They do not measure AI recommendations or assistant conversations.",
+    careCasesTitle: "???? ????? ?????",
+    careCasesIntro: "????? ??????? ???? ?????? ???? ????? ????? ???? ?? ????????",
+    careCasesQueue: "????? ????? ????",
+    careCasesLoading: "????? ?????? ???? ??...",
+    careCasesEmpty: "??? ????? ??? ???????",
+    careCasePatient: "???? ???",
+    careCaseConcern: "????? ???",
+    careCaseSubmitted: "?????? ??",
+    careCaseHistory: "???? ???",
+    careCaseInternalNote: "????? ???? ????? (????? ?????)",
+    careCaseNotePlaceholder: "???? ???? ????? ???? (????? ??? 300 ???)",
+    careCaseAcknowledge: "????? ?????",
+    careCaseStartReview: "???? ????",
+    careCaseResolve: "????? ????? ?????",
+    careCaseResolved: "??? ?????",
+    careCaseUntriagedNotice: "???? ??? ????? ???? ??? ?????? ????? ??????? ???? ???? ?? ????? ???? ???",
+    careCasePriorityHeading: "???-?? ???? ???",
+    careCasePriorityEmergency: "????? ???",
+    careCasePriorityUrgent: "?????",
+    careCasePriorityRoutine: "???? ????",
+    careCasePriorityNotice: "?? ???? ??-??? ??? ?? ??? ????? ????? ??? ?????? ?? ???? ????? ?????",
+    careCaseConfirm: "???? ???? ??? ??????",
+    careCaseUpdated: "????? ???? ???? ??? ??????",
+    careCaseCount: "????? ????? ???",
 
   },
 } as const;
 
 type StaffReviewCopy = { [Key in keyof typeof copy.en]: string };
+
+function careCasePriorityLabel(
+  priority: "emergency" | "urgent" | "routine_review",
+  t: StaffReviewCopy,
+): string {
+  switch (priority) {
+    case "emergency":
+      return t.careCasePriorityEmergency;
+    case "urgent":
+      return t.careCasePriorityUrgent;
+    default:
+      return t.careCasePriorityRoutine;
+  }
+}
 
 function errorMessage(error: unknown, t: StaffReviewCopy): string {
   if (!(error instanceof Error)) return t.error;
@@ -398,13 +464,19 @@ export default function StaffReview({ language }: Props) {
   const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
+  const [careCases, setCareCases] = useState<StaffCareCase[]>([]);
+  const [careCasesLoading, setCareCasesLoading] = useState(true);
+  const [selectedCareCaseId, setSelectedCareCaseId] = useState("");
+  const [careCaseNote, setCareCaseNote] = useState("");
+  const [careCaseWorking, setCareCaseWorking] = useState(false);
+
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const selectedRequest = useMemo(
-    () => requests.find((item) => item.requestId === selectedRequestId) ?? null,
-    [requests, selectedRequestId],
+  const selectedCareCase = useMemo(
+    () => careCases.find((item) => item.caseId === selectedCareCaseId) ?? null,
+    [careCases, selectedCareCaseId],
   );
 
   const visibleRequests = useMemo(() => {
@@ -415,6 +487,14 @@ export default function StaffReview({ language }: Props) {
       b.submittedAt.localeCompare(a.submittedAt),
     );
   }, [requests, requestFilter]);
+
+  const selectedRequest = useMemo(
+    () =>
+      visibleRequests.find((item) => item.requestId === selectedRequestId) ??
+      visibleRequests[0] ??
+      null,
+    [visibleRequests, selectedRequestId],
+  );
 
   const availableSlots = useMemo(() => {
     if (!selectedRequest) return [];
@@ -479,30 +559,28 @@ export default function StaffReview({ language }: Props) {
     }
   }, [t]);
 
+  const loadCareCases = useCallback(async () => {
+    setCareCasesLoading(true);
+    try {
+      const result = await listStaffCareCases();
+      setCareCases(result);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setCareCasesLoading(false);
+    }
+  }, [t]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadRequests();
       void loadAppointments();
       void loadAnalytics();
+      void loadCareCases();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadRequests, loadAppointments, loadAnalytics]);
-
-  useEffect(() => {
-    if (visibleRequests.length === 0) {
-      if (selectedRequestId) setSelectedRequestId("");
-      return;
-    }
-
-    const selectedStillVisible = visibleRequests.some(
-      (item) => item.requestId === selectedRequestId,
-    );
-
-    if (!selectedStillVisible) {
-      setSelectedRequestId(visibleRequests[0].requestId);
-    }
-  }, [visibleRequests, selectedRequestId]);
+  }, [loadRequests, loadAppointments, loadAnalytics, loadCareCases]);
 
   useEffect(() => {
     let active = true;
@@ -646,6 +724,37 @@ export default function StaffReview({ language }: Props) {
       );
   }, [appointments, attendanceFilter, search]);
 
+  async function handleCareCaseStatus(
+    status: Exclude<StaffCareCaseStatus, "registered">,
+  ) {
+    if (!selectedCareCase || careCaseWorking) return;
+    if (!window.confirm(t.careCaseConfirm)) return;
+
+    setCareCaseWorking(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const updated = await updateStaffCareCaseStatus(
+        selectedCareCase.caseId,
+        status,
+        careCaseNote.trim() || undefined,
+      );
+
+      setCareCases((current) =>
+        current.map((item) =>
+          item.caseId === updated.caseId ? updated : item,
+        ),
+      );
+      setCareCaseNote("");
+      setSuccess(t.careCaseUpdated);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setCareCaseWorking(false);
+    }
+  }
+
   async function handleApprove() {
     if (!selectedRequest || !selectedSlot || !selectedDoctorId) return;
     if (!isOpenRequest(selectedRequest)) {
@@ -747,7 +856,12 @@ export default function StaffReview({ language }: Props) {
   }
 
   const refreshDashboard = () => {
-    void Promise.all([loadRequests(), loadAppointments(), loadAnalytics()]);
+    void Promise.all([
+      loadRequests(),
+      loadAppointments(),
+      loadAnalytics(),
+      loadCareCases(),
+    ]);
   };
 
   return (
@@ -810,9 +924,9 @@ export default function StaffReview({ language }: Props) {
             type="button"
             className="appointment-refresh-button"
             onClick={refreshDashboard}
-            disabled={requestsLoading || attendanceLoading || analyticsLoading}
+            disabled={requestsLoading || attendanceLoading || analyticsLoading || careCasesLoading}
           >
-            {requestsLoading || attendanceLoading || analyticsLoading
+            {requestsLoading || attendanceLoading || analyticsLoading || careCasesLoading
               ? t.refreshing
               : t.refresh}
           </button>
@@ -841,6 +955,177 @@ export default function StaffReview({ language }: Props) {
             </strong>
           </article>
         </div>
+      </section>
+
+      <section className="staff-care-cases-panel" aria-labelledby="staff-care-cases-title">
+        <div className="staff-care-cases-heading">
+          <div>
+            <span className="appointment-section-label">{t.careCasesQueue}</span>
+            <h2 id="staff-care-cases-title">{t.careCasesTitle}</h2>
+            <p>{t.careCasesIntro}</p>
+          </div>
+          <span className="staff-care-cases-count">
+            {careCases.length} {t.careCaseCount}
+          </span>
+        </div>
+
+        <p className="staff-care-cases-safety-note">{t.careCaseUntriagedNotice}</p>
+
+        {careCasesLoading ? (
+          <p className="appointment-empty-state">{t.careCasesLoading}</p>
+        ) : careCases.length === 0 ? (
+          <p className="appointment-empty-state">{t.careCasesEmpty}</p>
+        ) : (
+          <div className="staff-care-cases-layout">
+            <div className="staff-care-cases-list" aria-label={t.careCasesQueue}>
+              {careCases.map((item) => (
+                <button
+                  type="button"
+                  key={item.caseId}
+                  className={`staff-care-case-item ${
+                    selectedCareCaseId === item.caseId
+                      ? "staff-care-case-item--selected"
+                      : ""
+                  }`}
+                  onClick={() => {
+                    setSelectedCareCaseId(item.caseId);
+                    setCareCaseNote("");
+                  }}
+                  aria-pressed={selectedCareCaseId === item.caseId}
+                >
+                  <span className="staff-care-case-item-top">
+                    <strong>{item.patientId}</strong>
+                    <span className={`staff-care-case-status staff-care-case-status--${item.status}`}>
+                      {item.status.replaceAll("_", " ")}
+                    </span>
+                  </span>
+                  <span
+                    className={`staff-care-case-priority staff-care-case-priority--${item.prioritySuggestion}`}
+                  >
+                    {careCasePriorityLabel(item.prioritySuggestion, t)}
+                  </span>
+                  <span className="staff-care-case-item-date">
+                    {formatTimestamp(item.createdAt, language)}
+                  </span>
+                  <span className="staff-care-case-item-summary">
+                    {item.reportedConcern}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {selectedCareCase && (
+              <article className="staff-care-case-detail">
+                <div className="staff-care-case-detail-heading">
+                  <div>
+                    <span className="appointment-section-label">{t.careCasePatient}</span>
+                    <h3>{selectedCareCase.patientId}</h3>
+                  </div>
+                  <span className={`staff-care-case-status staff-care-case-status--${selectedCareCase.status}`}>
+                    {selectedCareCase.status.replaceAll("_", " ")}
+                  </span>
+                </div>
+
+                <div className="staff-care-case-detail-grid">
+                  <div>
+                    <span>{t.careCaseSubmitted}</span>
+                    <strong>{formatTimestamp(selectedCareCase.createdAt, language)}</strong>
+                  </div>
+                  <div>
+                    <span>{t.status}</span>
+                    <strong>{selectedCareCase.status.replaceAll("_", " ")}</strong>
+                  </div>
+                </div>
+
+                <section className="staff-care-case-priority-detail">
+                  <span className="appointment-section-label">
+                    {t.careCasePriorityHeading}
+                  </span>
+                  <span
+                    className={`staff-care-case-priority staff-care-case-priority--${selectedCareCase.prioritySuggestion}`}
+                  >
+                    {careCasePriorityLabel(selectedCareCase.prioritySuggestion, t)}
+                  </span>
+                  <p>{selectedCareCase.priorityReason}</p>
+                  <small>{t.careCasePriorityNotice}</small>
+                </section>
+
+                <div className="staff-care-case-concern">
+                  <h4>{t.careCaseConcern}</h4>
+                  <p>{selectedCareCase.reportedConcern}</p>
+                </div>
+
+                <div className="staff-care-case-history">
+                  <h4>{t.careCaseHistory}</h4>
+                  <ol>
+                    {selectedCareCase.statusHistory.map((entry, index) => (
+                      <li key={`${entry.timestamp}-${entry.status}-${index}`}>
+                        <strong>{entry.status.replaceAll("_", " ")}</strong>
+                        <span>{formatTimestamp(entry.timestamp, language)}</span>
+                        <p>{entry.note}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {selectedCareCase.status !== "resolved" && (
+                  <div className="staff-care-case-actions">
+                    <label htmlFor="staff-care-case-note">
+                      {t.careCaseInternalNote}
+                    </label>
+                    <textarea
+                      id="staff-care-case-note"
+                      value={careCaseNote}
+                      onChange={(event) =>
+                        setCareCaseNote(event.target.value.slice(0, 300))
+                      }
+                      placeholder={t.careCaseNotePlaceholder}
+                      maxLength={300}
+                      rows={3}
+                      disabled={careCaseWorking}
+                    />
+                    <div className="staff-care-case-action-row">
+                      {selectedCareCase.status === "registered" && (
+                        <button
+                          type="button"
+                          className="appointment-primary-button"
+                          onClick={() => void handleCareCaseStatus("acknowledged")}
+                          disabled={careCaseWorking}
+                        >
+                          {careCaseWorking ? t.processing : t.careCaseAcknowledge}
+                        </button>
+                      )}
+                      {selectedCareCase.status === "acknowledged" && (
+                        <button
+                          type="button"
+                          className="appointment-primary-button"
+                          onClick={() => void handleCareCaseStatus("in_review")}
+                          disabled={careCaseWorking}
+                        >
+                          {careCaseWorking ? t.processing : t.careCaseStartReview}
+                        </button>
+                      )}
+                      {selectedCareCase.status === "in_review" && (
+                        <button
+                          type="button"
+                          className="appointment-primary-button"
+                          onClick={() => void handleCareCaseStatus("resolved")}
+                          disabled={careCaseWorking}
+                        >
+                          {careCaseWorking ? t.processing : t.careCaseResolve}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedCareCase.status === "resolved" && (
+                  <p className="staff-care-case-resolved">{t.careCaseResolved}</p>
+                )}
+              </article>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="staff-requests-workspace">
@@ -880,7 +1165,7 @@ export default function StaffReview({ language }: Props) {
                     type="button"
                     key={request.requestId}
                     className={`staff-request-card ${
-                      selectedRequestId === request.requestId ? "active" : ""
+                      selectedRequest?.requestId === request.requestId ? "active" : ""
                     }`}
                     onClick={() => {
                       setSelectedRequestId(request.requestId);

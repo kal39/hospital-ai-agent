@@ -9,6 +9,48 @@ import type {
   Doctor,
 } from "./appointments";
 
+export type StaffCareCaseStatus =
+  | "registered"
+  | "acknowledged"
+  | "in_review"
+  | "resolved";
+
+export interface StaffCareCaseStatusEntry {
+  status: StaffCareCaseStatus;
+  timestamp: string;
+  note: string;
+}
+
+export type StaffCareCasePriority =
+  | "emergency"
+  | "urgent"
+  | "routine_review";
+
+export interface StaffCareCase {
+  caseId: string;
+  caseType: "emergency_concern";
+  status: StaffCareCaseStatus;
+  patientId: string;
+  reportedConcern: string;
+  conversationId?: string;
+  language: "en" | "am";
+  createdAt: string;
+  updatedAt: string;
+  prioritySuggestion: StaffCareCasePriority;
+  priorityReason: string;
+  prioritySource: "prototype_rules";
+  priorityCreatedAt: string;
+  dataSource: "synthetic_demo";
+  dataNotice: string;
+  statusHistory: StaffCareCaseStatusEntry[];
+  staffActionHistory?: Array<{
+    status: StaffCareCaseStatus;
+    timestamp: string;
+    staffId: string;
+    note: string;
+  }>;
+}
+
 export interface StaffAppointmentRequest {
   requestId: string;
   patientId: string;
@@ -278,4 +320,33 @@ export interface StaffAnalytics {
 
 export async function getStaffAnalytics(): Promise<StaffAnalytics> {
   return requestJson<StaffAnalytics>("/staff/analytics");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Staff care-case review                                                     */
+/* -------------------------------------------------------------------------- */
+
+export async function listStaffCareCases(): Promise<StaffCareCase[]> {
+  const result = await requestJson<{
+    cases: StaffCareCase[];
+    dataSource: "synthetic_demo";
+  }>("/staff/care-cases");
+
+  return result.cases;
+}
+
+export async function updateStaffCareCaseStatus(
+  caseId: string,
+  status: Exclude<StaffCareCaseStatus, "registered">,
+  note?: string,
+): Promise<StaffCareCase> {
+  const result = await requestJson<{
+    case: StaffCareCase;
+    dataSource: "synthetic_demo";
+  }>(`/staff/care-cases/${encodeURIComponent(caseId)}/status`, {
+    method: "POST",
+    body: JSON.stringify({ status, note }),
+  });
+
+  return result.case;
 }
