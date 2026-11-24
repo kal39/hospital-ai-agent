@@ -5,6 +5,48 @@ import rehypeSanitize from "rehype-sanitize";
 import type { ChatMessage, Language } from "../../types/chat";
 import DoctorAvatar from "../Doctor/DoctorAvatar";
 
+
+function careCaseStatusLabel(status: string, language: Language): string {
+  if (language !== "am") return status;
+
+  switch (status) {
+    case "registered":
+      return "\u1270\u1218\u12dd\u130d\u1267\u12a0\u120d";
+    case "acknowledged":
+      return "\u1218\u1240\u1260\u1209 \u1270\u1228\u130b\u130d\u1277\u120d";
+    case "in_review":
+      return "\u1260\u130d\u121d\u1308\u121b \u120b\u12ed";
+    case "resolved":
+      return "\u1202\u12f0\u1271 \u1270\u1320\u1293\u124b\u120d";
+    default:
+      return status;
+  }
+}
+
+function careCaseDataNotice(notice: string, language: Language): string {
+  if (language !== "am") return notice;
+
+  const normalized = notice.replace(/\s+/g, " ").trim();
+
+  if (
+    normalized.startsWith(
+      "SYNTHETIC DEMONSTRATION DATA: This emergency concern is stored only"
+    )
+  ) {
+    return "\u12e8\u1219\u12a8\u122b \u1218\u1228\u1303\u1366 \u12ed\u1205 \u12e8\u12a0\u1235\u1278\u1293\u12b3\u12ed \u12e8\u1324\u1293 \u1235\u130b\u1275 \u1260\u12a0\u12ab\u1263\u1262\u12eb\u12ca \u12e8\u1219\u12a8\u122b \u12f3\u1274\u1264\u12dd \u12cd\u1235\u1325 \u1265\u127b \u1270\u1240\u121d\u1327\u120d\u1362 \u12c8\u12f0 \u12a5\u12cd\u1290\u1270\u129b \u1206\u1235\u1352\u1273\u120d \u12a0\u120d\u1270\u120b\u12a8\u121d\u121d\u1363 \u1260\u1206\u1235\u1352\u1273\u120d \u1230\u122b\u1270\u129e\u127d \u12a0\u120d\u1270\u1308\u1218\u1308\u121d\u121d\u1363 \u1260\u1304\u1273 \u1263\u1208\u1219\u12eb \u12e8\u1215\u12ad\u121d\u1293 \u130d\u121d\u1308\u121b \u12a0\u120d\u1270\u12f0\u1228\u1308\u121d\u121d\u1362 \u121d\u12dd\u1308\u1263\u12cd \u12e8\u1215\u12ad\u121d\u1293 \u12a5\u122d\u12f3\u1275 \u1218\u12d8\u130b\u1300\u1271\u1295 \u12a0\u12eb\u1228\u130b\u130d\u1325\u121d\u1362 \u12ed\u1205 \u12a0\u1235\u1278\u1293\u12b3\u12ed \u1201\u1294\u1273 \u120a\u1206\u1295 \u12a8\u127b\u1208 \u12c8\u12f2\u12eb\u12cd\u1291 \u12e8\u1215\u12ad\u121d\u1293 \u12a5\u122d\u12f3\u1275 \u12ed\u1348\u120d\u1309\u1362";
+  }
+
+  if (
+    normalized.startsWith(
+      "SYNTHETIC DEMONSTRATION DATA: This urgent follow-up concern is stored"
+    )
+  ) {
+    return "\u12e8\u1219\u12a8\u122b \u1218\u1228\u1303\u1366 \u12ed\u1205 \u12e8\u12a0\u1235\u1278\u1293\u12b3\u12ed \u12ad\u1275\u1275\u120d \u1235\u130b\u1275 \u1260\u12a0\u12ab\u1263\u1262\u12eb\u12ca \u12e8\u1219\u12a8\u122b \u12f3\u1274\u1264\u12dd \u12cd\u1235\u1325 \u1265\u127b \u1270\u1240\u121d\u1327\u120d\u1362 \u12c8\u12f0 \u12a5\u12cd\u1290\u1270\u129b \u1206\u1235\u1352\u1273\u120d \u12a0\u120d\u1270\u120b\u12a8\u121d\u121d\u1363 \u1260\u1206\u1235\u1352\u1273\u120d \u1230\u122b\u1270\u129e\u127d \u12a0\u120d\u1270\u1308\u1218\u1308\u121d\u121d\u1363 \u1260\u1304\u1273 \u1263\u1208\u1219\u12eb \u12e8\u1215\u12ad\u121d\u1293 \u130d\u121d\u1308\u121b \u12a0\u120d\u1270\u12f0\u1228\u1308\u121d\u121d\u1362 \u121d\u12dd\u1308\u1263\u12cd \u12e8\u1215\u12ad\u121d\u1293 \u12a5\u122d\u12f3\u1275 \u12c8\u12ed\u121d \u12ad\u1275\u1275\u120d \u1218\u12d8\u130b\u1300\u1271\u1295 \u12a0\u12eb\u1228\u130b\u130d\u1325\u121d\u1362 \u12a5\u1263\u12ad\u12ce \u1260\u1245\u122d\u1261 \u12e8\u1324\u1293 \u1261\u12f5\u1295\u12ce\u1295 \u12eb\u1290\u130b\u130d\u1229\u1362 \u12a8\u1263\u12f5 \u12c8\u12ed\u121d \u1260\u134d\u1325\u1290\u1275 \u12e8\u121a\u1263\u1231 \u121d\u120d\u12ad\u1276\u127d \u12a8\u1273\u12e9 \u12e8\u12a0\u1235\u1278\u1293\u12b3\u12ed \u12e8\u1215\u12ad\u121d\u1293 \u12a5\u122d\u12f3\u1275 \u12ed\u1348\u120d\u1309\u1362";
+  }
+
+  return notice;
+}
+
 function getAppointmentReview(content: string) {
   const normalized = content.replace(/\*\*/g, "");
 
@@ -25,10 +67,6 @@ function getAppointmentReview(content: string) {
   }
 
   return { doctor, department, date, time, location };
-}
-
-function toTelephoneHref(phone: string): string {
-  return `tel:${phone.replace(/[^\\d+]/g, "")}`;
 }
 
 interface MessageBubbleProps {
@@ -222,7 +260,7 @@ export default function MessageBubble({
             aria-label="Emergency safety instructions"
           >
             <div className="chat-emergency-alert-heading">
-              <strong>Possible emergency ? get help now</strong>
+              <strong>Possible emergency - get help now</strong>
               <span>IMMEDIATE ACTION</span>
             </div>
 
@@ -232,44 +270,21 @@ export default function MessageBubble({
             </p>
 
             <div className="chat-emergency-contact-details">
-              {emergency.hospitalName && (
-                <div className="chat-emergency-contact-row">
-                  <span>Hospital</span>
-                  <strong>{emergency.hospitalName}</strong>
-                </div>
-              )}
-
-              {emergency.hospitalEmergencyPhone && (
-                <div className="chat-emergency-contact-row">
-                  <span>Hospital emergency</span>
-                  <a href={toTelephoneHref(emergency.hospitalEmergencyPhone)}>
-                    {emergency.hospitalEmergencyPhone}
-                  </a>
-                </div>
-              )}
-
-              {emergency.ambulanceDispatchPhone && (
-                <div className="chat-emergency-contact-row">
-                  <span>Ambulance</span>
-                  <a href={toTelephoneHref(emergency.ambulanceDispatchPhone)}>
-                    {emergency.ambulanceDispatchPhone}
-                  </a>
-                </div>
-              )}
-
-              {emergency.alternativeEmergencyPhone && (
-                <div className="chat-emergency-contact-row">
-                  <span>Alternative contact</span>
-                  <a href={toTelephoneHref(emergency.alternativeEmergencyPhone)}>
-                    {emergency.alternativeEmergencyPhone}
-                  </a>
-                </div>
-              )}
+              <div className="chat-emergency-contact-row">
+                <span>Sample hospital emergency line</span>
+                <strong>+251 9XX XXX XXX</strong>
+              </div>
+              <div className="chat-emergency-contact-row">
+                <span>Sample ambulance dispatch line</span>
+                <strong>+251 9XX XXX XXX</strong>
+              </div>
             </div>
 
             <p className="chat-emergency-demo-notice">
-              Demo only: verify contacts before use. Phone links do not
-              dispatch an ambulance or notify hospital staff.
+              DEMO ONLY: These are fictional placeholder numbers, not real
+              telephone numbers. Do not call them. No emergency dispatch or
+              hospital contact service is connected. Use locally available
+              emergency services.
             </p>
           </section>
         )}
@@ -338,32 +353,32 @@ export default function MessageBubble({
         {!isUser && careCase && (
           <section
             className="chat-care-case"
-            aria-label="Emergency concern registration"
+            aria-label={language === "am" ? "\u12e8\u1324\u1293 \u1235\u130b\u1275 \u1218\u12dd\u1308\u1262\u12eb" : "Emergency concern registration"}
           >
             <div className="chat-care-case-heading">
               <div>
-                <strong>Emergency concern registered</strong>
+                <strong>{language === "am" ? "\u12e8\u1324\u1293 \u1235\u130b\u1275 \u1270\u1218\u12dd\u130d\u1267\u120d" : "Emergency concern registered"}</strong>
                 <span className="chat-care-case-status">
-                  Registration status: {careCase.status}
+                  {language === "am" ? "\u12e8\u1218\u12dd\u1308\u1263 \u1201\u1294\u1273" : "Registration status"}: {careCaseStatusLabel(careCase.status, language)}
                 </span>
               </div>
               <span className="chat-care-case-demo-label">
-                SYNTHETIC DEMO
+                {language === "am" ? "\u12e8\u1219\u12a8\u122b \u1218\u1228\u1303" : "SYNTHETIC DEMO"}
               </span>
             </div>
 
             <div className="chat-care-case-reference">
-              <span>Demonstration case reference</span>
+              <span>{language === "am" ? "\u12e8\u1219\u12a8\u122b \u1309\u12f3\u12ed \u1218\u1208\u12eb" : "Demonstration case reference"}</span>
               <strong>{careCase.caseId}</strong>
             </div>
 
             <div className="chat-care-case-details">
               <div>
-                <span>Reported concern</span>
+                <span>{language === "am" ? "\u12e8\u1270\u1240\u1228\u1260\u12cd \u12e8\u1324\u1293 \u1235\u130b\u1275" : "Reported concern"}</span>
                 <p>{careCase.reportedConcern}</p>
               </div>
               <div>
-                <span>Registered</span>
+                <span>{language === "am" ? "\u12e8\u1270\u1218\u12dd\u1308\u1260\u1260\u1275 \u130a\u12dc" : "Registered"}</span>
                 <time dateTime={careCase.createdAt}>
                   {Number.isNaN(Date.parse(careCase.createdAt))
                     ? careCase.createdAt
@@ -373,18 +388,15 @@ export default function MessageBubble({
             </div>
 
             <p className="chat-care-case-data-notice">
-              {careCase.dataNotice}
+              {careCaseDataNotice(careCase.dataNotice, language)}
             </p>
 
             <div className="chat-care-case-safety-notice" role="note">
-              <strong>Important: this is not a real hospital notification.</strong>
+              <strong>{language === "am" ? "\u12a0\u1218\u12b3\u12ed\u1366 \u12ed\u1205 \u12e8\u12a5\u12cd\u1290\u1270\u129b \u12e8\u1206\u1235\u1352\u1273\u120d \u121b\u1233\u12c8\u1242\u12eb \u12a0\u12ed\u12f0\u1208\u121d\u1362" : "Important: this is not a real hospital notification."}</strong>
               <p>
-                This record is stored only in this demonstration. It has not
-                been sent to hospital staff, has not been acknowledged by
-                staff, and has not been clinically triaged. This is not an
-                emergency response service. If this is an emergency, contact
-                local emergency services or go to the nearest emergency
-                department.
+                {language === "am"
+                  ? "\u12ed\u1205 \u1218\u12dd\u1308\u1265 \u1260\u12da\u1205 \u12e8\u1219\u12a8\u122b \u1235\u122d\u12d3\u1275 \u12cd\u1235\u1325 \u1265\u127b \u1270\u1240\u121d\u1327\u120d\u1362 \u12c8\u12f0 \u1206\u1235\u1352\u1273\u120d \u1230\u122b\u1270\u129e\u127d \u12a0\u120d\u1270\u120b\u12a8\u121d\u121d\u1363 \u1260\u1230\u122b\u1270\u129e\u127d \u12a0\u12cd\u1295\u1273 \u12a0\u120d\u1270\u1228\u130b\u1308\u1320\u121d\u121d\u1363 \u1260\u1304\u1273 \u1263\u1208\u1219\u12eb \u12e8\u1215\u12ad\u121d\u1293 \u130d\u121d\u1308\u121b \u12a0\u120d\u1270\u12f0\u1228\u1308\u1218\u1208\u1275\u121d\u1362 \u12ed\u1205 \u12e8\u12a0\u1235\u1278\u1293\u12b3\u12ed \u12a5\u122d\u12f3\u1275 \u12a0\u1308\u120d\u130d\u120e\u1275 \u12a0\u12ed\u12f0\u1208\u121d\u1362 \u12a0\u1235\u1278\u1293\u12b3\u12ed \u12a8\u1206\u1290 \u12c8\u12f2\u12eb\u12cd\u1291 \u12e8\u12a0\u12ab\u1263\u1262\u12eb\u12ce\u1295 \u12a0\u1235\u1278\u1293\u12b3\u12ed \u12a0\u1308\u120d\u130d\u120e\u1275 \u12eb\u130d\u1299 \u12c8\u12ed\u121d \u12c8\u12f0 \u12a0\u1245\u122b\u1262\u12eb\u12ce \u12a0\u1235\u1278\u1293\u12b3\u12ed \u12e8\u1215\u12ad\u121d\u1293 \u12ad\u134d\u120d \u12ed\u1202\u12f1\u1362"
+                  : "This record is stored only in this demonstration. It has not been sent to hospital staff, has not been acknowledged by staff, and has not been clinically triaged. This is not an emergency response service. If this is an emergency, contact local emergency services or go to the nearest emergency department."}
               </p>
             </div>
           </section>

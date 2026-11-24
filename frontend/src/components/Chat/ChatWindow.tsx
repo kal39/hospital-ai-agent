@@ -357,7 +357,7 @@ export default function ChatWindow({ language, detail }: ChatWindowProps) {
                               lineHeight: 1,
                             }}
                           >
-                            Ã°Å¸â€œâ€ž
+                            📄
                           </span>
 
                           <div style={{ minWidth: 0 }}>

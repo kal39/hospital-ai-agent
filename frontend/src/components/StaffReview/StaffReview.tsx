@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   approveStaffAppointmentRequest,
   declineStaffAppointmentRequest,
@@ -67,19 +67,19 @@ const copy = {
     careCaseConfirm: "Confirm this workflow update?",
     careCaseUpdated: "Care-case workflow updated.",
     careCaseCount: "cases in queue",
-    demo: "Demo staff workspace â€” synthetic data only",
+    demo: "Demo staff workspace — synthetic data only",
     demoText:
       "All requests and appointments shown here are fictional demonstration records. This workspace is not connected to a live hospital system. Do not enter real patient information.",
     requests: "Appointment requests",
     attendance: "Attendance",
     openRequests: "requests awaiting a decision",
     refresh: "Refresh",
-    refreshing: "Refreshingâ€¦",
+    refreshing: "Refreshing…",
     open: "Open requests",
     all: "All requests",
     queue: "REQUEST QUEUE",
     incoming: "Incoming requests",
-    loading: "Loadingâ€¦",
+    loading: "Loading…",
     noOpen: "No open requests",
     noRequests: "No requests found",
     select: "Select a request",
@@ -107,7 +107,7 @@ const copy = {
     explanation: "Explanation (required)",
     declinePlaceholder: "Explain why this request cannot be accepted.",
     declineButton: "Decline demo request",
-    processing: "Processingâ€¦",
+    processing: "Processing…",
     decided: "This request has already been decided and cannot be acted on again.",
     notSpecified: "Not specified",
     submittedStatus: "Submitted",
@@ -165,46 +165,46 @@ const copy = {
     viewRequest: "Review request",
     noDoctorPreference: "No preferred doctor was specified.",
     noDatePreference: "No preferred dates were specified.",
-    loadingDoctors: "Loading doctorsâ€¦",
-    loadingSlots: "Loading available slotsâ€¦",
+    loadingDoctors: "Loading doctors…",
+    loadingSlots: "Loading available slots…",
     slotUnavailable: "This slot is no longer available. Refresh the slots and try again.",
     requestUnavailable: "This request is no longer available for review.",
   },
   am: {
-    eyebrow: "á‹¨áˆ°áˆ«á‰°áŠžá‰½ á‹¨áˆµáˆ« á‰¦á‰³",
-    title: "á‹¨á‰€áŒ áˆ® áŠ áˆµá‰°á‹³á‹°áˆ­",
-    intro: "á‹¨á‰€áŒ áˆ® áŒ¥á‹«á‰„á‹Žá‰½áŠ• á‹­áˆ˜áˆáŠ¨á‰± áŠ¥áŠ“ á‹¨á‰³áŠ«áˆšá‹Žá‰½áŠ• áˆ˜áŒˆáŠ˜á‰µ á‹«áˆµá‰°á‹³á‹µáˆ©á¢",
-    demo: "á‹¨áˆ™áŠ¨áˆ« á‹¨áˆ°áˆ«á‰°áŠžá‰½ á‰¦á‰³ â€” áˆ°á‹ áˆ°áˆ«áˆ½ áˆ˜áˆ¨áŒƒ á‰¥á‰»",
+    eyebrow: "የሰራተኞች የስራ ቦታ",
+    title: "የቀጠሮ አስተዳደር",
+    intro: "የቀጠሮ ጥያቄዎችን ይመልከቱ እና የታካሚዎችን መገኘት ያስተዳድሩ።",
+    demo: "የሙከራ የሰራተኞች ቦታ — ሰው ሰራሽ መረጃ ብቻ",
     demoText:
-      "áŠ¥á‹šáˆ… á‹¨áˆšá‰³á‹©á‰µ áŒ¥á‹«á‰„á‹Žá‰½áŠ“ á‰€áŒ áˆ®á‹Žá‰½ áˆáˆ‰ áˆˆáˆ™áŠ¨áˆ« á‹¨á‰°áˆáŒ áˆ© áŠ“á‰¸á‹á¢ á‹­áˆ… áˆµáˆ­á‹“á‰µ áŠ¨áŠ¥á‹áŠá‰°áŠ› á‹¨áˆ†áˆµá’á‰³áˆ áˆµáˆ­á‹“á‰µ áŒ‹áˆ­ áŠ áˆá‰°áŒˆáŠ“áŠ˜áˆá¢ áŠ¥á‹áŠá‰°áŠ› á‹¨á‰³áŠ«áˆš áˆ˜áˆ¨áŒƒ áŠ á‹«áˆµáŒˆá‰¡á¢",
-    requests: "á‹¨á‰€áŒ áˆ® áŒ¥á‹«á‰„á‹Žá‰½",
-    attendance: "á‹¨á‰³áŠ«áˆš áˆ˜áŒˆáŠ˜á‰µ",
-    openRequests: "á‹áˆ³áŠ” á‹¨áˆšáŒ á‰¥á‰ áŒ¥á‹«á‰„á‹Žá‰½",
-    refresh: "áŠ á‹µáˆµ",
-    refreshing: "á‰ áˆ›á‹°áˆµ áˆ‹á‹­â€¦",
-    open: "áŠ­áá‰µ áŒ¥á‹«á‰„á‹Žá‰½",
-    all: "áˆáˆ‰áˆ áŒ¥á‹«á‰„á‹Žá‰½",
-    queue: "á‹¨áŒ¥á‹«á‰„ á‹áˆ­á‹áˆ­",
-    incoming: "á‹¨áŒˆá‰¡ áŒ¥á‹«á‰„á‹Žá‰½",
-    loading: "á‰ áˆ˜áŒ«áŠ• áˆ‹á‹­â€¦",
-    noOpen: "áŠ­áá‰µ áŒ¥á‹«á‰„ á‹¨áˆˆáˆ",
-    noRequests: "áˆáŠ•áˆ áŒ¥á‹«á‰„ áŠ áˆá‰°áŒˆáŠ˜áˆ",
-    select: "áŒ¥á‹«á‰„ á‹­áˆáˆ¨áŒ¡",
-    selectText: "á‹áˆ­á‹áˆ©áŠ• á‰ áˆ˜áŒ á‰€áˆ á‹¨áˆšáˆáˆáŒ‰á‰µáŠ• áŒ¥á‹«á‰„ á‹­áˆáˆ¨áŒ¡á¢",
-    details: "á‹¨áŒ¥á‹«á‰„ á‹áˆ­á‹áˆ­",
-    patient: "á‹¨á‰³áŠ«áˆš áˆ˜áˆˆá‹«",
-    preferredDoctor: "á‹¨á‰°áˆ˜áˆ¨áŒ  áˆáŠªáˆ",
-    noPreference: "áˆáˆ­áŒ« á‹¨áˆˆáˆ",
-    preferredDates: "á‹¨á‰°áˆ˜áˆ¨áŒ¡ á‰€áŠ“á‰µ",
-    submitted: "á‹¨á‰€áˆ¨á‰ á‰ á‰µ áŒŠá‹œ",
-    reason: "á‹¨áŒ‰á‰¥áŠá‰µ áˆáŠ­áŠ•á‹«á‰µ",
-    booking: "á‹¨áˆ™áŠ¨áˆ« á‰€áŒ áˆ® áˆ˜áˆˆá‹«",
-    assigned: "á‹¨á‰°áˆ˜á‹°á‰  áˆáŠªáˆ",
-    date: "á‹¨á‰€áŒ áˆ® á‰€áŠ•",
-    time: "á‹¨á‰€áŒ áˆ® áˆ°á‹“á‰µ",
-    declineExplanation: "á‹¨áˆ˜áŠ¨áˆáŠ¨á‹« áˆáŠ­áŠ•á‹«á‰µ",
-    history: "á‹¨áˆáŠ”á‰³ á‰³áˆªáŠ­",
-    approveTitle: "áŒ¥á‹«á‰„á‹áŠ• á‹«áŒ½á‹µá‰ áŠ¥áŠ“ á‰€áŒ áˆ® á‹­áˆ˜á‹µá‰¡",
+      "እዚህ የሚታዩት ጥያቄዎችና ቀጠሮዎች ሁሉ ለሙከራ የተፈጠሩ ናቸው። ይህ ስርዓት ከእውነተኛ የሆስፒታል ስርዓት ጋር አልተገናኘም። እውነተኛ የታካሚ መረጃ አያስገቡ።",
+    requests: "የቀጠሮ ጥያቄዎች",
+    attendance: "የታካሚ መገኘት",
+    openRequests: "ውሳኔ የሚጠብቁ ጥያቄዎች",
+    refresh: "አድስ",
+    refreshing: "በማደስ ላይ…",
+    open: "ክፍት ጥያቄዎች",
+    all: "ሁሉም ጥያቄዎች",
+    queue: "የጥያቄ ዝርዝር",
+    incoming: "የገቡ ጥያቄዎች",
+    loading: "በመጫን ላይ…",
+    noOpen: "ክፍት ጥያቄ የለም",
+    noRequests: "ምንም ጥያቄ አልተገኘም",
+    select: "ጥያቄ ይምረጡ",
+    selectText: "ዝርዝሩን በመጠቀም የሚፈልጉትን ጥያቄ ይምረጡ።",
+    details: "የጥያቄ ዝርዝር",
+    patient: "የታካሚ መለያ",
+    preferredDoctor: "የተመረጠ ሐኪም",
+    noPreference: "ምርጫ የለም",
+    preferredDates: "የተመረጡ ቀናት",
+    submitted: "የቀረበበት ጊዜ",
+    reason: "የጉብኝት ምክንያት",
+    booking: "የሙከራ ቀጠሮ መለያ",
+    assigned: "የተመደበ ሐኪም",
+    date: "የቀጠሮ ቀን",
+    time: "የቀጠሮ ሰዓት",
+    declineExplanation: "የመከልከያ ምክንያት",
+    history: "የሁኔታ ታሪክ",
+    approveTitle: "ጥያቄውን ያጽድቁ እና ቀጠሮ ይመድቡ",
     doctor: "ሐኪም",
     chooseDoctor: "ሐኪም ይምረጡ",
     appointmentDate: "የቀጠሮ ጊዜ",
@@ -272,48 +272,148 @@ const copy = {
     loadingSlots: "ክፍት ቀጠሮዎችን በመፈለግ ላይ…",
     slotUnavailable: "ይህ ቀጠሮ ከአሁን በኋላ ክፍት አይደለም። እንደገና ይፈልጉ።",
     requestUnavailable: "ይህ ጥያቄ ከአሁን በኋላ ለግምገማ አይገኝም።",
-    overview: "Dashboard overview",
-    totalRequests: "Total requests",
-    pendingRequests: "Awaiting decision",
-    bookedAppointments: "Appointments booked",
-    attendanceRecorded: "Attendance recorded",
-    analytics: "Appointment analytics",
-    doctorBookings: "Most booked doctors",
-    departmentBookings: "Bookings by department",
-    monthlyBookings: "Monthly booking trend",
-    noBookingData: "No booking data is available yet.",
-    noRanking: "No booking records to rank yet.",
-    aiActivityUnavailable: "AI assistant activity analytics are not available yet.",
-    analyticsNote: "These metrics describe recorded demo appointment data. They do not measure AI recommendations or assistant conversations.",
-    careCasesTitle: "???? ????? ?????",
-    careCasesIntro: "????? ??????? ???? ?????? ???? ????? ????? ???? ?? ????????",
-    careCasesQueue: "????? ????? ????",
-    careCasesLoading: "????? ?????? ???? ??...",
-    careCasesEmpty: "??? ????? ??? ???????",
-    careCasePatient: "???? ???",
-    careCaseConcern: "????? ???",
-    careCaseSubmitted: "?????? ??",
-    careCaseHistory: "???? ???",
-    careCaseInternalNote: "????? ???? ????? (????? ?????)",
-    careCaseNotePlaceholder: "???? ???? ????? ???? (????? ??? 300 ???)",
-    careCaseAcknowledge: "????? ?????",
-    careCaseStartReview: "???? ????",
-    careCaseResolve: "????? ????? ?????",
-    careCaseResolved: "??? ?????",
-    careCaseUntriagedNotice: "???? ??? ????? ???? ??? ?????? ????? ??????? ???? ???? ?? ????? ???? ???",
-    careCasePriorityHeading: "???-?? ???? ???",
-    careCasePriorityEmergency: "????? ???",
-    careCasePriorityUrgent: "?????",
-    careCasePriorityRoutine: "???? ????",
-    careCasePriorityNotice: "?? ???? ??-??? ??? ?? ??? ????? ????? ??? ?????? ?? ???? ????? ?????",
-    careCaseConfirm: "???? ???? ??? ??????",
-    careCaseUpdated: "????? ???? ???? ??? ??????",
-    careCaseCount: "????? ????? ???",
+    overview: "የዳሽቦርድ አጠቃላይ እይታ",
+    totalRequests: "ጠቅላላ ጥያቄዎች",
+    pendingRequests: "ውሳኔ የሚጠብቁ ጥያቄዎች",
+    bookedAppointments: "የተያዙ ቀጠሮዎች",
+    attendanceRecorded: "\u12e8\u1270\u1218\u12d8\u1308\u1261 \u12e8\u1273\u12ab\u121a \u1218\u1308\u1298\u1276\u127d",
+    analytics: "የቀጠሮ ትንተና",
+    doctorBookings: "\u1265\u12d9 \u1240\u1320\u122e \u12e8\u1270\u1218\u12f0\u1260\u120b\u1278\u12cd \u1210\u12aa\u121e\u127d",
+    departmentBookings: "በክፍል የተከፋፈሉ ቀጠሮዎች",
+    monthlyBookings: "ወርሐዊ የቀጠሮ አዝማሚያ",
+    noBookingData: "እስካሁን ምንም የቀጠሮ መረጃ የለም።",
+    noRanking: "እስካሁን ለደረጃ ማውጣት የሚያስችሉ የቀጠሮ መዝገቦች የሉም።",
+    aiActivityUnavailable: "የAI ረዳቱ እንቅስቃሴ ትንተና እስካሁን አይገኝም።",
+    analyticsNote: "እነዚህ መለኪያዎች በሙከራ ስርዓት ውስጥ የተመዘገቡ የቀጠሮ መረጃዎችን ያሳያሉ። የAI ምክሮችን ወይም ከረዳቱ ጋር የተደረጉ ውይይቶችን አይለኩም።",
+    careCasesTitle: "የታካሚዎች የጤና ስጋቶች",
+    careCasesIntro: "ታካሚዎች ያቀረቡትን የጤና ስጋቶች ይገምግሙ። እነዚህ መዝገቦች በጤና ባለሙያ ገና አልተገመገሙም።",
+    careCasesQueue: "የጤና ስጋት ወረፋ",
+    careCasesLoading: "የጤና ስጋቶች በመጫን ላይ...",
+    careCasesEmpty: "ምንም የጤና ስጋት አልቀረበም።",
+    careCasePatient: "የታካሚ መለያ",
+    careCaseConcern: "የቀረበው ስጋት",
+    careCaseSubmitted: "የቀረበበት ጊዜ",
+    careCaseHistory: "የሂደት ታሪክ",
+    careCaseInternalNote: "የውስጥ ሰራተኞች ማስታወሻ (ለታካሚው አይታይም)",
+    careCaseNotePlaceholder: "የውስጥ ግምገማ ማስታወሻ ያክሉ (አማራጭ፣ ከ300 ቁምፊዎች አይበልጥም)",
+    careCaseAcknowledge: "መቀበሉን ያረጋጁ",
+    careCaseStartReview: "ግምገማ ይጀምሩ",
+    careCaseResolve: "ሂደቱን እንደተጠናቀቀ ምልክት ያድርጉ",
+    careCaseResolved: "ሂደቱ ተጠናቋል",
+    careCaseUntriagedNotice: "የስራ ስርዓቱ ሁኔታ የሕክምና አስቸኳይነት ደረጃን የሚወስን ግምገማ አይደለም። ብቃት ያለው የጤና ባለሙያ የሕክምና ሁኔታውን መገምገም አለበት።",
+    careCasePriorityHeading: "በራስ-ሰር የቀረበ የማስተላለፊያ ጥቆማ",
+    careCasePriorityEmergency: "የአስቸኳይ ምልክት ደንብ ተዛምዷል",
+    careCasePriorityUrgent: "ፈጣን ክትትል ይመከራል",
+    careCasePriorityRoutine: "መደበኛ የግምገማ ወረፋ",
+    careCasePriorityNotice: "ይህ በሙከራ ላይ ያለ በደንቦች ላይ የተመሠረተ ጥቆማ ብቻ ነው። ይህ የሕክምና አስቸኳይነት ውሳኔ አይደለም፤ ብቃት ባለው የጤና ባለሙያ ማረጋገጥ አለበት።",
+    careCaseConfirm: "ይህን የሂደት ማዘመኛ ያረጋጁ?",
+    careCaseUpdated: "የጤና ስጋት ሂደት ተዘምኗል።",
+    careCaseCount: "ጉዳዮች በወረፋ ላይ",
 
   },
 } as const;
 
 type StaffReviewCopy = { [Key in keyof typeof copy.en]: string };
+
+function displayDepartment(value: string, language: Language): string {
+  if (language !== "am") return value;
+
+  const labels: Record<string, string> = {
+    Cardiology: "\u12e8\u120d\u1265 \u1205\u12ad\u121d\u1293",
+    Dental: "\u12e8\u1325\u122d\u1235 \u1205\u12ad\u121d\u1293",
+    Dermatology: "\u12e8\u1246\u12f3 \u1205\u12ad\u121d\u1293",
+    ENT: "\u12e8\u1306\u122e\u1363 \u12e8\u12a0\u134d\u1295\u132b\u1293 \u12e8\u1309\u122e\u122e \u1205\u12ad\u121d\u1293",
+    Endocrinology: "\u12e8\u1206\u122d\u121e\u1295 \u1205\u12ad\u121d\u1293",
+    Gastroenterology: "\u12e8\u121d\u130d\u1265 \u1218\u134d\u132b \u1235\u122d\u12d3\u1275 \u1205\u12ad\u121d\u1293",
+    "General Medicine": "\u12a0\u1320\u1243\u120b\u12ed \u1205\u12ad\u121d\u1293",
+    Gynecology: "\u12e8\u121b\u1205\u1340\u1295 \u1205\u12ad\u121d\u1293",
+    Nephrology: "\u12e8\u12a9\u120b\u120a\u1275 \u1205\u12ad\u121d\u1293",
+    Neurology: "\u12e8\u1290\u122d\u126d \u1205\u12ad\u121d\u1293",
+    Ophthalmology: "\u12e8\u12d3\u12ed\u1295 \u1205\u12ad\u121d\u1293",
+    Orthopedics: "\u12e8\u12a0\u1325\u1295\u1293 \u1218\u1308\u1303\u1300\u121a\u12eb \u1205\u12ad\u121d\u1293",
+    Pediatrics: "\u12e8\u1205\u1343\u1293\u1275 \u1205\u12ad\u121d\u1293",
+    Psychiatry: "\u12e8\u12a0\u12a5\u121d\u122e \u1304\u1293 \u1205\u12ad\u121d\u1293",
+    "Respiratory Clinic": "\u12e8\u1218\u1270\u1295\u1348\u123b \u12a0\u12ab\u120b\u1275 \u1205\u12ad\u121d\u1293",
+    Urology: "\u12e8\u123d\u1295\u1275 \u1235\u122d\u12d3\u1275 \u1205\u12ad\u121d\u1293",
+  };
+
+  return labels[value] ?? value;
+}
+
+
+function displaySpecialty(value: string, language: Language): string {
+  if (language !== "am") return value;
+
+  const departmentLabel = displayDepartment(value, language);
+  if (departmentLabel !== value) return departmentLabel;
+
+  const labels: Record<string, string> = {
+    "Hypertension follow-up": "\u12e8\u12f0\u121d \u130d\u134a\u1275 \u12ad\u1275\u1275\u120d",
+    "Chronic disease follow-up": "\u12e8\u1208\u1218\u12f5\u121d \u130a\u12dc \u1260\u122d\u1273\u12ce\u127d \u12ad\u1275\u1275\u120d",
+    "Respiratory Medicine": "\u12e8\u1218\u1270\u1295\u1348\u123b \u12a0\u12ab\u120b\u1275 \u1205\u12ad\u121d\u1293",
+    "Asthma follow-up": "\u12e8\u12a0\u1235\u121d \u12ad\u1275\u1275\u120d",
+    "Blood pressure assessment": "\u12e8\u12f0\u121d \u130d\u134a\u1275 \u130d\u121d\u1308\u121b",
+    "Heart health follow-up": "\u12e8\u120d\u1265 \u1304\u1293 \u12ad\u1275\u1275\u120d",
+    "Skin conditions": "\u12e8\u1246\u12f3 \u127d\u130d\u122e\u127d",
+    "Hair and nail conditions": "\u12e8\u1340\u1309\u122d\u1293 \u1325\u134d\u122d \u127d\u130d\u122e\u127d",
+    "Headache assessment": "\u12e8\u122b\u1235 \u121d\u1273\u1275 \u130d\u121d\u1308\u121b",
+    "Neurological follow-up": "\u12e8\u1290\u122d\u126d \u1205\u1218\u121d \u12ad\u1275\u1275\u120d",
+    "Joint and bone conditions": "\u12e8\u1218\u1308\u1303\u1300\u121a\u12eb\u1293 \u12a0\u1325\u1295\u1275 \u127d\u130d\u122e\u127d",
+    "Musculoskeletal follow-up": "\u12e8\u1301\u1295\u127b\u1293 \u12a0\u1325\u1295\u1275 \u12ad\u1275\u1275\u120d",
+    "Child health": "\u12e8\u1205\u1343\u1293\u1275 \u1304\u1293",
+    "Child wellness follow-up": "\u12e8\u1205\u1343\u1293\u1275 \u1304\u1293 \u12ad\u1275\u1275\u120d",
+    "Women's health": "\u12e8\u1234\u1276\u127d \u1304\u1293",
+    "Routine women's health visits": "\u1218\u12f0\u1260\u12db\u12ca \u12e8\u1234\u1276\u127d \u1304\u1293 \u121d\u122d\u1218\u122b",
+    "Eye examinations": "\u12e8\u12d3\u12ed\u1295 \u121d\u122d\u1218\u122b",
+    "Vision follow-up": "\u12e8\u12d3\u12ed\u1295 \u12a5\u12ed\u1273 \u12ad\u1275\u1275\u120d",
+    "Oral health": "\u12e8\u12a0\u134d \u1304\u1293",
+    "Dental check-ups": "\u12e8\u1325\u122d\u1235 \u121d\u122d\u1218\u122b",
+    "Ear, Nose and Throat": "\u12e8\u1306\u122e\u1363 \u12e8\u12a0\u134d\u1295\u132b\u1293 \u12e8\u1309\u122e\u122e \u1205\u12ad\u121d\u1293",
+    "ENT assessment": "\u12e8\u1306\u122e\u1363 \u12a0\u134d\u1295\u132b\u1293 \u1309\u122e\u122e \u130d\u121d\u1308\u121b",
+    "Hearing and sinus concerns": "\u12e8\u1218\u1235\u121b\u1275\u1293 \u12e8\u1233\u12ed\u1290\u1235 \u127d\u130d\u122e\u127d",
+    "Digestive health": "\u12e8\u121d\u130d\u1265 \u1218\u134d\u132b \u1235\u122d\u12d3\u1275 \u1304\u1293",
+    "Digestive health follow-up": "\u12e8\u121d\u130d\u1265 \u1218\u134d\u132b \u1235\u122d\u12d3\u1275 \u12ad\u1275\u1275\u120d",
+    "Urinary health": "\u12e8\u123d\u1295\u1275 \u1235\u122d\u12d3\u1275 \u1304\u1293",
+    "Urological follow-up": "\u12e8\u123d\u1295\u1275 \u1235\u122d\u12d3\u1275 \u12ad\u1275\u1275\u120d",
+    "Mental wellness consultations": "\u12e8\u12a0\u12a5\u121d\u122e \u1304\u1293 \u121d\u12ad\u12ad\u122d",
+    "Follow-up consultations": "\u12e8\u12ad\u1275\u1275\u120d \u121d\u12ad\u12ad\u122d",
+    "Diabetes follow-up": "\u12e8\u1235\u12b3\u122d \u1260\u122d\u1273 \u12ad\u1275\u1275\u120d",
+    "Hormonal health": "\u12e8\u1206\u122d\u121e\u1295 \u1304\u1293",
+    "Kidney health follow-up": "\u12e8\u12a9\u120b\u120a\u1275 \u1304\u1293 \u12ad\u1275\u1275\u120d",
+    "Kidney health": "\u12e8\u12a9\u120b\u120a\u1275 \u1304\u1293",
+  };
+
+  return labels[value] ?? value;
+}
+
+function displayClinicLocation(value: string, language: Language): string {
+  if (language !== "am") return value;
+
+  const labels: Record<string, string> = {
+    "Synthetic Demo Clinic A": "\u12e8\u1219\u12a8\u122b \u12ad\u120a\u1292\u12ad A",
+    "Synthetic Demo Clinic B": "\u12e8\u1219\u12a8\u122b \u12ad\u120a\u1292\u12ad B",
+  };
+
+  return labels[value] ?? value;
+}
+
+function displayAppointmentRequestHistoryNote(
+  note: string,
+  language: Language,
+): string {
+  if (language !== "am") return note;
+
+  const labels: Record<string, string> = {
+    "Request submitted in the synthetic demo.":
+      "\u1325\u12eb\u1244\u12cd \u1260\u1219\u12a8\u122b \u1235\u122d\u12d3\u1271 \u12cd\u1235\u1325 \u1270\u1218\u12dd\u130d\u1267\u120d\u1362",
+    "Cancelled by the patient in the synthetic demo.":
+      "\u1325\u12eb\u1244\u12cd \u1260\u1219\u12a8\u122b \u1235\u122d\u12d3\u1271 \u12cd\u1235\u1325 \u1260\u1273\u12ab\u121a\u12cd \u1270\u1220\u122d\u129f\u120d\u1362",
+    "A synthetic demo appointment was assigned by authorized demo staff.":
+      "\u1260\u1219\u12a8\u122b \u1235\u122d\u12d3\u1271 \u12cd\u1235\u1325 \u1260\u1270\u1348\u1270\u12f1 \u1230\u122b\u1270\u129e\u127d \u12e8\u1219\u12a8\u122b \u1240\u1320\u122e \u1270\u1218\u12f5\u1267\u120d\u1362",
+  };
+
+  return labels[note] ?? note;
+}
 
 function careCasePriorityLabel(
   priority: "emergency" | "urgent" | "routine_review",
@@ -327,6 +427,37 @@ function careCasePriorityLabel(
     default:
       return t.careCasePriorityRoutine;
   }
+}
+
+
+function careCaseStatusLabel(status: string, language: Language): string {
+  if (language !== "am") return status.replaceAll("_", " ");
+
+  switch (status) {
+    case "registered":
+      return "\u1270\u1218\u12dd\u130d\u1267\u12a0\u120d";
+    case "acknowledged":
+      return "\u1218\u1240\u1260\u1209 \u1270\u1228\u130b\u130d\u1277\u120d";
+    case "in_review":
+      return "\u1260\u130d\u121d\u1308\u121b \u120b\u12ed";
+    case "resolved":
+      return "\u1202\u12f0\u1271 \u1270\u1320\u1293\u124b\u120d";
+    default:
+      return status.replaceAll("_", " ");
+  }
+}
+
+function careCaseHistoryNote(note: string, language: Language): string {
+  const registrationNote =
+    "Synthetic demonstration registration only. " +
+    "This case has not been clinically triaged.";
+
+  if (language === "am" && note === registrationNote) {
+    return "\u12ed\u1205 \u1260\u1219\u12a8\u122b \u120b\u12ed \u12eb\u1208 \u121d\u12dd\u1308\u1263 \u1265\u127b \u1290\u12cd\u1362 " +
+      "\u12ed\u1205 \u1309\u12f3\u12ed \u1308\u1293 \u1260\u1304\u1273 \u1263\u1208\u1219\u12eb \u12a0\u120d\u1270\u1308\u1218\u1308\u121d\u121d\u1362";
+  }
+
+  return note;
 }
 
 function errorMessage(error: unknown, t: StaffReviewCopy): string {
@@ -873,7 +1004,7 @@ export default function StaffReview({ language }: Props) {
           <p>{t.intro}</p>
         </div>
         <div className="appointment-intro-icon" aria-hidden="true">
-          âœ“
+          ✓
         </div>
       </header>
 
@@ -893,7 +1024,7 @@ export default function StaffReview({ language }: Props) {
             onClick={() => setError("")}
             aria-label={t.dismiss}
           >
-            Ã—
+            ×
           </button>
         </div>
       )}
@@ -909,7 +1040,7 @@ export default function StaffReview({ language }: Props) {
             onClick={() => setSuccess("")}
             aria-label={t.dismiss}
           >
-            Ã—
+            ×
           </button>
         </div>
       )}
@@ -996,7 +1127,7 @@ export default function StaffReview({ language }: Props) {
                   <span className="staff-care-case-item-top">
                     <strong>{item.patientId}</strong>
                     <span className={`staff-care-case-status staff-care-case-status--${item.status}`}>
-                      {item.status.replaceAll("_", " ")}
+                      {careCaseStatusLabel(item.status, language)}
                     </span>
                   </span>
                   <span
@@ -1022,7 +1153,7 @@ export default function StaffReview({ language }: Props) {
                     <h3>{selectedCareCase.patientId}</h3>
                   </div>
                   <span className={`staff-care-case-status staff-care-case-status--${selectedCareCase.status}`}>
-                    {selectedCareCase.status.replaceAll("_", " ")}
+                    {careCaseStatusLabel(selectedCareCase.status, language)}
                   </span>
                 </div>
 
@@ -1033,7 +1164,7 @@ export default function StaffReview({ language }: Props) {
                   </div>
                   <div>
                     <span>{t.status}</span>
-                    <strong>{selectedCareCase.status.replaceAll("_", " ")}</strong>
+                    <strong>{careCaseStatusLabel(selectedCareCase.status, language)}</strong>
                   </div>
                 </div>
 
@@ -1060,9 +1191,9 @@ export default function StaffReview({ language }: Props) {
                   <ol>
                     {selectedCareCase.statusHistory.map((entry, index) => (
                       <li key={`${entry.timestamp}-${entry.status}-${index}`}>
-                        <strong>{entry.status.replaceAll("_", " ")}</strong>
+                        <strong>{careCaseStatusLabel(entry.status, language)}</strong>
                         <span>{formatTimestamp(entry.timestamp, language)}</span>
-                        <p>{entry.note}</p>
+                        <p>{careCaseHistoryNote(entry.note, language)}</p>
                       </li>
                     ))}
                   </ol>
@@ -1175,7 +1306,7 @@ export default function StaffReview({ language }: Props) {
                     }}
                   >
                     <span className="staff-request-card-top">
-                      <strong>{request.department || t.notSpecified}</strong>
+                      <strong>{displayDepartment(request.department || t.notSpecified, language)}</strong>
                       <span
                         className={`staff-request-status staff-request-status--${request.status}`}
                       >
@@ -1211,7 +1342,7 @@ export default function StaffReview({ language }: Props) {
                         <span className="appointment-section-label">
                           {t.details}
                         </span>
-                        <h2>{selectedRequest.department || t.notSpecified}</h2>
+                        <h2>{displayDepartment(selectedRequest.department || t.notSpecified, language)}</h2>
                       </div>
 
                       <span
@@ -1242,7 +1373,7 @@ export default function StaffReview({ language }: Props) {
                             ? `${formatDate(
                                 selectedRequest.preferredDateStart,
                                 language,
-                              )} â€“ ${formatDate(
+                              )} – ${formatDate(
                                 selectedRequest.preferredDateEnd,
                                 language,
                               )}`
@@ -1320,7 +1451,7 @@ export default function StaffReview({ language }: Props) {
                             <small>
                               {formatTimestamp(item.timestamp, language)}
                             </small>
-                            {item.note && <p>{item.note}</p>}
+                            {item.note && <p>{displayAppointmentRequestHistoryNote(item.note, language)}</p>}
                           </div>
                         </div>
                       ))}
@@ -1345,7 +1476,7 @@ export default function StaffReview({ language }: Props) {
                             <option value="">{t.chooseDoctor}</option>
                             {doctors.map((doctor) => (
                               <option key={doctor.id} value={doctor.id}>
-                                {doctor.name} â€” {doctor.department}
+                                {doctor.name} — {displayDepartment(doctor.department, language)}
                               </option>
                             ))}
                           </select>
@@ -1361,9 +1492,9 @@ export default function StaffReview({ language }: Props) {
                                 />
                                 <div className="staff-selected-doctor-info">
                                   <strong>{doctor.name}</strong>
-                                  <span>{doctor.department}</span>
-                                  <span>{doctor.specialties.join(" · ")}</span>
-                                  <small>{doctor.location}</small>
+                                  <span>{displayDepartment(doctor.department, language)}</span>
+                                  <span>{doctor.specialties.map((specialty) => displaySpecialty(specialty, language)).join(" " + String.fromCharCode(183) + " ")}</span>
+                                  <small>{displayClinicLocation(doctor.location, language)}</small>
                                 </div>
                               </div>
                             ))}
@@ -1396,7 +1527,7 @@ export default function StaffReview({ language }: Props) {
                                     key={slotKey(slot)}
                                     value={slotKey(slot)}
                                   >
-                                    {formatDate(slot.date, language)} â€”{" "}
+                                    {formatDate(slot.date, language)} —{" "}
                                     {slot.time}
                                   </option>
                                 ))}
@@ -1542,7 +1673,7 @@ export default function StaffReview({ language }: Props) {
                           <small>{appointment.bookingId}</small>
                         </td>
 
-                        <td>{appointment.department}</td>
+                        <td>{displayDepartment(appointment.department, language)}</td>
                         <td>{appointment.doctorName}</td>
 
                         <td>
@@ -1588,7 +1719,7 @@ export default function StaffReview({ language }: Props) {
                               {t.futureNotice}
                             </span>
                           ) : (
-                            <span className="staff-attendance-recorded">â€”</span>
+                            <span className="staff-attendance-recorded">—</span>
                           )}
                         </td>
                       </tr>
@@ -1630,7 +1761,7 @@ export default function StaffReview({ language }: Props) {
                     <li key={doctor.doctorId}>
                       <div>
                         <strong>{doctor.doctorName}</strong>
-                        <small>{doctor.department}</small>
+                        <small>{displayDepartment(doctor.department, language)}</small>
                       </div>
                       <span>{doctor.totalBooked}</span>
                     </li>
@@ -1647,7 +1778,7 @@ export default function StaffReview({ language }: Props) {
                 <ol className="staff-analytics-ranking">
                   {analytics.appointments.departmentRankings.map((department) => (
                     <li key={department.department}>
-                      <strong>{department.department}</strong>
+                      <strong>{displayDepartment(department.department, language)}</strong>
                       <span>{department.totalBooked}</span>
                     </li>
                   ))}
