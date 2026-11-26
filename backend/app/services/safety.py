@@ -29,17 +29,26 @@ def _matches_urgent(message: str) -> bool:
         r"\b(?:but|however|although|though|yet|except)\b",
         re.IGNORECASE,
     )
+    clause_boundary_pattern = re.compile(
+        r"[.!?;]|,\s*(?=(?:and|now|currently|at\s+present)\b)"
+        r"|\b(?:but|however|although|though|yet|except)\b",
+        re.IGNORECASE,
+    )
     negation_pattern = re.compile(
         r"\b(?:no|without|denies|denied|"
         r"don't\s+have|do\s+not\s+have|"
         r"doesn't\s+have|does\s+not\s+have|"
         r"haven't\s+had|have\s+not\s+had|"
-        r"never\s+had)\b",
+        r"never\s+had|"
+        r"did\s+not|didn\x27t|"
+        r"not\s+(?:currently\s+)?"
+        r"(?:experiencing|having|feeling|suffering\s+from))\b",
         re.IGNORECASE,
     )
     historical_time_pattern = re.compile(
         r"\b(?:yesterday|last\s+night|last\s+week|"
         r"last\s+month|last\s+year|"
+        r"many\s+years\s+ago|"
         r"\d+\s+(?:minutes?|hours?|days?|weeks?|months?|years?)\s+ago)\b",
         re.IGNORECASE,
     )
@@ -52,23 +61,51 @@ def _matches_urgent(message: str) -> bool:
         r"since\s+(?:yesterday|last\s+(?:night|week|month|year)))\b",
         re.IGNORECASE,
     )
+    resolution_pattern = re.compile(
+        r"\b(?:went\s+away|has\s+gone\s+away|"
+        r"has\s+(?:completely\s+)?stopped|"
+        r"have\s+(?:completely\s+)?stopped|"
+        r"has\s+resolved|is\s+resolved|"
+        r"completely\s+resolved|"
+        r"no\s+longer\s+(?:have|feel|experience)|"
+        r"(?:has|have|had)\s+not\s+returned|"
+        r"(?:hasn't|haven't|hadn't)\s+returned|"
+        r"did\s+not\s+return|didn't\s+return|"
+        r"feels?\s+fine\s+now|"
+        r"symptoms?\s+(?:are\s+)?gone)\b",
+        re.IGNORECASE,
+    )
+    recurrence_pattern = re.compile(
+        r"\b(?:came\s+back|has\s+returned|returned|"
+        r"started\s+again|happening\s+again|"
+        r"pain\s+again|symptoms?\s+(?:have\s+)?returned)\b",
+        re.IGNORECASE,
+    )
+    nonrecurrence_pattern = re.compile(
+        r"\b(?:(?:has|have|had)\s+not\s+returned|"
+        r"(?:hasn't|haven't|hadn't)\s+returned|"
+        r"did\s+not\s+return|didn't\s+return)\b",
+        re.IGNORECASE,
+    )
 
     for pattern in URGENT_PATTERNS:
         for match in pattern.finditer(message):
             clause_start = 0
-            for boundary in contrast_pattern.finditer(message[:match.start()]):
-                clause_start = boundary.end()
+            clause_end = len(message)
 
-            punctuation = max(
-                message.rfind(".", clause_start, match.start()),
-                message.rfind("!", clause_start, match.start()),
-                message.rfind("?", clause_start, match.start()),
-                message.rfind(";", clause_start, match.start()),
-            )
-            if punctuation >= clause_start:
-                clause_start = punctuation + 1
+            for boundary in clause_boundary_pattern.finditer(message):
+                if boundary.end() <= match.start():
+                    clause_start = boundary.end()
+                elif boundary.start() >= match.end():
+                    clause_end = boundary.start()
+                    break
 
-            prefix = message[clause_start:match.start()]
+            clause = message[clause_start:clause_end]
+            relative_match_start = match.start() - clause_start
+            relative_match_end = match.end() - clause_start
+
+            prefix = clause[:relative_match_start]
+            suffix = clause[relative_match_end:]
 
             if re.search(r"\bnot\s+only\b", prefix, re.IGNORECASE):
                 prefix = re.sub(
@@ -81,9 +118,11 @@ def _matches_urgent(message: str) -> bool:
             if negation_pattern.search(prefix):
                 continue
 
-            # Historical wording alone is not enough to dismiss a symptom.
-            # A past-time marker is considered historical only when the
-            # symptom is not also explicitly described as ongoing.
+            historical = bool(historical_time_pattern.search(clause))
+            ongoing = bool(ongoing_pattern.search(clause))
+
+            # Check the remainder of the sentence, including after contrast
+            # words such as "but", for explicit resolution or recurrence.
             sentence_end = len(message)
             for punctuation_char in ".!?;":
                 position = message.find(punctuation_char, match.end())
@@ -91,11 +130,83 @@ def _matches_urgent(message: str) -> bool:
                     sentence_end = min(sentence_end, position)
 
             sentence_suffix = message[match.end():sentence_end]
+            resolved = bool(resolution_pattern.search(sentence_suffix))
+            recurring = (
+                bool(recurrence_pattern.search(sentence_suffix))
+                and not bool(nonrecurrence_pattern.search(sentence_suffix))
+            )
 
-            if (
-                historical_time_pattern.search(sentence_suffix)
-                and not ongoing_pattern.search(sentence_suffix)
-            ):
+            # Also recognize recurrence when resolution and return are
+            # described together in a following sentence.
+            following_sentences = re.split(
+                r"[.!?;]",
+                message[match.end():],
+            )
+
+            resolved_then_recurring = False
+
+            for following_sentence in following_sentences:
+                # Accept either a pronoun reference or an explicit restatement
+                # of the original symptom. This prevents unrelated symptoms
+                # from being associated with the earlier urgent symptom.
+                matched_symptom = re.sub(
+                    r"^\s*(?:suddenly\s+)?"
+                    r"(?:have|has|had|having|developed|develop)\s+",
+                    "",
+                    match.group(0),
+                    flags=re.IGNORECASE,
+                ).strip()
+
+                pronoun_reference = bool(
+                    re.match(
+                        r"\s*(?:it|they|these symptoms|those symptoms|"
+                        r"the symptoms?)\b",
+                        following_sentence,
+                        re.IGNORECASE,
+                    )
+                )
+
+                explicit_symptom_reference = bool(
+                    matched_symptom
+                    and re.search(
+                        rf"\b{re.escape(matched_symptom)}\b",
+                        following_sentence,
+                        re.IGNORECASE,
+                    )
+                )
+
+                refers_to_previous_symptom = (
+                    pronoun_reference or explicit_symptom_reference
+                )
+
+                if not refers_to_previous_symptom:
+                    continue
+
+                resolution_match = resolution_pattern.search(
+                    following_sentence
+                )
+
+                if not resolution_match:
+                    continue
+
+                recurrence_match = recurrence_pattern.search(
+                    following_sentence,
+                    resolution_match.end(),
+                )
+
+                if (
+                    recurrence_match
+                    and not nonrecurrence_pattern.search(following_sentence)
+                ):
+                    resolved_then_recurring = True
+                    break
+
+            recurring = recurring or resolved_then_recurring
+
+            if historical and not ongoing and not recurring:
+                continue
+
+            if resolved and not ongoing and not recurring:
                 continue
 
             return True
@@ -119,23 +230,60 @@ URGENT_PATTERNS = _compile_patterns(
         r"\bchest pain\b",
         r"\bdifficulty breathing\b",
         r"\bshortness of breath\b",
+        r"\bgasping\s+for\s+air\b",
+        r"\bstruggling\s+to\s+breathe\b",
         r"\bcan'?t breathe\b",
         r"\bcannot breathe\b",
         r"\bsevere bleeding\b",
         r"\bunconscious\b",
         r"\bloss of consciousness\b",
         r"\bsevere allergic reaction\b",
+        # Additional breathing emergency descriptions
+        r"\b(?:my\s+)?breathing\s+(?:is\s+)?(?:getting|becoming)\s+worse\b",
+        r"\bcan(?:not|'t)\s+catch\s+(?:(?:my|his|her|their)\s+)?breath\b",
+        r"\bstruggling\s+to\s+catch\s+(?:(?:my|his|her|their)\s+)?breath\b",
+        r"\b(?:becoming|getting)\s+(?:more\s+and\s+more\s+)?breathless\b",
+        # Additional possible stroke symptoms
+        r"\bone\s+side\s+of\s+(?:my|his|her|their|the)\s+face\s+(?:suddenly\s+)?(?:feels?\s+)?numb\b",
+        r"\b(?:(?:my|his|her|their)\s+)?(?:(?:right|left)\s+)?(?:arm|leg)\s+(?:suddenly\s+)?(?:went|became|feels?|is)\s+weak\b",
+        r"\b(?:(?:my|his|her|their)\s+)?(?:right|left)\s+(?:arm|leg)\s+(?:suddenly\s+)?(?:went|became|feels?|is)\s+numb\b",
+        r"\bone\s+side\s+of\s+(?:my|his|her|their|the)\s+(?:body|face)\s+(?:feels?|became|is)\s+numb\b",
+        # Additional possible severe allergic reaction symptoms
+        r"\bthroat\s+(?:is\s+)?closing(?:\s+up)?\b",
+        r"\b(?:my|his|her|their)\s+lips?\s+(?:are\s+)?swelling\b",
+        r"\bswelling\s+of\s+(?:my|his|her|their)\s+lips?\b",
+        r"\bswollen\s+lips?\b",
+        # Other potentially life-threatening symptoms
+        r"\b(?:vomiting|throwing\s+up)\s+blood\b",
+        r"\bstopped\s+breathing\b",
         # Possible cardiac emergency symptoms
+        r"\b(?:having\s+a\s+)?heart\s+attack\b",
         r"\bchest\s+(?:pressure|tightness|squeezing)\b",
         r"\bpressure\s+in\s+(?:my|the)\s+chest\b",
         r"\btightness\s+in\s+(?:my|the)\s+chest\b",
         # Possible stroke symptoms
+        r"\b(?:one\s+side\s+of\s+(?:my|the)\s+)?(?:body|arm|leg)\s+(?:suddenly\s+)?(?:became\s+)?weak\b",
         r"\b(?:facial|face)\s+droop(?:ing)?\b",
         r"\b(?:one\s+side\s+of\s+(?:my|the)\s+)?face\s+is\s+drooping\b",
         r"\bslurred\s+speech\b",
         r"\b(?:sudden\s+)?difficulty\s+speaking\b",
         r"\btrouble\s+speaking\b",
         r"\bcannot\s+speak\s+(?:clearly|properly)\b",
+        r"\b(?:suddenly\s+)?(?:can\x27t|cannot|can\s+not)\s+get\s+(?:my|his|her|their)\s+words\s+out\b",
+        r"\b(?:my|his|her|their)\s+speech\s+(?:suddenly\s+)?(?:became|sounds?|is)\s+(?:garbled|unclear|incoherent)\b",
+        r"\b(?:suddenly\s+(?:became|become|felt|feel|am)\s+confused|sudden\s+confusion)\b",
+        r"\bsuddenly\s+(?:cannot|can\x27t|can\s+not)\s+understand\s+(?:what\s+)?(?:people|someone|others)\s+(?:are\s+)?saying\b",
+        r"\bsuddenly\s+(?:cannot|can\x27t|can\s+not)\s+walk\s+straight\b",
+        r"\bsuddenly\s+(?:lost|lose)\s+(?:my\s+)?balance\b",
+        r"\bsuddenly\s+(?:have|has|had|having|developed|develop)\s+double\s+vision\b",
+        r"\bsuddenly\s+(?:cannot|can\x27t|can\s+not)\s+swallow(?:\s+properly)?\b",
+        r"\bsuddenly\s+(?:feel|felt|become|became)\s+(?:severely\s+)?dizzy\b",
+        r"\bsuddenly\s+(?:cannot|can\x27t|can\s+not)\s+stay\s+upright\b",
+        r"\b(?:sudden\s+)?loss\s+of\s+(?:vision|sight)\s+in\s+(?:(?:my|his|her|their)\s+)?(?:one|right|left)\s+eye\b",
+        r"\b(?:suddenly\s+)?(?:lost|lose)\s+(?:my|his|her|their\s+)?(?:vision|sight)\s+in\s+(?:(?:my|his|her|their)\s+)?(?:one|right|left)\s+eye\b",
+        r"\b(?:suddenly\s+)?(?:went\s+)?blind\s+in\s+(?:(?:my|his|her|their)\s+)?(?:one|right|left)\s+eye\b",
+        r"\b(?:can\x27t|cannot|can\s+not)\s+see\s+out\s+of\s+(?:(?:my|his|her|their)\s+)?(?:one|right|left)\s+eye\b",
+        r"\b(?:worst|most\s+severe)\s+headache\s+of\s+my\s+life\b",
         # Seizures and convulsions
         r"\b(?:having\s+a\s+)?seizure\b",
         r"\bconvulsions?\b",
@@ -147,8 +295,13 @@ URGENT_PATTERNS = _compile_patterns(
         r"\bbleeding\s+profusely\b",
         # Collapse and unresponsiveness
         r"\b(?:suddenly\s+)?collapsed\b",
+        r"\b(?:fainted|fainting|pass(?:ed|ing)\s+out)\b",
         r"\bunresponsive\b",
         r"\bnot\s+responding\b",
+        # Possible severe allergic reaction symptoms
+        r"\btongue\s+(?:is\s+)?swelling\b",
+        r"\bswollen\s+tongue\b",
+        r"\bswelling\s+of\s+(?:my|the)\s+tongue\b",
         # Possible medication overdose or poisoning
         r"\b(?:accidentally\s+)?took\s+too\s+many\s+(?:tablets|pills|medications?)\b",
         r"\b(?:accidentally\s+)?taken\s+too\s+many\s+(?:tablets|pills|medications?)\b",

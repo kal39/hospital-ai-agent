@@ -1,4 +1,4 @@
-"""Public read-only hospital emergency contact endpoint."""
+"""Public read-only hospital emergency information endpoints."""
 
 from fastapi import APIRouter
 
@@ -15,6 +15,6 @@ async def read_emergency_contacts() -> dict:
 
 
 @router.get("/emergency-directory")
-async def read_emergency_directory() -> dict:
-    """Return fictional emergency department and doctor directory."""
+async def read_emergency_directory() -> dict | None:
+    """Return the development directory, or null outside development."""
     return get_emergency_directory()

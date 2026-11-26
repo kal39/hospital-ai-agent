@@ -1,4 +1,4 @@
-﻿import ipaddress
+import ipaddress
 import re
 from functools import lru_cache
 from urllib.parse import urlsplit
@@ -26,6 +26,20 @@ class Settings(BaseSettings):
     # Separate secret for local demo staff operations.
     demo_staff_token: str = ""
 
+    # Outbound notification delivery is disabled until explicitly configured.
+    # These recipients are dedicated test destinations, never patient records.
+    notification_email_enabled: bool = False
+    notification_email_provider: str = ""
+    notification_email_api_key: str = ""
+    notification_email_from: str = ""
+    notification_test_email: str = ""
+
+    notification_sms_enabled: bool = False
+    notification_sms_provider: str = ""
+    notification_sms_api_key: str = ""
+    notification_sms_sender_id: str = ""
+    notification_test_phone: str = ""
+
     # Verified emergency contact information. Leave unset until confirmed.
     hospital_name: str = ""
     hospital_emergency_phone: str | None = None
@@ -50,6 +64,68 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator(
+        "notification_email_provider",
+        "notification_sms_provider",
+        mode="before",
+    )
+    @classmethod
+    def validate_notification_provider_name(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Notification provider names must be strings.")
+
+        normalized = value.strip().lower()
+        if normalized and not re.fullmatch(
+            r"[a-z0-9][a-z0-9_-]{0,49}", normalized
+        ):
+            raise ValueError("Notification provider name has an invalid format.")
+
+        return normalized
+
+    @field_validator(
+        "notification_email_from",
+        "notification_test_email",
+        mode="before",
+    )
+    @classmethod
+    def validate_notification_email_address(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Notification email addresses must be strings.")
+
+        normalized = value.strip()
+        if normalized and not re.fullmatch(
+            r"[^\s@]+@[^\s@]+\.[^\s@]+", normalized
+        ):
+            raise ValueError("Notification email address has an invalid format.")
+
+        return normalized
+
+    @field_validator("notification_test_phone", mode="before")
+    @classmethod
+    def validate_notification_test_phone(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Notification test phone must be a string.")
+
+        normalized = value.strip()
+        if normalized and not re.fullmatch(r"\+[1-9][0-9]{7,14}", normalized):
+            raise ValueError(
+                "NOTIFICATION_TEST_PHONE must use international E.164 format."
+            )
+
+        return normalized
+
+    @field_validator(
+        "notification_email_api_key",
+        "notification_sms_api_key",
+        "notification_sms_sender_id",
+        mode="before",
+    )
+    @classmethod
+    def normalize_notification_credentials(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Notification credentials must be strings.")
+        return value.strip()
 
     @field_validator("environment", mode="before")
     @classmethod
@@ -152,6 +228,43 @@ class Settings(BaseSettings):
             raise ValueError(
                 "RATE_LIMIT_MAX_REQUESTS must be greater than zero."
             )
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_notification_delivery_settings(self) -> "Settings":
+        if self.notification_email_enabled:
+            required = {
+                "provider": self.notification_email_provider,
+                "API key": self.notification_email_api_key,
+                "sender address": self.notification_email_from,
+                "test recipient": self.notification_test_email,
+            }
+            missing = [name for name, value in required.items() if not value]
+            if missing:
+                raise ValueError(
+                    "Email delivery requires: " + ", ".join(missing) + "."
+                )
+
+        if self.notification_sms_enabled:
+            if self.notification_sms_provider == "sample":
+                required = {
+                    "provider": self.notification_sms_provider,
+                    "test recipient": self.notification_test_phone,
+                }
+            else:
+                required = {
+                    "provider": self.notification_sms_provider,
+                    "API key": self.notification_sms_api_key,
+                    "sender ID": self.notification_sms_sender_id,
+                    "test recipient": self.notification_test_phone,
+                }
+
+            missing = [name for name, value in required.items() if not value]
+            if missing:
+                raise ValueError(
+                    "SMS delivery requires: " + ", ".join(missing) + "."
+                )
 
         return self
 

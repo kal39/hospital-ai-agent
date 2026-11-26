@@ -320,6 +320,36 @@ def test_new_medical_question_interrupts_current_symptom_confirmation(
     assert care_service.list_patient_cases("patient-001") == []
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "I do not have chest pain or difficulty breathing.",
+        "I had difficulty breathing last week, but it has completely resolved.",
+        "I had chest pain yesterday, but it completely went away.",
+    ],
+)
+def test_symptom_status_report_interrupts_emergency_confirmation(
+    emergency_environment,
+    monkeypatch,
+    message,
+):
+    service = HospitalAgentService()
+    calls = mock_llm(monkeypatch)
+
+    start_emergency(service)
+
+    result = run_agent(service, message)
+
+    assert pending_key() not in agent_module._pending_emergency_confirmations
+    assert len(calls) == 1
+    assert "Normal response." in result["message"]
+
+    care_service = agent_module.get_care_case_service(
+        emergency_environment
+    )
+    assert care_service.list_patient_cases("patient-001") == []
+
+
 def test_new_medical_question_interrupts_registration_consent(
     emergency_environment,
     monkeypatch,

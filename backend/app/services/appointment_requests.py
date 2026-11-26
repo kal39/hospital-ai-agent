@@ -9,6 +9,7 @@ from uuid import uuid4
 from app.data.patients import PATIENTS
 from app.services.audit import record_audit_event
 from app.data.scheduling import DATA_SOURCE
+from app.services.notifications import get_notification_service
 
 
 DATA_NOTICE = (
@@ -410,6 +411,75 @@ class DemoAppointmentRequestService:
 
         return [json.loads(row[0]) for row in rows]
 
+    def request_additional_information(
+        self,
+        *,
+        request_id: str,
+        message: str,
+        requested_by: str,
+    ) -> dict[str, Any]:
+        """Ask the patient for more information on an eligible request."""
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+
+            try:
+                record = self._load_record(request_id)
+
+                if record is None:
+                    raise AppointmentRequestNotFound
+
+                if record["status"] not in {"submitted", "under_review"}:
+                    raise AppointmentRequestConflict(
+                        "Additional information can only be requested "
+                        "for submitted or under-review requests."
+                    )
+
+                now = datetime.now(UTC).isoformat()
+                record["status"] = "needs_information"
+                record["updatedAt"] = now
+                record["statusHistory"].append(
+                    {
+                        "status": "needs_information",
+                        "timestamp": now,
+                        "note": message,
+                        "requestedBy": requested_by,
+                    }
+                )
+
+                self._save_record(record)
+                result = self._public_request(record)
+                self._connection.commit()
+
+            except Exception:
+                self._connection.rollback()
+                raise
+
+        try:
+            record_audit_event(
+                {
+                    "patientId": record["patientId"],
+                    "event": "appointment_request_additional_information_requested",
+                    "details": {
+                        "requestId": request_id,
+                        "status": "needs_information",
+                        "requestedBy": requested_by,
+                        "dataSource": DATA_SOURCE,
+                    },
+                }
+            )
+        except Exception:
+            pass
+
+        get_notification_service(self._scheduler).create_notification(
+            patient_id=record["patientId"],
+            request_id=request_id,
+            event_type="additional_information_requested",
+            title="Additional information requested",
+            message=message,
+        )
+
+        return result
+
     def approve_request(
         self,
         *,
@@ -501,6 +571,18 @@ class DemoAppointmentRequestService:
             }
         )
 
+        get_notification_service(self._scheduler).create_notification(
+            patient_id=record["patientId"],
+            booking_id=booking["bookingId"],
+            request_id=request_id,
+            event_type="appointment_approved",
+            title="Appointment approved",
+            message=(
+                "Your demonstration appointment has been approved with "
+                f"{doctor['name']} on {booking['date']} at {booking['time']}."
+            ),
+        )
+
         return result
 
     def decline_request(
@@ -559,6 +641,17 @@ class DemoAppointmentRequestService:
                     "dataSource": DATA_SOURCE,
                 },
             }
+        )
+
+        get_notification_service(self._scheduler).create_notification(
+            patient_id=record["patientId"],
+            request_id=request_id,
+            event_type="appointment_declined",
+            title="Appointment request declined",
+            message=(
+                "Your demonstration appointment request was declined. "
+                f"Reason: {reason}"
+            ),
         )
 
         return result

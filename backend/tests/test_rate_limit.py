@@ -1,4 +1,4 @@
-﻿from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient
 
 from app.main import app
 from app.core.config import get_settings
@@ -157,3 +157,32 @@ def test_separate_client_ips_have_independent_rate_limits(monkeypatch):
         assert first.status_code == 401
         assert first_again.status_code == 429
         assert second.status_code == 401
+
+
+def test_development_cors_policy_allows_demo_headers():
+    from app.main import _cors_allowed_headers
+
+    headers = _cors_allowed_headers("development")
+
+    assert "Content-Type" in headers
+    assert "Authorization" in headers
+    assert "X-Demo-Patient-Id" in headers
+    assert "X-Demo-Staff-Token" in headers
+
+
+def test_production_cors_policy_excludes_demo_headers():
+    from app.main import _cors_allowed_headers
+
+    headers = _cors_allowed_headers("production")
+
+    assert headers == ["Content-Type", "Authorization"]
+    assert "X-Demo-Patient-Id" not in headers
+    assert "X-Demo-Staff-Token" not in headers
+
+
+def test_cors_policy_normalizes_environment_name():
+    from app.main import _cors_allowed_headers
+
+    headers = _cors_allowed_headers(" Production ")
+
+    assert headers == ["Content-Type", "Authorization"]

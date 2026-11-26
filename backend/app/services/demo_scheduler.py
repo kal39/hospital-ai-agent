@@ -1,4 +1,4 @@
-﻿
+
 """SQLite-backed scheduler for fictional local demonstration appointments.
 
 All records are synthetic. This is not a production hospital scheduling system.
@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from app.data.patients import PATIENTS
 from app.data.scheduling import DATA_SOURCE, DOCTORS
+from app.services.notifications import get_notification_service
 
 
 DEMO_SLOT_TIMES = ("09:00", "10:30", "13:00", "14:30")
@@ -380,8 +381,8 @@ class DemoScheduler:
                 ).fetchone()
                 if duplicate:
                     raise ValueError(
-                        "You already have a demo booking for this doctor, "
-                        "date, and time."
+                        "You already have a confirmed appointment at this date and time. "
+                        "Please choose a different date or time."
                     )
 
                 slot_bookings = self._rows_for_slot(
@@ -493,6 +494,19 @@ class DemoScheduler:
                 self._connection.rollback()
                 raise
 
+        get_notification_service(self).create_notification(
+            patient_id=patient_id,
+            booking_id=booking_id,
+            event_type="appointment_cancelled",
+            title="Appointment cancelled",
+            message=(
+                f"Your demonstration appointment with "
+                f"{booking.get('doctorName', 'your assigned doctor')} "
+                f"on {booking['date']} at {booking['time']} "
+                "has been cancelled."
+            ),
+        )
+
         return self._public_booking(booking)
 
     def reschedule_appointment(
@@ -570,8 +584,8 @@ class DemoScheduler:
                 ).fetchone()
                 if duplicate:
                     raise BookingConflictError(
-                        "You already have a demo booking for this doctor, "
-                        "date, and time."
+                        "You already have a confirmed appointment at this date and time. "
+                        "Please choose a different date or time."
                     )
 
                 slot_bookings = self._rows_for_slot(
@@ -601,6 +615,19 @@ class DemoScheduler:
             except Exception:
                 self._connection.rollback()
                 raise
+
+        get_notification_service(self).create_notification(
+            patient_id=patient_id,
+            booking_id=new_booking["bookingId"],
+            event_type="appointment_rescheduled",
+            title="Appointment rescheduled",
+            message=(
+                f"Your demonstration appointment has been rescheduled "
+                f"from {old_booking['date']} at {old_booking['time']} "
+                f"to {new_booking['date']} at {new_booking['time']}. "
+                f"Previous booking ID: {booking_id}."
+            ),
+        )
 
         return {
             "previousBooking": self._public_booking(old_booking),

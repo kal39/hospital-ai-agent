@@ -168,6 +168,43 @@ def test_failed_reschedule_preserves_original_booking(scheduler, monkeypatch):
     assert original_after["status"] == "confirmed_demo"
     assert len(scheduler.get_patient_bookings("patient-001")) == 1
 
+def test_reschedule_cannot_conflict_with_patients_other_doctor_booking(scheduler):
+    original_date = next_weekday(1)
+    target_date = next_weekday(7)
+
+    original = scheduler.book_appointment(
+        "patient-001", "doctor-001", original_date, "09:00"
+    )
+    existing_target = scheduler.book_appointment(
+        "patient-001", "doctor-001", target_date, "10:30"
+    )
+
+    with pytest.raises(BookingConflictError) as exc_info:
+        scheduler.reschedule_appointment(
+            patient_id="patient-001",
+            booking_id=original["bookingId"],
+            doctor_id="doctor-002",
+            appointment_date=target_date,
+            appointment_time="10:30",
+        )
+
+    assert str(exc_info.value) == (
+        "You already have a confirmed appointment at this date and time. "
+        "Please choose a different date or time."
+    )
+
+    original_after = scheduler.get_patient_booking(
+        "patient-001", original["bookingId"]
+    )
+    target_after = scheduler.get_patient_booking(
+        "patient-001", existing_target["bookingId"]
+    )
+
+    assert original_after["status"] == "confirmed_demo"
+    assert target_after["status"] == "confirmed_demo"
+    assert len(scheduler.get_patient_bookings("patient-001")) == 2
+
+
 def test_rescheduling_to_same_slot_is_rejected(scheduler):
     booking = make_booking(scheduler)
 
@@ -206,3 +243,55 @@ def test_booking_persists_across_scheduler_instances(tmp_path):
         assert bookings[0]["purpose"] == "Persistence test"
     finally:
         second._connection.close()
+def test_cancelling_appointment_creates_patient_notification(scheduler):
+    from app.services.notifications import get_notification_service
+
+    booking = make_booking(scheduler)
+
+    scheduler.cancel_appointment(
+        "patient-001",
+        booking["bookingId"],
+    )
+
+    notifications = get_notification_service(
+        scheduler
+    ).list_patient_notifications("patient-001")
+
+    matching = [
+        item for item in notifications
+        if item["bookingId"] == booking["bookingId"]
+    ]
+
+    assert len(matching) == 1
+    assert matching[0]["eventType"] == "appointment_cancelled"
+    assert matching[0]["deliveryStatus"] == "demo_created"
+
+
+def test_rescheduling_appointment_creates_patient_notification(scheduler):
+    from app.services.notifications import get_notification_service
+
+    old_booking = make_booking(scheduler)
+
+    result = scheduler.reschedule_appointment(
+        patient_id="patient-001",
+        booking_id=old_booking["bookingId"],
+        doctor_id="doctor-001",
+        appointment_date=next_weekday(2),
+        appointment_time="10:30",
+    )
+
+    new_booking = result["booking"]
+
+    notifications = get_notification_service(
+        scheduler
+    ).list_patient_notifications("patient-001")
+
+    matching = [
+        item for item in notifications
+        if item["bookingId"] == new_booking["bookingId"]
+    ]
+
+    assert len(matching) == 1
+    assert matching[0]["eventType"] == "appointment_rescheduled"
+    assert matching[0]["deliveryStatus"] == "demo_created"
+    assert old_booking["bookingId"] in matching[0]["message"]

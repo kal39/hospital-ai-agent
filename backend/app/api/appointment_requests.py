@@ -65,6 +65,14 @@ class AppointmentRequestCreate(BaseModel):
         return self
 
 
+class StaffRequestInformation(BaseModel):
+    """A staff message asking the patient for additional information."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    message: str = Field(min_length=10, max_length=1000)
+
+
 def _map_request_error(
     error: AppointmentRequestNotFound | AppointmentRequestConflict,
 ) -> HTTPException:
@@ -185,6 +193,39 @@ async def approve_staff_appointment_request(
         "booking": booking,
         "dataSource": DATA_SOURCE,
         "dataNotice": DEMO_NOTICE,
+    }
+
+
+@staff_router.post("/{request_id}/request-information")
+async def request_information_from_patient(
+    request_id: str,
+    body: StaffRequestInformation,
+    staff_id: Annotated[str, Depends(get_current_demo_staff)],
+) -> dict[str, Any]:
+    """Ask the patient for additional information on an eligible request."""
+    try:
+        request = _request_service().request_additional_information(
+            request_id=request_id,
+            message=body.message,
+            requested_by=staff_id,
+        )
+
+    except AppointmentRequestNotFound:
+        raise HTTPException(
+            status_code=404,
+            detail="Appointment request not found.",
+        ) from None
+
+    except AppointmentRequestConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from None
+
+    return {
+        "request": request,
+        "dataSource": "synthetic_demo",
+        "dataNotice": (
+            "This is a fictional demo request for additional information, "
+            "not a live hospital communication."
+        ),
     }
 
 

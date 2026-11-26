@@ -223,3 +223,474 @@ def test_chest_pain_since_yesterday_is_still_urgent() -> None:
 
     assert result["blocked"] is True
     assert result["urgent"] is True
+
+def test_historical_symptom_with_time_reference_before_symptom():
+    result = evaluate_safety(
+        "Yesterday I had chest pain, but it went away.",
+        "en",
+    )
+
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_resolved_symptom_without_explicit_historical_time_is_not_urgent():
+    result = evaluate_safety(
+        "I had chest pain, but it has completely stopped.",
+        "en",
+    )
+
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_current_breathing_emergency_after_historical_chest_pain_is_urgent():
+    result = evaluate_safety(
+        "I had chest pain yesterday, but now I cannot breathe.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_gasping_for_air_is_flagged_as_urgent():
+    result = evaluate_safety("I am gasping for air.", "en")
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_possible_heart_attack_is_flagged_as_urgent():
+    result = evaluate_safety("I think I am having a heart attack.", "en")
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_one_sided_weakness_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "One side of my body suddenly became weak.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_severe_allergic_reaction_with_tongue_swelling_is_flagged():
+    result = evaluate_safety(
+        "My tongue is swelling and I am struggling to breathe.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+
+def test_additional_emergency_language_variations_are_flagged():
+    examples = [
+        "My breathing is getting worse.",
+        "I can't catch my breath.",
+        "I am struggling to catch my breath.",
+        "One side of my face suddenly feels numb.",
+        "My right arm suddenly went weak.",
+        "My throat is closing up.",
+        "My lips are swelling and I feel faint.",
+        "I am vomiting blood.",
+        "He stopped breathing.",
+    ]
+
+    for message in examples:
+        result = evaluate_safety(message, "en")
+        assert result["blocked"] is True, message
+        assert result["urgent"] is True, message
+
+
+def test_new_emergency_patterns_respect_explicit_negation():
+    examples = [
+        "I have no throat closing.",
+        "I have no swollen lips.",
+        "I have no difficulty catching my breath.",
+    ]
+
+    for message in examples:
+        result = evaluate_safety(message, "en")
+        assert result["blocked"] is False, message
+        assert result["urgent"] is False, message
+
+
+def test_new_emergency_patterns_respect_resolved_historical_symptoms():
+    examples = [
+        "Yesterday, my throat was closing, but it has completely resolved.",
+        "Yesterday, my lips were swelling, but the swelling has completely stopped.",
+    ]
+
+    for message in examples:
+        result = evaluate_safety(message, "en")
+        assert result["blocked"] is False, message
+        assert result["urgent"] is False, message
+
+
+def test_regression_not_experiencing_chest_pain_is_not_urgent():
+    result = evaluate_safety(
+        "I am not experiencing chest pain.",
+        "en",
+    )
+
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_regression_historical_chest_pain_not_returned_is_not_urgent():
+    result = evaluate_safety(
+        "I had chest pain yesterday, but it has not returned.",
+        "en",
+    )
+
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_regression_current_breathing_difficulty_after_historical_symptom_is_urgent():
+    result = evaluate_safety(
+        "I had chest pain yesterday, and I am having difficulty breathing now.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_regression_current_symptom_is_not_suppressed_by_old_resolved_symptom():
+    result = evaluate_safety(
+        "I had chest pain yesterday, but it has not returned. "
+        "I am having difficulty breathing now.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+def test_sudden_inability_to_get_words_out_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly can't get my words out.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_garbled_speech_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "My speech suddenly became garbled.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_loss_of_vision_in_one_eye_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly lost vision in my right eye.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_worsening_breathlessness_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I am becoming more and more breathless.",
+        "en",
+    )
+
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_isolated_heart_racing_does_not_alone_trigger_emergency_rule():
+    result = evaluate_safety(
+        "My heart is racing.",
+        "en",
+    )
+
+    assert result["urgent"] is False
+
+
+def test_sudden_blindness_in_one_eye_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly went blind in my right eye.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_inability_to_see_out_of_one_eye_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I can't see out of my left eye.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_numbness_in_one_arm_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "My left arm suddenly went numb.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_one_sided_body_numbness_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "Suddenly, one side of my body feels numb.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_fainting_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I fainted a few minutes ago.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_loss_of_consciousness_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly passed out.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_worst_headache_of_life_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "This is the worst headache of my life.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_explicit_denial_of_fainting_does_not_trigger_emergency():
+    result = evaluate_safety(
+        "I did not faint.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_remote_history_of_fainting_does_not_trigger_emergency():
+    result = evaluate_safety(
+        "I fainted many years ago, but I am fine now.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_ordinary_headache_does_not_trigger_emergency():
+    result = evaluate_safety(
+        "I have a mild headache today.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_chronic_numbness_without_sudden_onset_does_not_trigger_emergency():
+    result = evaluate_safety(
+        "I have had mild numbness in both feet for several months.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+def test_feeling_faint_alone_does_not_trigger_emergency():
+    result = evaluate_safety("I feel faint.", "en")
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+def test_sudden_confusion_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly became confused and cannot think clearly.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_inability_to_understand_speech_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly cannot understand what people are saying.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_loss_of_coordination_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly cannot walk straight and keep losing my balance.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_longstanding_balance_problems_do_not_trigger_emergency():
+    result = evaluate_safety(
+        "I have had mild balance problems for several years.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_ordinary_forgetfulness_does_not_trigger_emergency():
+    result = evaluate_safety(
+        "I sometimes forget where I put my keys.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+def test_sudden_double_vision_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly have double vision.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_difficulty_swallowing_is_flagged_as_urgent():
+    result = evaluate_safety(
+        "I suddenly cannot swallow properly.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_sudden_severe_dizziness_with_inability_to_stay_upright_is_flagged():
+    result = evaluate_safety(
+        "I suddenly feel severely dizzy and cannot stay upright.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_chronic_mild_dizziness_does_not_trigger_emergency():
+    result = evaluate_safety(
+        "I have had mild dizziness on and off for several months.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_longstanding_swallowing_difficulty_does_not_trigger_emergency():
+    result = evaluate_safety(
+        "I have had difficulty swallowing for several years.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+def test_third_person_sudden_speech_difficulty_is_flagged():
+    result = evaluate_safety(
+        "My father suddenly cannot get his words out.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_third_person_sudden_double_vision_is_flagged():
+    result = evaluate_safety(
+        "My mother suddenly has double vision.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+
+def test_negated_third_person_stroke_symptom_is_not_flagged():
+    result = evaluate_safety(
+        "My father does not have sudden difficulty speaking.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_resolved_historical_third_person_stroke_symptom_is_not_flagged():
+    result = evaluate_safety(
+        "My mother suddenly had double vision yesterday, but it has completely resolved.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+
+def test_current_third_person_symptom_after_old_resolved_episode_is_flagged():
+    result = evaluate_safety(
+        "My father had chest pain yesterday, but it stopped. "
+        "Now he suddenly cannot understand what people are saying.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+def test_resolved_double_vision_that_returns_is_flagged():
+    result = evaluate_safety(
+        "My mother suddenly had double vision yesterday. "
+        "It has completely resolved, but it has returned now.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True
+
+def test_resolved_double_vision_not_returned_is_not_flagged():
+    result = evaluate_safety(
+        "My mother suddenly had double vision yesterday. "
+        "It has completely resolved, and it has not returned.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+def test_unrelated_rash_recurrence_does_not_reactivate_old_double_vision():
+    result = evaluate_safety(
+        "My mother suddenly had double vision yesterday. "
+        "Her mild rash has completely resolved, but it has returned now.",
+        "en",
+    )
+    assert result["blocked"] is False
+    assert result["urgent"] is False
+
+def test_explicitly_restated_double_vision_recurrence_is_flagged():
+    result = evaluate_safety(
+        "My mother suddenly had double vision yesterday. "
+        "The double vision completely resolved, but the double vision "
+        "has returned now.",
+        "en",
+    )
+    assert result["blocked"] is True
+    assert result["urgent"] is True

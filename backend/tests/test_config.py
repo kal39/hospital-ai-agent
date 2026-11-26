@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
@@ -212,3 +212,124 @@ def test_production_accepts_valid_hostname_and_private_ip():
         trusted_hosts="api.example.org,10.0.0.15",
     )
     assert settings.trusted_hosts == "api.example.org,10.0.0.15"
+
+
+def test_external_notification_delivery_is_disabled_by_default():
+    settings = make_settings()
+
+    assert settings.notification_email_enabled is False
+    assert settings.notification_sms_enabled is False
+    assert settings.notification_email_provider == ""
+    assert settings.notification_sms_provider == ""
+
+
+def test_disabled_notification_channels_need_no_provider_credentials():
+    settings = make_settings(
+        notification_email_enabled=False,
+        notification_sms_enabled=False,
+    )
+
+    assert settings.notification_email_api_key == ""
+    assert settings.notification_sms_api_key == ""
+
+
+def test_enabled_email_delivery_requires_complete_configuration():
+    with pytest.raises(ValidationError, match="Email delivery requires"):
+        make_settings(notification_email_enabled=True)
+
+
+def test_enabled_sms_delivery_requires_complete_configuration():
+    with pytest.raises(ValidationError, match="SMS delivery requires"):
+        make_settings(notification_sms_enabled=True)
+
+
+def test_valid_email_delivery_configuration_is_accepted():
+    settings = make_settings(
+        notification_email_enabled=True,
+        notification_email_provider="example-provider",
+        notification_email_api_key="test-key",
+        notification_email_from="demo@example.org",
+        notification_test_email="tester@example.org",
+    )
+
+    assert settings.notification_email_enabled is True
+    assert settings.notification_email_provider == "example-provider"
+    assert settings.notification_test_email == "tester@example.org"
+
+
+def test_invalid_notification_email_address_is_rejected():
+    with pytest.raises(ValidationError, match="email address"):
+        make_settings(notification_test_email="not-an-email")
+
+
+def test_valid_sms_delivery_configuration_is_accepted():
+    settings = make_settings(
+        notification_sms_enabled=True,
+        notification_sms_provider="example-provider",
+        notification_sms_api_key="test-key",
+        notification_sms_sender_id="HOSPITAL",
+        notification_test_phone="+251912345678",
+    )
+
+    assert settings.notification_sms_enabled is True
+    assert settings.notification_test_phone == "+251912345678"
+
+
+def test_sample_sms_configuration_needs_no_gateway_credentials():
+    settings = make_settings(
+        notification_sms_enabled=True,
+        notification_sms_provider="sample",
+        notification_test_phone="+251900000000",
+    )
+
+    assert settings.notification_sms_enabled is True
+    assert settings.notification_sms_provider == "sample"
+    assert settings.notification_sms_api_key == ""
+    assert settings.notification_sms_sender_id == ""
+
+
+def test_sample_sms_configuration_still_requires_test_recipient():
+    with pytest.raises(ValidationError, match="test recipient"):
+        make_settings(
+            notification_sms_enabled=True,
+            notification_sms_provider="sample",
+        )
+
+
+def test_real_sms_provider_still_requires_api_key():
+    with pytest.raises(ValidationError, match="API key"):
+        make_settings(
+            notification_sms_enabled=True,
+            notification_sms_provider="real-gateway",
+            notification_sms_sender_id="HOSPITAL",
+            notification_test_phone="+251900000000",
+        )
+
+
+@pytest.mark.parametrize(
+    "phone",
+    [
+        "0912345678",
+        "+251 912345678",
+        "+123",
+        "not-a-phone",
+    ],
+)
+def test_invalid_notification_test_phone_is_rejected(phone):
+    with pytest.raises(ValidationError, match="E.164"):
+        make_settings(notification_test_phone=phone)
+
+
+def test_notification_provider_names_are_normalized():
+    settings = make_settings(
+        notification_email_provider="  Example_Provider ",
+        notification_sms_provider=" SMS-Gateway ",
+    )
+
+    assert settings.notification_email_provider == "example_provider"
+    assert settings.notification_sms_provider == "sms-gateway"
+
+
+def test_invalid_notification_provider_name_is_rejected():
+    with pytest.raises(ValidationError, match="provider name"):
+        make_settings(notification_email_provider="invalid provider name")

@@ -1,10 +1,16 @@
-﻿"""Fictional emergency department directory for the demonstration."""
+"""Development-only fictional emergency department directory."""
 
 from typing import Any
 
+from app.core.config import get_settings
 
-def get_emergency_directory() -> dict[str, Any]:
-    """Return clearly identified fictional emergency department information."""
+
+def get_emergency_directory() -> dict[str, Any] | None:
+    """Return fictional directory data only in development."""
+    settings = get_settings()
+
+    if settings.environment != "development":
+        return None
 
     return {
         "dataType": "fictional_demo",

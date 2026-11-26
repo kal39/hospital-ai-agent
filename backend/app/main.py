@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -14,6 +14,8 @@ from app.api.care_cases import (
 )
 from app.api.patients import router as patients_router
 from app.api.emergency_contacts import router as emergency_contacts_router
+from app.api.notifications import router as patient_notifications_router
+from app.api.notifications import staff_router as staff_notifications_router
 from app.core.config import get_settings
 from app.core.rate_limit import RateLimitMiddleware
 
@@ -89,18 +91,23 @@ app.add_middleware(RateLimitMiddleware)
 # Security headers wrap application responses, including errors.
 app.add_middleware(SecurityHeadersMiddleware)
 
+def _cors_allowed_headers(environment: str) -> list[str]:
+    """Return environment-appropriate CORS request headers."""
+    headers = ["Content-Type", "Authorization"]
+
+    if environment.strip().lower() != "production":
+        headers.extend(["X-Demo-Patient-Id", "X-Demo-Staff-Token"])
+
+    return headers
+
+
 # Keep CORS outermost so it also handles rate-limit and host errors.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "X-Demo-Patient-Id",
-        "X-Demo-Staff-Token",
-    ],
+    allow_headers=_cors_allowed_headers(settings.environment),
 )
 
 # Register API routes.
@@ -110,6 +117,8 @@ app.include_router(patients_router)
 app.include_router(emergency_contacts_router)
 app.include_router(appointment_requests_router)
 app.include_router(staff_appointment_requests_router)
+app.include_router(patient_notifications_router)
+app.include_router(staff_notifications_router)
 app.include_router(appointments_router)
 app.include_router(analytics_router)
 app.include_router(chat_router)

@@ -1,4 +1,4 @@
-﻿from datetime import date, timedelta
+from datetime import date, timedelta
 
 import pytest
 
@@ -46,8 +46,62 @@ def test_duplicate_booking_is_rejected(scheduler):
 
     scheduler.book_appointment(**arguments)
 
-    with pytest.raises(ValueError, match="already have a demo booking"):
+    with pytest.raises(ValueError) as exc_info:
         scheduler.book_appointment(**arguments)
+
+    assert str(exc_info.value) == (
+        "You already have a confirmed appointment at this date and time. "
+        "Please choose a different date or time."
+    )
+
+
+def test_patient_cannot_book_different_doctors_at_same_date_and_time(scheduler):
+    appointment_date = next_weekday()
+
+    scheduler.book_appointment(
+        patient_id="patient-001",
+        doctor_id="doctor-001",
+        appointment_date=appointment_date,
+        appointment_time="09:00",
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        scheduler.book_appointment(
+            patient_id="patient-001",
+            doctor_id="doctor-002",
+            appointment_date=appointment_date,
+            appointment_time="09:00",
+        )
+
+    assert str(exc_info.value) == (
+        "You already have a confirmed appointment at this date and time. "
+        "Please choose a different date or time."
+    )
+
+    active = scheduler.get_patient_bookings("patient-001")
+    assert len(active) == 1
+    assert active[0]["doctorId"] == "doctor-001"
+
+
+def test_patient_can_book_different_doctors_at_different_times_same_day(scheduler):
+    appointment_date = next_weekday()
+
+    first = scheduler.book_appointment(
+        patient_id="patient-001",
+        doctor_id="doctor-001",
+        appointment_date=appointment_date,
+        appointment_time="09:00",
+    )
+    second = scheduler.book_appointment(
+        patient_id="patient-001",
+        doctor_id="doctor-002",
+        appointment_date=appointment_date,
+        appointment_time="10:30",
+    )
+
+    assert first["status"] == "confirmed_demo"
+    assert second["status"] == "confirmed_demo"
+    assert len(scheduler.get_patient_bookings("patient-001")) == 2
 
 
 def test_slot_capacity_is_reflected_in_status(scheduler):

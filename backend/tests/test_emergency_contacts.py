@@ -45,7 +45,7 @@ def test_contacts_are_not_configured_when_no_numbers_exist(monkeypatch):
     assert result["ambulanceDispatchPhone"] is None
 
 
-def test_contacts_are_partially_configured_with_one_primary_number(monkeypatch):
+def test_unverified_primary_number_is_not_exposed(monkeypatch):
     monkeypatch.setattr(
         contact_service,
         "get_settings",
@@ -56,12 +56,12 @@ def test_contacts_are_partially_configured_with_one_primary_number(monkeypatch):
 
     result = contact_service.get_emergency_contacts()
 
-    assert result["contactAvailability"] == "partially_configured"
-    assert result["hospitalEmergencyPhone"] == "+251 11 123 4567"
+    assert result["contactAvailability"] == "not_configured"
+    assert result["hospitalEmergencyPhone"] is None
     assert result["ambulanceDispatchPhone"] is None
+    assert result["alternativeEmergencyPhone"] is None
 
-
-def test_alternative_number_alone_is_partial_configuration(monkeypatch):
+def test_unverified_alternative_number_is_not_exposed(monkeypatch):
     monkeypatch.setattr(
         contact_service,
         "get_settings",
@@ -72,11 +72,12 @@ def test_alternative_number_alone_is_partial_configuration(monkeypatch):
 
     result = contact_service.get_emergency_contacts()
 
-    assert result["contactAvailability"] == "partially_configured"
-    assert result["alternativeEmergencyPhone"] == "+251 91 123 4567"
+    assert result["contactAvailability"] == "not_configured"
+    assert result["hospitalEmergencyPhone"] is None
+    assert result["ambulanceDispatchPhone"] is None
+    assert result["alternativeEmergencyPhone"] is None
 
-
-def test_both_primary_numbers_mean_fully_configured(monkeypatch):
+def test_unverified_primary_numbers_are_never_exposed(monkeypatch):
     monkeypatch.setattr(
         contact_service,
         "get_settings",
@@ -88,10 +89,10 @@ def test_both_primary_numbers_mean_fully_configured(monkeypatch):
 
     result = contact_service.get_emergency_contacts()
 
-    assert result["contactAvailability"] == "configured"
-    assert result["hospitalEmergencyPhone"] == "+251 11 123 4567"
-    assert result["ambulanceDispatchPhone"] == "+251 91 123 4567"
-
+    assert result["contactAvailability"] == "not_configured"
+    assert result["hospitalEmergencyPhone"] is None
+    assert result["ambulanceDispatchPhone"] is None
+    assert result["alternativeEmergencyPhone"] is None
 
 def test_contact_values_are_trimmed_and_empty_values_become_none(monkeypatch):
     monkeypatch.setattr(
@@ -217,3 +218,38 @@ def test_emergency_metadata_survives_directory_failure(monkeypatch):
         "configured",
     }
     assert result["directory"] is None
+
+
+def test_emergency_directory_is_unavailable_in_production(monkeypatch):
+    monkeypatch.setattr(
+        directory_service,
+        "get_settings",
+        lambda: SimpleNamespace(environment="production"),
+    )
+
+    assert directory_service.get_emergency_directory() is None
+
+
+def test_emergency_directory_is_unavailable_in_test_environment(monkeypatch):
+    monkeypatch.setattr(
+        directory_service,
+        "get_settings",
+        lambda: SimpleNamespace(environment="test"),
+    )
+
+    assert directory_service.get_emergency_directory() is None
+
+
+def test_public_emergency_directory_endpoint_returns_null_when_unavailable(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        emergency_api,
+        "get_emergency_directory",
+        lambda: None,
+    )
+
+    response = client.get("/api/emergency-directory")
+
+    assert response.status_code == 200
+    assert response.json() is None

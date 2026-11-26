@@ -1560,15 +1560,18 @@ def _is_new_substantive_request(message: str) -> bool:
     if request_language:
         return True
 
-    current_symptom_report = re.search(
-        r"\b(?:i\s+(?:feel|have|am having|am experiencing)|"
-        r"i'm\s+(?:feeling|having|experiencing)|"
+    symptom_status_report = re.search(
+        r"\b(?:"
+        r"i\s+(?:(?:do|did)\s+not\s+|don't\s+|didn't\s+)?"
+        r"(?:have|had|feel|felt|am|was|experience|experienced)|"
+        r"i'm\s+(?:not\s+)?(?:feeling|having|experiencing)|"
         r"my\s+[a-z -]+\s+(?:hurts|hurt|is painful|"
-        r"feels|is getting))\b",
+        r"feels|is getting)"
+        r")\b",
         text,
     )
 
-    return bool(current_symptom_report)
+    return bool(symptom_status_report)
 
 
 def _emergency_information_response(message: str) -> str | None:
